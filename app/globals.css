@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #f6f3ee;
+  --foreground: #171512;
+  --card: #ffffff;
+  --muted: #e6dfd6;
+  --accent: #e86f3f;
+  --accent-2: #0f6b5d;
+  --border: #1d1b16;
+  --shadow: 0 25px 60px rgba(17, 14, 8, 0.12);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0d0c0a;
+  --foreground: #f3efe9;
+  --card: #14120f;
+  --muted: #1f1b16;
+  --accent: #ff8a5b;
+  --accent-2: #49c7b6;
+  --border: #3d342a;
+  --shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-border: var(--border);
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+body {
+  background: radial-gradient(circle at top, rgba(232, 111, 63, 0.08), transparent 45%),
+    radial-gradient(circle at 20% 20%, rgba(15, 107, 93, 0.08), transparent 40%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sora), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+select,
+option {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+
+.grid-texture {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.glass {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
+  box-shadow: var(--shadow);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fade-up 0.6s ease-out;
+}

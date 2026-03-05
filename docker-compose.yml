@@ -1,0 +1,88 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    command: sh -c "node /app/scripts/migrate.js && npm run dev"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
+      REDIS_URL: redis://redis:6379
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}
+      OIDC_TENANT_ID: ${OIDC_TENANT_ID}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: dev
+    command: sh -c "node /app/scripts/migrate.js && npm run worker"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
+      REDIS_URL: redis://redis:6379
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_SECRET: ${AUTH_SECRET}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}
+      OIDC_TENANT_ID: ${OIDC_TENANT_ID}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: remediate
+      POSTGRES_PASSWORD: remediate_password
+      POSTGRES_DB: remediate
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remediate -d remediate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db_data:
+  redis_data:

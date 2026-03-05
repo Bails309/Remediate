@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  Admin
+  User
+}
+
+enum VulnerabilityStatus {
+  Open
+  Remediated
+  FalsePositive
+  NoFixAvailable
+}
+
+enum Risk {
+  Critical
+  High
+  Medium
+  Low
+  None
+}
+
+enum UploadStatus {
+  Processing
+  Completed
+  Failed
+}
+
+model User {
+  id            String           @id @default(uuid()) @db.Uuid
+  email         String           @unique
+  name          String
+  role          UserRole         @default(User)
+  vulnerabilities Vulnerability[] @relation("Assignee")
+  uploads       UploadHistory[]  @relation("UploadedBy")
+  createdAt     DateTime         @default(now())
+}
+
+model Site {
+  id            String           @id @default(uuid()) @db.Uuid
+  name          String           @unique
+  createdAt     DateTime         @default(now())
+  vulnerabilities Vulnerability[]
+  uploads       UploadHistory[]
+}
+
+model Vulnerability {
+  id                       String               @id @default(uuid()) @db.Uuid
+  siteId                   String               @db.Uuid
+  assigneeId               String?              @db.Uuid
+  status                   VulnerabilityStatus  @default(Open)
+  isCurrent                Boolean              @default(true)
+  lastSeenAt               DateTime
+  createdAt                DateTime             @default(now())
+  pluginId                 String
+  cve                      String?
+  cvssScore                Float?
+  risk                     Risk                 @default(None)
+  host                     String
+  protocol                 String
+  port                     String
+  name                     String
+  synopsis                 String?
+  description              String?
+  solution                 String?
+  seeAlso                  String?
+  pluginOutput             String?
+  pluginPublicationDate    DateTime?
+  pluginModificationDate   DateTime?
+
+  site                     Site                 @relation(fields: [siteId], references: [id])
+  assignee                 User?                @relation("Assignee", fields: [assigneeId], references: [id])
+
+  @@index([siteId, pluginId, host, port])
+  @@index([status])
+  @@index([risk])
+}
+
+model OidcConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  clientIdEnc      String
+  clientSecretEnc  String
+  issuerUrlEnc     String
+  tenantIdEnc      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ReportConfig {
+  id             String   @id @default(uuid()) @db.Uuid
+  enabled        Boolean  @default(false)
+  recipients     String
+  dayOfWeek      Int      @default(1)
+  hour           Int      @default(9)
+  minute         Int      @default(0)
+  timezone       String   @default("UTC")
+  lastSentAt     DateTime?
+  smtpHostEnc    String
+  smtpPortEnc    String
+  smtpUserEnc    String?
+  smtpPassEnc    String?
+  smtpSecureEnc  String
+  smtpFromEnc    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model UploadHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  siteId     String   @db.Uuid
+  uploadedBy String   @db.Uuid
+  uploadDate DateTime @default(now())
+  status     UploadStatus @default(Processing)
+  fileName   String?
+  rowCount   Int?
+
+  site       Site     @relation(fields: [siteId], references: [id])
+  uploader   User     @relation("UploadedBy", fields: [uploadedBy], references: [id])
+
+  @@index([siteId, uploadDate])
+}
