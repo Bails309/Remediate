@@ -7,21 +7,26 @@ type Props = {
 };
 
 export function StatCard({ label, value, tone = "neutral" }: Props) {
-  const toneClass =
-    tone === "critical"
-      ? "border-[#ff8b77]"
-      : tone === "high"
-        ? "border-[#ffb067]"
-        : tone === "medium"
-          ? "border-[#ffe38a]"
-          : tone === "low"
-            ? "border-[#7be9d9]"
-            : "border-[color:var(--color-border)]";
+  let toneClass = "border-[color:var(--color-border)]";
+
+  if (tone !== "neutral") {
+    if (value === 0) {
+      toneClass = "!bg-green-500/15 !border-green-500/30 text-inherit";
+    } else if (tone === "critical") {
+      toneClass = "!bg-red-500/15 !border-red-500/30 text-inherit";
+    } else if (tone === "high") {
+      toneClass = "!bg-orange-600/15 !border-orange-600/30 text-inherit";
+    } else if (tone === "medium") {
+      toneClass = "!bg-yellow-500/15 !border-yellow-500/30 text-inherit";
+    } else if (tone === "low") {
+      toneClass = "!bg-blue-500/15 !border-blue-500/30 text-inherit";
+    }
+  }
 
   return (
-    <div className={cn("glass rounded-[26px] border p-6", toneClass)}>
-      <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--color-accent-2)]">{label}</p>
-      <p className="mt-4 text-4xl font-semibold">{value}</p>
+    <div className={cn("glass glass-edge rounded-[24px] border p-6 transition-transform hover:scale-[1.02]", toneClass)}>
+      <p className="text-xs uppercase font-semibold tracking-[0.2em] opacity-80">{label}</p>
+      <p className="mt-4 text-5xl font-semibold tracking-tight">{value}</p>
     </div>
   );
 }

@@ -7,9 +7,14 @@ export default async function UploadsPage() {
     prisma.uploadHistory.findMany({
       include: { site: true, uploader: true },
       orderBy: { uploadDate: "desc" },
-      take: 10,
+      take: 5,
     }),
   ]);
 
-  return <UploadsClient initialSites={sites} initialUploads={uploads} />;
+  const mappedUploads = uploads.map((u) => ({
+    ...u,
+    uploadDate: u.uploadDate.toISOString()
+  }));
+
+  return <UploadsClient initialSites={sites} initialUploads={mappedUploads} />;
 }

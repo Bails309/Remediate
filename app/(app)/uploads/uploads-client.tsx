@@ -34,6 +34,8 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
       return;
     }
 
+    setProgress({ step: "Uploading file", progress: 0 });
+
     const formData = new FormData();
     formData.append("siteId", siteId);
     formData.append("file", file);
@@ -52,19 +54,62 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     const { uploadId } = await response.json();
     toast.success("Upload started");
 
+    setProgress({ step: "Queued", progress: 5 });
+
+    let settled = false;
+    let poller: ReturnType<typeof setInterval> | null = null;
+
+    const finalize = (status: "Completed" | "Failed") => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (poller) {
+        clearInterval(poller);
+      }
+      if (status === "Completed") {
+        toast.success("Upload completed");
+      } else {
+        toast.error("Upload failed");
+      }
+    };
+
+    const pollProgress = async () => {
+      const progressResponse = await fetch(`/api/uploads/progress?uploadId=${uploadId}`, { cache: "no-store" });
+      if (!progressResponse.ok) {
+        return;
+      }
+      const payload = (await progressResponse.json()) as { progress: { step: string; progress: number } | null };
+      if (!payload.progress) {
+        return;
+      }
+      setProgress(payload.progress);
+      if (payload.progress.step === "Completed" || payload.progress.step === "Failed") {
+        finalize(payload.progress.step);
+      }
+    };
+
+    poller = setInterval(pollProgress, 2000);
+
     const eventSource = new EventSource(`/api/uploads/${uploadId}/events`);
     eventSource.addEventListener("progress", (event) => {
       const data = JSON.parse((event as MessageEvent).data) as { step: string; progress: number };
       setProgress(data);
       if (data.step === "Completed") {
         eventSource.close();
-        toast.success("Upload completed");
+        finalize("Completed");
       }
       if (data.step === "Failed") {
         eventSource.close();
-        toast.error("Upload failed");
+        finalize("Failed");
       }
     });
+    eventSource.onerror = () => {
+      eventSource.close();
+      if (!settled) {
+        toast.error("Upload progress connection lost");
+      }
+    };
 
     setTimeout(async () => {
       const history = await fetch("/api/uploads/history");
@@ -85,14 +130,14 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-6">
           <div className="space-y-4">
-            <Select value={siteId} onChange={(event) => setSiteId(event.target.value)}>
-              <option value="">Select site</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                </option>
-              ))}
-            </Select>
+            <Select
+              value={siteId}
+              onChange={setSiteId}
+              placeholder="Select site"
+              options={[
+                ...sites.map((site) => ({ label: site.name, value: site.id }))
+              ]}
+            />
 
             <label className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm">
               <input type="file" accept=".csv" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />

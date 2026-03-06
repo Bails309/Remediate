@@ -8,6 +8,7 @@ import { Badge } from "@/components/Badge";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { SideSheet } from "@/components/SideSheet";
+import { ClientDate } from "@/components/ClientDate";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -146,38 +147,50 @@ export function VulnerabilitiesClient({ sites, users }: Props) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_2fr]">
-        <Select value={siteId} onChange={(event) => setSiteId(event.target.value)}>
-          <option value="">All sites</option>
-          {sites.map((site) => (
-            <option key={site.id} value={site.id}>
-              {site.name}
-            </option>
-          ))}
-        </Select>
-        <Select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">All status</option>
-          <option value="Open">Open</option>
-          <option value="FalsePositive">False Positive</option>
-          <option value="NoFixAvailable">No Fix</option>
-          <option value="Remediated">Remediated</option>
-        </Select>
-        <Select value={risk} onChange={(event) => setRisk(event.target.value)}>
-          <option value="">All risk</option>
-          <option value="Critical">Critical</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
-          <option value="None">None</option>
-        </Select>
-        <Select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
-          <option value="">All assignees</option>
-          <option value="unassigned">Unassigned</option>
-          {users.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name}
-            </option>
-          ))}
-        </Select>
+        <Select
+          value={siteId}
+          onChange={setSiteId}
+          placeholder="All sites"
+          options={[
+            { label: "All sites", value: "" },
+            ...sites.map((site) => ({ label: site.name, value: site.id }))
+          ]}
+        />
+        <Select
+          value={status}
+          onChange={setStatus}
+          placeholder="All status"
+          options={[
+            { label: "All status", value: "" },
+            { label: "Open", value: "Open" },
+            { label: "False Positive", value: "FalsePositive" },
+            { label: "No Fix", value: "NoFixAvailable" },
+            { label: "Remediated", value: "Remediated" },
+          ]}
+        />
+        <Select
+          value={risk}
+          onChange={setRisk}
+          placeholder="All risk"
+          options={[
+            { label: "All risk", value: "" },
+            { label: "Critical", value: "Critical" },
+            { label: "High", value: "High" },
+            { label: "Medium", value: "Medium" },
+            { label: "Low", value: "Low" },
+            { label: "None", value: "None" },
+          ]}
+        />
+        <Select
+          value={assigneeId}
+          onChange={setAssigneeId}
+          placeholder="All assignees"
+          options={[
+            { label: "All assignees", value: "" },
+            { label: "Unassigned", value: "unassigned" },
+            ...users.map((user) => ({ label: user.name, value: user.id }))
+          ]}
+        />
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -196,11 +209,15 @@ export function VulnerabilitiesClient({ sites, users }: Props) {
           -{(page - 1) * pageSize + data.length} of {total}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={String(pageSize)} onChange={(event) => setPageSize(Number(event.target.value))}>
-            <option value="25">25 / page</option>
-            <option value="50">50 / page</option>
-            <option value="100">100 / page</option>
-          </Select>
+          <Select
+            value={String(pageSize)}
+            onChange={(val) => setPageSize(Number(val))}
+            options={[
+              { label: "25 / page", value: "25" },
+              { label: "50 / page", value: "50" },
+              { label: "100 / page", value: "100" },
+            ]}
+          />
           <Button variant="outline" onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
             Previous
           </Button>
@@ -219,7 +236,8 @@ export function VulnerabilitiesClient({ sites, users }: Props) {
         <Button
           onClick={() => {
             if (session?.user?.id) {
-              setAssigneeId((current) => (current === session.user.id ? "" : session.user.id));
+              const currentUserId = session.user.id;
+              setAssigneeId((current) => (current === currentUserId ? "" : currentUserId));
             } else {
               toast.error("Missing user session");
             }
@@ -243,32 +261,28 @@ export function VulnerabilitiesClient({ sites, users }: Props) {
         <Button onClick={() => assignTo(null)} variant="outline">
           Unassign ({selectedCount})
         </Button>
-        <Select onChange={(event) => assignTo(event.target.value)} defaultValue="">
-          <option value="" disabled>
-            Assign to user
-          </option>
-          {users.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name}
-            </option>
-          ))}
-        </Select>
+        <Select
+          value=""
+          onChange={(val) => assignTo(val)}
+          placeholder="Assign to user"
+          options={[
+            ...users.map((user) => ({ label: user.name, value: user.id }))
+          ]}
+        />
         <Select
           value={bulkStatus}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            setBulkStatus(nextValue);
-            updateStatus(nextValue);
+          onChange={(val) => {
+            setBulkStatus(val);
+            updateStatus(val);
           }}
-        >
-          <option value="" disabled>
-            Change status
-          </option>
-          <option value="Open">Open</option>
-          <option value="FalsePositive">False Positive</option>
-          <option value="NoFixAvailable">No Fix</option>
-          <option value="Remediated">Remediated</option>
-        </Select>
+          placeholder="Change status"
+          options={[
+            { label: "Open", value: "Open" },
+            { label: "False Positive", value: "FalsePositive" },
+            { label: "No Fix", value: "NoFixAvailable" },
+            { label: "Remediated", value: "Remediated" },
+          ]}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-[28px] border border-[color:var(--color-border)]">
@@ -313,7 +327,9 @@ export function VulnerabilitiesClient({ sites, users }: Props) {
                 </td>
                 <td className="p-4">{item.status}</td>
                 <td className="p-4">{item.assignee?.name ?? "Unassigned"}</td>
-                <td className="p-4 text-xs opacity-70">{new Date(item.lastSeenAt).toLocaleString()}</td>
+                <td className="p-4">
+                  <ClientDate date={item.lastSeenAt} className="text-xs opacity-70" />
+                </td>
                 <td className="p-4">
                   <Button variant="ghost" onClick={() => setDetail(item)}>
                     View

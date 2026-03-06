@@ -1,0 +1,58 @@
+.next/types/validator.ts(220,31): error TS2344: Type 'typeof import("/app/app/api/uploads/[uploadId]/events/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/uploads/[uploadId]/events">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, context: { params: { uploadId: string; }; }) => Promise<Response>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ uploadId: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters 'context' and 'context' are incompatible.
+        Type '{ params: Promise<{ uploadId: string; }>; }' is not assignable to type '{ params: { uploadId: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'uploadId' is missing in type 'Promise<{ uploadId: string; }>' but required in type '{ uploadId: string; }'.
+app/(app)/uploads/page.tsx(14,46): error TS2322: Type '({ site: { name: string; id: string; createdAt: Date; }; uploader: { name: string; id: string; email: string; role: UserRole; createdAt: Date; }; } & { id: string; siteId: string; ... 4 more ...; rowCount: number | null; })[]' is not assignable to type 'Upload[]'.
+  Type '{ site: { name: string; id: string; createdAt: Date; }; uploader: { name: string; id: string; email: string; role: UserRole; createdAt: Date; }; } & { id: string; siteId: string; ... 4 more ...; rowCount: number | null; }' is not assignable to type 'Upload'.
+    Types of property 'uploadDate' are incompatible.
+      Type 'Date' is not assignable to type 'string'.
+app/(app)/vulnerabilities/vulnerabilities-client.tsx(222,29): error TS2345: Argument of type '(current: string) => string | undefined' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type '(current: string) => string | undefined' is not assignable to type '(prevState: string) => string'.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+app/(app)/vulnerabilities/vulnerabilities-client.tsx(222,55): error TS18048: 'session.user' is possibly 'undefined'.
+app/(app)/vulnerabilities/vulnerabilities-client.tsx(222,78): error TS18048: 'session.user' is possibly 'undefined'.
+app/api/uploads/dead-letter/route.ts(67,50): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '"NX"' is not assignable to parameter of type '"KEEPTTL"'.
+app/api/uploads/dead-letter/route.ts(105,52): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '"NX"' is not assignable to parameter of type '"KEEPTTL"'.
+app/api/uploads/nessus/route.ts(42,72): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '"NX"' is not assignable to parameter of type '"KEEPTTL"'.
+app/api/vulnerabilities/route.ts(45,34): error TS2322: Type '{ OR?: ({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[] | undefined; assigneeId?: string | ... 1 more ... | undefined; risk?: stri...' is not assignable to type 'VulnerabilityWhereInput'.
+  Types of property 'OR' are incompatible.
+    Type '({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[] | undefined' is not assignable to type 'VulnerabilityWhereInput[] | undefined'.
+      Type '({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[]' is not assignable to type 'VulnerabilityWhereInput[]'.
+        Type '{ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; }' is not assignable to type 'VulnerabilityWhereInput'.
+          Type '{ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; }' is not assignable to type 'VulnerabilityWhereInput'.
+            Types of property 'name' are incompatible.
+              Type '{ contains: string; mode: string; }' is not assignable to type 'string | StringFilter<"Vulnerability"> | undefined'.
+                Type '{ contains: string; mode: string; }' is not assignable to type 'StringFilter<"Vulnerability">'.
+                  Types of property 'mode' are incompatible.
+                    Type 'string' is not assignable to type 'QueryMode | undefined'.
+app/api/vulnerabilities/route.ts(47,7): error TS2322: Type '{ OR?: ({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[] | undefined; assigneeId?: string | ... 1 more ... | undefined; risk?: stri...' is not assignable to type 'VulnerabilityWhereInput'.
+  Types of property 'OR' are incompatible.
+    Type '({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[] | undefined' is not assignable to type 'VulnerabilityWhereInput[] | undefined'.
+      Type '({ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; })[]' is not assignable to type 'VulnerabilityWhereInput[]'.
+        Type '{ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; } | { host: { contains: string; mode: string; }; name?: undefined; pluginId?: undefined; cve?: undefined; } | { ...; } | { ...; }' is not assignable to type 'VulnerabilityWhereInput'.
+          Type '{ name: { contains: string; mode: string; }; host?: undefined; pluginId?: undefined; cve?: undefined; }' is not assignable to type 'VulnerabilityWhereInput'.
+            Types of property 'name' are incompatible.
+              Type '{ contains: string; mode: string; }' is not assignable to type 'string | StringFilter<"Vulnerability"> | undefined'.
+                Type '{ contains: string; mode: string; }' is not assignable to type 'StringFilter<"Vulnerability">'.
+                  Types of property 'mode' are incompatible.
+                    Type 'string' is not assignable to type 'QueryMode | undefined'.
+components/SiteFilter.tsx(13,38): error TS18047: 'params' is possibly 'null'.
+lib/email.ts(1,24): error TS7016: Could not find a declaration file for module 'nodemailer'. '/app/node_modules/nodemailer/lib/nodemailer.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/nodemailer` if it exists or add a new declaration (.d.ts) file containing `declare module 'nodemailer';`
+lib/rate-limit.ts(12,18): error TS2339: Property 'ip' does not exist on type 'NextRequest'.
+prisma.config.ts(5,3): error TS2353: Object literal may only specify known properties, and 'seed' does not exist in type 'PrismaConfig'.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice

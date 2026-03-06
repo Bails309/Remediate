@@ -2,26 +2,30 @@
 
 :root {
   color-scheme: light;
-  --background: #f6f3ee;
-  --foreground: #171512;
-  --card: #ffffff;
-  --muted: #e6dfd6;
-  --accent: #e86f3f;
-  --accent-2: #0f6b5d;
-  --border: #1d1b16;
-  --shadow: 0 25px 60px rgba(17, 14, 8, 0.12);
+  --background: #f7f9fa;
+  --foreground: #1c1917;
+  --card: rgba(255, 255, 255, 0.45);
+  --muted: rgba(255, 255, 255, 0.2);
+  --accent: #6366f1;
+  --accent-2: #7be9d9;
+  --border: rgba(255, 255, 255, 0.4);
+  --border-specular: rgba(255, 255, 255, 0.8);
+  --shadow: 0 16px 40px -8px rgba(31, 38, 135, 0.06);
+  --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(0, 0, 0, 0.02);
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0d0c0a;
-  --foreground: #f3efe9;
-  --card: #14120f;
-  --muted: #1f1b16;
-  --accent: #ff8a5b;
-  --accent-2: #49c7b6;
-  --border: #3d342a;
-  --shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
+  --background: #111111;
+  --foreground: #f8fafc;
+  --card: rgba(24, 24, 24, 0.95);
+  --muted: rgba(34, 31, 51, 0.2);
+  --accent: #818cf8;
+  --accent-2: #7be9d9;
+  --border: rgba(255, 255, 255, 0.05);
+  --border-specular: rgba(255, 255, 255, 0.05);
+  --shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.4);
+  --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), inset 0 -1px 1px rgba(0, 0, 0, 0.2);
 }
 
 @theme inline {
@@ -37,12 +41,18 @@
 }
 
 body {
-  background: radial-gradient(circle at top, rgba(232, 111, 63, 0.08), transparent 45%),
-    radial-gradient(circle at 20% 20%, rgba(15, 107, 93, 0.08), transparent 40%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sora), system-ui, sans-serif;
   min-height: 100vh;
+}
+
+:root:not(.dark) body {
+  background:
+    radial-gradient(circle at -10% 30%, rgba(99, 102, 241, 0.12), transparent 45%),
+    radial-gradient(circle at 110% 70%, rgba(123, 233, 217, 0.12), transparent 45%),
+    var(--background);
+  background-attachment: fixed;
 }
 
 select,
@@ -52,15 +62,52 @@ option {
 }
 
 .grid-texture {
-  background-image: linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(128, 128, 128, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(128, 128, 128, 0.05) 1px, transparent 1px);
   background-size: 36px 36px;
 }
 
 .glass {
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
-  box-shadow: var(--shadow);
+  background: var(--card);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow), var(--glass-shadow);
+}
+
+.glass-dropdown {
+  background: color-mix(in srgb, var(--background) 90%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow), var(--glass-shadow);
+}
+
+.glass-dropdown-item-hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.glass-dropdown-item-active {
+  background: color-mix(in srgb, var(--foreground) 15%, transparent);
+  font-weight: 500;
+}
+
+/* Adds the extremely bright top specular edge from mockup */
+.glass-edge {
+  position: relative;
+}
+
+.glass-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, var(--border-specular), transparent 20%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 @keyframes fade-up {
@@ -68,6 +115,7 @@ option {
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

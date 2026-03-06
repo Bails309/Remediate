@@ -34,6 +34,23 @@ export function SitesClient({ initialSites }: Props) {
     toast.success("Site added");
   };
 
+  const removeSite = async (site: Site) => {
+    const confirmed = window.confirm(`Remove ${site.name}? This will delete related uploads and vulnerabilities.`);
+    if (!confirmed) {
+      return;
+    }
+
+    const response = await fetch(`/api/sites/${site.id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      toast.error(data.error ?? "Failed to remove site");
+      return;
+    }
+
+    setSites((prev) => prev.filter((item) => item.id !== site.id));
+    toast.success("Site removed");
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -53,8 +70,15 @@ export function SitesClient({ initialSites }: Props) {
       <div className="grid gap-4 md:grid-cols-2">
         {sites.map((site) => (
           <div key={site.id} className="glass rounded-[24px] border border-[color:var(--color-border)] p-5">
-            <p className="text-lg font-semibold">{site.name}</p>
-            <p className="text-xs opacity-60">Site ID: {site.id}</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold">{site.name}</p>
+                <p className="text-xs opacity-60">Site ID: {site.id}</p>
+              </div>
+              <Button variant="outline" onClick={() => removeSite(site)}>
+                Remove
+              </Button>
+            </div>
           </div>
         ))}
       </div>

@@ -109,14 +109,9 @@ export function ReportSettingsClient() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Select
           value={String(form.dayOfWeek)}
-          onChange={(event) => updateField("dayOfWeek", Number(event.target.value))}
-        >
-          {days.map((day) => (
-            <option key={day.value} value={day.value}>
-              {day.label}
-            </option>
-          ))}
-        </Select>
+          onChange={(val) => updateField("dayOfWeek", Number(val))}
+          options={days.map((day) => ({ label: String(day.label), value: String(day.value) }))}
+        />
         <div className="flex gap-3">
           <Input
             value={String(form.hour)}

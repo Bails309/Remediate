@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const uploads = await prisma.uploadHistory.findMany({
     include: { site: true, uploader: true },
     orderBy: { uploadDate: "desc" },
-    take: 50,
+    take: 5,
   });
 
   return NextResponse.json(uploads);

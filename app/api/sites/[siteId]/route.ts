@@ -9,7 +9,8 @@ const updateSchema = z.object({
   name: z.string().min(2),
 });
 
-export async function PUT(request: NextRequest, context: { params: { siteId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ siteId: string }> }) {
+  const { siteId } = await params;
   const rate = await enforceRateLimit(request);
   if (!rate.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -18,19 +19,30 @@ export async function PUT(request: NextRequest, context: { params: { siteId: str
   await requireUser();
   const payload = updateSchema.parse(await request.json());
   const site = await prisma.site.update({
-    where: { id: context.params.siteId },
+    where: { id: siteId },
     data: payload,
   });
   return NextResponse.json(site);
 }
 
-export async function DELETE(request: NextRequest, context: { params: { siteId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ siteId: string }> }) {
+  const { siteId } = await params;
   const rate = await enforceRateLimit(request);
   if (!rate.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
   await requireUser();
-  await prisma.site.delete({ where: { id: context.params.siteId } });
-  return NextResponse.json({ ok: true });
+
+  try {
+    await prisma.$transaction([
+      prisma.vulnerability.deleteMany({ where: { siteId } }),
+      prisma.uploadHistory.deleteMany({ where: { siteId } }),
+      prisma.site.delete({ where: { id: siteId } }),
+    ]);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Failed to delete site", error);
+    return NextResponse.json({ error: "Failed to delete site" }, { status: 500 });
+  }
 }

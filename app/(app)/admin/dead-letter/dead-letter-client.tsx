@@ -5,6 +5,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { SideSheet } from "@/components/SideSheet";
 import { toast } from "sonner";
+import { ClientDate } from "@/components/ClientDate";
 
 type DeadLetterItem = {
   id: string;
@@ -140,7 +141,7 @@ export function DeadLetterClient() {
               <tr key={item.id} className="border-b border-[color:var(--color-border)] last:border-none">
                 <td className="p-4">
                   <p className="font-semibold">{item.fileName ?? item.id}</p>
-                  <p className="text-xs opacity-60">{item.uploadDate ? new Date(item.uploadDate).toLocaleString() : "Unknown"}</p>
+                  <ClientDate date={item.uploadDate} className="block text-xs opacity-60" fallback="Unknown" />
                 </td>
                 <td className="p-4">{item.siteName ?? "Unknown"}</td>
                 <td className="p-4">{item.uploadedBy ?? "Unknown"}</td>

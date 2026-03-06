@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 
 const publicPaths = ["/login", "/api/health", "/api/auth"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublic = publicPaths.some((path) => pathname.startsWith(path)) || pathname.startsWith("/_next");
@@ -25,6 +25,8 @@ export async function middleware(request: NextRequest) {
 
   return NextResponse.next();
 }
+
+export default proxy;
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

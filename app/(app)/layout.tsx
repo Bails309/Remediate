@@ -7,7 +7,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex flex-col gap-8">
         <Topbar />
-        <main className="glass grid-texture fade-up rounded-[32px] p-6 lg:p-10">
+        <main className="fade-up p-2 lg:p-6">
           {children}
         </main>
       </div>

@@ -21,8 +21,29 @@ type Params = {
 export async function processNessusUpload({ uploadId, siteId, text }: Params) {
   await setProgress(uploadId, { step: "Extracting data", progress: 10 });
 
+  const config = await prisma.importConfig.findUnique({
+    where: { id: "singleton" },
+  });
+  const gracePeriodDays = config?.pluginGracePeriodDays ?? 0;
+
   const rows = parseNessusCsv(text);
-  const filteredRows = rows.filter((row) => normalizeRisk(row.risk) !== Risk.None);
+  const now = new Date();
+
+  const filteredRows = rows.filter((row) => {
+    if (normalizeRisk(row.risk) === Risk.None) return false;
+
+    if (gracePeriodDays > 0 && row.pluginPublicationDate) {
+      const pubDate = new Date(row.pluginPublicationDate);
+      const diffTime = Math.abs(now.getTime() - pubDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= gracePeriodDays) {
+        return false;
+      }
+    }
+
+    return true;
+  });
   await setProgress(uploadId, { step: "Comparing diffs", progress: 40, total: filteredRows.length });
 
   const batchTime = new Date();

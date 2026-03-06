@@ -126,3 +126,9 @@ model UploadHistory {
 
   @@index([siteId, uploadDate])
 }
+
+model ImportConfig {
+  id                    String   @id @default("singleton")
+  pluginGracePeriodDays Int      @default(30)
+  updatedAt             DateTime @updatedAt
+}
