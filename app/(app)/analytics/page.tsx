@@ -5,6 +5,8 @@ import { HeatmapTable } from "@/components/analytics/HeatmapTable";
 import { StatusDonutChart } from "@/components/analytics/StatusDonutChart";
 import { BarChart } from "@/components/analytics/BarChart";
 
+export const dynamic = "force-dynamic";
+
 export default async function AnalyticsPage({
     searchParams,
 }: {
@@ -192,7 +194,40 @@ export default async function AnalyticsPage({
         .sort((a, b) => b.Total - a.Total)
         .slice(0, 5);
 
-    // 8. Average Dwell Time by Risk (Days)
+    // 8. Aging SLA Data
+    const agingRaw = await prisma.vulnerability.findMany({
+        where: {
+            ...(siteId ? { siteId } : {}),
+            status: "Open"
+        },
+        select: { createdAt: true, risk: true }
+    });
+
+    const agingCounts = {
+        "0-30 Days": 0,
+        "31-60 Days": 0,
+        "61-90 Days": 0,
+        "91+ Days": 0
+    };
+
+    const nowVal = Date.now();
+    agingRaw.forEach(v => {
+        const days = Math.floor((nowVal - v.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        if (days <= 30) agingCounts["0-30 Days"]++;
+        else if (days <= 60) agingCounts["31-60 Days"]++;
+        else if (days <= 90) agingCounts["61-90 Days"]++;
+        else agingCounts["91+ Days"]++;
+    });
+
+    const agingData = Object.entries(agingCounts)
+        .filter(([_, v]) => v > 0 || true)
+        .map(([name, value]) => ({
+            name,
+            value,
+            fill: name === "91+ Days" ? "#ef4444" : name === "61-90 Days" ? "#f97316" : name === "31-60 Days" ? "#eab308" : "#22c55e"
+        }));
+
+    // 9. Average Dwell Time by Risk (Days)
     const openVulns = await prisma.vulnerability.findMany({
         where: {
             ...(siteId ? { siteId } : {}),
@@ -272,9 +307,15 @@ export default async function AnalyticsPage({
                 </div>
             </div>
 
-            <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                <h3 className="mb-6 font-semibold text-lg">Top 5 Most Common Vulnerabilities</h3>
-                <HeatmapTable title="" data={commonVulnData} showTotal={true} />
+            <div className="grid gap-6 lg:grid-cols-2">
+                <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+                    <h3 className="mb-6 font-semibold text-lg">Top 5 Most Common Vulnerabilities</h3>
+                    <HeatmapTable title="" data={commonVulnData} showTotal={true} />
+                </div>
+                <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+                    <h3 className="mb-6 font-semibold text-lg">Vulnerability Aging (SLA)</h3>
+                    <BarChart data={agingData} />
+                </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">

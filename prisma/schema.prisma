@@ -88,7 +88,6 @@ model OidcConfig {
   clientIdEnc      String
   clientSecretEnc  String
   issuerUrlEnc     String
-  tenantIdEnc      String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

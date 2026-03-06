@@ -1,29 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import React, { useState, useEffect } from "react";
 import { Save, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/components/cn";
 
-type FormData = {
-    pluginGracePeriodDays: number;
-};
-
 export function ImportSettingsClient() {
     const [isSaving, setIsSaving] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [success, setSuccess] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        formState: { isDirty },
-    } = useForm<FormData>({
-        defaultValues: {
-            pluginGracePeriodDays: 30,
-        },
-    });
+    const [pluginGracePeriodDays, setPluginGracePeriodDays] = useState(30);
 
     useEffect(() => {
         async function fetchConfig() {
@@ -31,16 +17,19 @@ export function ImportSettingsClient() {
                 const res = await fetch("/api/admin/import");
                 if (res.ok) {
                     const data = await res.json();
-                    setValue("pluginGracePeriodDays", data.pluginGracePeriodDays, { shouldDirty: false });
+                    setPluginGracePeriodDays(data.pluginGracePeriodDays);
                 }
             } catch (e) {
                 console.error("Failed to load config", e);
+            } finally {
+                setLoading(false);
             }
         }
         fetchConfig();
-    }, [setValue]);
+    }, []);
 
-    const onSubmit = async (data: FormData) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         setIsSaving(true);
         setError(null);
         setSuccess(null);
@@ -51,7 +40,7 @@ export function ImportSettingsClient() {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(data),
+                body: JSON.stringify({ pluginGracePeriodDays }),
             });
 
             if (!res.ok) {
@@ -60,7 +49,7 @@ export function ImportSettingsClient() {
             }
 
             const updated = await res.json();
-            setValue("pluginGracePeriodDays", updated.pluginGracePeriodDays, { shouldDirty: false });
+            setPluginGracePeriodDays(updated.pluginGracePeriodDays);
             setSuccess("Import settings updated successfully");
             setTimeout(() => setSuccess(null), 3000);
         } catch (e: any) {
@@ -69,6 +58,14 @@ export function ImportSettingsClient() {
             setIsSaving(false);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="glass glass-edge max-w-2xl rounded-[32px] p-6 lg:p-8">
+                <p className="text-sm opacity-70">Loading configuration...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="glass glass-edge max-w-2xl rounded-[32px] p-6 lg:p-8">
@@ -93,15 +90,15 @@ export function ImportSettingsClient() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-4">
                     <div>
                         <label className="mb-2 block text-sm font-medium">Plugin Publication Grace Period (Days)</label>
                         <input
                             type="number"
                             min="0"
-                            placeholder="30"
-                            {...register("pluginGracePeriodDays", { valueAsNumber: true, min: 0 })}
+                            value={pluginGracePeriodDays}
+                            onChange={(e) => setPluginGracePeriodDays(parseInt(e.target.value) || 0)}
                             className={cn(
                                 "h-12 w-full rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 text-sm outline-none transition",
                                 "focus:border-[color:var(--color-accent)] focus:ring-2 focus:ring-[color:color-mix(in srgb,var(--color-accent) 35%,transparent)]"
@@ -116,10 +113,10 @@ export function ImportSettingsClient() {
                 <div className="pt-4">
                     <button
                         type="submit"
-                        disabled={!isDirty || isSaving}
+                        disabled={isSaving}
                         className={cn(
                             "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[color:var(--color-accent)] font-semibold text-white transition-opacity",
-                            (!isDirty || isSaving) ? "opacity-50 cursor-not-allowed" : "hover:opacity-90",
+                            isSaving ? "opacity-50 cursor-not-allowed" : "hover:opacity-90",
                         )}
                     >
                         {isSaving ? (

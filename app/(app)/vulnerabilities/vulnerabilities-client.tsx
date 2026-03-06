@@ -6,7 +6,7 @@ import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
 import { Badge } from "@/components/Badge";
 import { toast } from "sonner";
-import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 
@@ -44,8 +44,7 @@ type Props = {
   users: User[];
 };
 
-export function VulnerabilitiesClient({ sites, users }: Props) {
-  const { data: session } = useSession();
+export function VulnerabilitiesClient({ sites, users, session }: Props & { session?: Session | null }) {
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [siteId, setSiteId] = useState("");

@@ -9,7 +9,6 @@ const oidcSchema = z.object({
   clientId: z.string().min(3),
   clientSecret: z.string().min(8),
   issuerUrl: z.string().url(),
-  tenantId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -27,7 +26,6 @@ export async function GET(request: NextRequest) {
     configured: true,
     clientId: config.clientId,
     issuerUrl: config.issuerUrl,
-    tenantId: config.tenantId,
     clientSecretMasked: "********",
   });
 }
@@ -40,9 +38,6 @@ export async function POST(request: NextRequest) {
 
   await requireAdmin();
   const payload = oidcSchema.parse(await request.json());
-  await upsertOidcConfig({
-    ...payload,
-    tenantId: payload.tenantId?.trim() || undefined,
-  });
+  await upsertOidcConfig(payload);
   return NextResponse.json({ ok: true });
 }

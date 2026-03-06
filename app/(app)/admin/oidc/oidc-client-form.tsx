@@ -9,7 +9,6 @@ type OidcState = {
   clientId: string;
   clientSecret: string;
   issuerUrl: string;
-  tenantId?: string;
 };
 
 export function OidcClientForm() {
@@ -18,7 +17,6 @@ export function OidcClientForm() {
     clientId: "",
     clientSecret: "",
     issuerUrl: "",
-    tenantId: "",
   });
 
   useEffect(() => {
@@ -31,7 +29,6 @@ export function OidcClientForm() {
             clientId: data.clientId ?? "",
             clientSecret: "",
             issuerUrl: data.issuerUrl ?? "",
-            tenantId: data.tenantId ?? "",
           });
         }
       }
@@ -70,28 +67,40 @@ export function OidcClientForm() {
         <p className="text-sm opacity-70">Manage Keycloak OIDC parameters securely.</p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Input
-          value={form.clientId}
-          onChange={(event) => updateField("clientId", event.target.value)}
-          placeholder="OIDC Client ID"
-        />
-        <Input
-          value={form.clientSecret}
-          onChange={(event) => updateField("clientSecret", event.target.value)}
-          placeholder="OIDC Client Secret"
-          type="password"
-        />
-        <Input
-          value={form.issuerUrl}
-          onChange={(event) => updateField("issuerUrl", event.target.value)}
-          placeholder="Issuer URL"
-        />
-        <Input
-          value={form.tenantId}
-          onChange={(event) => updateField("tenantId", event.target.value)}
-          placeholder="Tenant ID (optional)"
-        />
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Client ID</label>
+          <Input
+            value={form.clientId}
+            onChange={(event) => updateField("clientId", event.target.value)}
+            placeholder="e.g. remediate-app"
+          />
+          <p className="text-xs opacity-60">The unique identifier for the Remedate application in Keycloak.</p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Client Secret</label>
+          <Input
+            value={form.clientSecret}
+            onChange={(event) => updateField("clientSecret", event.target.value)}
+            placeholder="OIDC Client Secret"
+            type="password"
+          />
+          <p className="text-xs opacity-60">The confidential secret used to authenticate with the OIDC provider.</p>
+        </div>
+
+        <div className="space-y-2 lg:col-span-2">
+          <label className="text-sm font-medium">Issuer URL</label>
+          <Input
+            value={form.issuerUrl}
+            onChange={(event) => updateField("issuerUrl", event.target.value)}
+            placeholder="https://keycloak.example.com/realms/myrealm"
+          />
+          <p className="text-xs opacity-60">
+            <strong>Format:</strong> <code className="bg-white/10 px-1 rounded">https://[domain]/realms/[realm_name]</code>.
+            This must be the full OIDC discovery URL path for your Keycloak realm.
+          </p>
+        </div>
       </div>
 
       <Button onClick={save}>Save Settings</Button>

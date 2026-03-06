@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+export const dynamic = "force-dynamic";
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
 
 export default async function UploadsPage() {

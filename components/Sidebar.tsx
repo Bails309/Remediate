@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
 import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart } from "lucide-react";
-import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 
 const baseNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -14,9 +14,9 @@ const baseNav = [
   { href: "/sites", label: "Sites", icon: Shield },
 ];
 
-export function Sidebar() {
+export function Sidebar({ session }: { session?: Session | null }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+
   const nav = session?.user?.role === "Admin"
     ? [
       ...baseNav,

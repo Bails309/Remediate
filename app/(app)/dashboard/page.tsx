@@ -6,6 +6,9 @@ import { ClientDate } from "@/components/ClientDate";
 
 const riskOrder = ["Critical", "High", "Medium", "Low"] as const;
 
+export const dynamic = "force-dynamic";
+
+
 export default async function DashboardPage({
   searchParams,
 }: {

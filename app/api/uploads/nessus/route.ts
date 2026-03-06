@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   }
 
   const lockKey = getLockKey(siteId);
-  const lock = await redis.set(lockKey, session.user?.email ?? "user", "NX", "EX", LOCK_TTL_SECONDS);
+  const lock = await redis.set(lockKey, session.user?.email ?? "user", "EX", LOCK_TTL_SECONDS, "NX");
   if (!lock) {
     return NextResponse.json({ error: "Upload already in progress for this site" }, { status: 409 });
   }

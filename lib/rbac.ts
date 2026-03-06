@@ -1,13 +1,17 @@
-import { getServerSession } from "next-auth";
-import { buildAuthOptions } from "@/lib/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function requireUser() {
-  const session = await getServerSession(await buildAuthOptions());
+  const session = await auth();
   if (!session?.user?.email) {
     throw new Error("Unauthorized");
   }
   const email = session.user.email;
+  // Use session data if available, otherwise check DB
+  if (session.user.id && session.user.role) {
+    return session;
+  }
+
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     const adminEmail = process.env.ADMIN_EMAIL;

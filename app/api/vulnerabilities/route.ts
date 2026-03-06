@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { Risk, VulnerabilityStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -22,22 +23,22 @@ export async function GET(request: NextRequest) {
 
   const where = {
     ...(siteId ? { siteId } : {}),
-    ...(status ? { status } : {}),
-    ...(risk ? { risk } : {}),
+    ...(status ? { status: status as VulnerabilityStatus } : {}),
+    ...(risk ? { risk: risk as Risk } : {}),
     ...(assigneeId
       ? {
-          assigneeId: assigneeId === "unassigned" ? null : assigneeId,
-        }
+        assigneeId: assigneeId === "unassigned" ? null : assigneeId,
+      }
       : {}),
     ...(query
       ? {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { host: { contains: query, mode: "insensitive" } },
-            { pluginId: { contains: query, mode: "insensitive" } },
-            { cve: { contains: query, mode: "insensitive" } },
-          ],
-        }
+        OR: [
+          { name: { contains: query, mode: "insensitive" as any } },
+          { host: { contains: query, mode: "insensitive" as any } },
+          { pluginId: { contains: query, mode: "insensitive" as any } },
+          { cve: { contains: query, mode: "insensitive" as any } },
+        ],
+      }
       : {}),
   };
 

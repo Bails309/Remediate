@@ -5,11 +5,7 @@ const WINDOW_SECONDS = 60;
 const MAX_REQUESTS = 120;
 
 function getClientId(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0]?.trim() ?? "unknown";
-  }
-  return request.ip ?? "unknown";
+  return request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 }
 
 export async function enforceRateLimit(request: NextRequest) {

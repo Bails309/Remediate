@@ -2,7 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/Button";
+import { Moon, Sun } from "lucide-react";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -13,14 +13,15 @@ export function ThemeToggle() {
   }, []);
 
   if (!mounted) {
-    return null;
+    return <div className="h-10 w-10" />;
   }
 
-  const next = theme === "dark" ? "light" : "dark";
-
   return (
-    <Button variant="outline" onClick={() => setTheme(next)}>
-      {theme === "dark" ? "Light" : "Dark"} Mode
-    </Button>
+    <button
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-fg-muted)] hover:bg-[color:var(--color-border)] transition-colors"
+    >
+      {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+    </button>
   );
 }

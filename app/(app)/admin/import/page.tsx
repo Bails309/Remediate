@@ -1,5 +1,10 @@
 import { ImportSettingsClient } from "./import-settings-client";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/rbac";
 
-export default function ImportSettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ImportSettingsPage() {
+    await requireAdmin();
     return <ImportSettingsClient />;
 }
