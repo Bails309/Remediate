@@ -12,8 +12,10 @@ services:
       DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
       REDIS_URL: redis://redis:6379
       NEXTAUTH_URL: ${NEXTAUTH_URL}
+      AUTH_URL: ${AUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
     volumes:
       - .:/app
@@ -35,8 +37,10 @@ services:
       DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
       REDIS_URL: redis://redis:6379
       NEXTAUTH_URL: ${NEXTAUTH_URL}
+      AUTH_URL: ${AUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
     volumes:
       - .:/app
@@ -58,7 +62,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U remediate -d remediate"]
+      test: [ "CMD-SHELL", "pg_isready -U remediate -d remediate" ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -70,7 +74,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 10

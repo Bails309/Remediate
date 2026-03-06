@@ -27,8 +27,22 @@ async function main() {
 
         console.log("✓ Trigram indexes applied for search performance");
 
-        // 3. Initial VACUUM ANALYZE
+        // 3. Create Unified View for Trend Analysis
+        await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE VIEW "VulnerabilityView" AS
+      SELECT 
+        id, "siteId", "assigneeId", status, "lastSeenAt", "createdAt", "pluginId", cve, "cvssScore", risk, host, protocol, port, name, false as "isHistory"
+      FROM "Vulnerability"
+      UNION ALL
+      SELECT 
+        id, "siteId", "assigneeId", status, "lastSeenAt", "createdAt", "pluginId", cve, "cvssScore", risk, host, protocol, port, name, true as "isHistory"
+      FROM "VulnerabilityHistory";
+    `);
+        console.log("✓ Unified VulnerabilityView created for analytics");
+
+        // 4. Initial VACUUM ANALYZE
         await prisma.$executeRawUnsafe(`VACUUM ANALYZE "Vulnerability";`);
+        await prisma.$executeRawUnsafe(`VACUUM ANALYZE "VulnerabilityHistory";`);
         console.log("✓ Initial database maintenance complete");
 
     } catch (error) {

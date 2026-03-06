@@ -223,14 +223,48 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     }
   }
 
-  await prisma.vulnerability.updateMany({
+  // Archive and delete remediated items
+  const remediated = await prisma.vulnerability.findMany({
     where: {
       siteId,
       status: { not: VulnerabilityStatus.Remediated },
       lastSeenAt: { lt: batchTime },
     },
-    data: { status: VulnerabilityStatus.Remediated, isCurrent: false },
   });
+
+  if (remediated.length > 0) {
+    const historyData = remediated.map(v => ({
+      id: v.id,
+      siteId: v.siteId,
+      assigneeId: v.assigneeId,
+      status: VulnerabilityStatus.Remediated,
+      lastSeenAt: v.lastSeenAt,
+      createdAt: v.createdAt,
+      pluginId: v.pluginId,
+      cve: v.cve,
+      cvssScore: v.cvssScore,
+      risk: v.risk,
+      host: v.host,
+      protocol: v.protocol,
+      port: v.port,
+      name: v.name,
+      synopsis: v.synopsis,
+      description: v.description,
+      solution: v.solution,
+      seeAlso: v.seeAlso,
+      pluginOutput: v.pluginOutput,
+      pluginPublicationDate: v.pluginPublicationDate,
+      pluginModificationDate: v.pluginModificationDate,
+    }));
+
+    await prisma.$transaction([
+      prisma.vulnerabilityHistory.createMany({ data: historyData }),
+      prisma.vulnerability.deleteMany({
+        where: { id: { in: remediated.map(v => v.id) } },
+      }),
+    ]);
+    console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);
+  }
 
   await prisma.uploadHistory.update({
     where: { id: uploadId },

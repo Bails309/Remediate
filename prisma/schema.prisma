@@ -42,6 +42,7 @@ model User {
   role          UserRole         @default(User)
   authSource    String           @default("Local")
   vulnerabilities Vulnerability[] @relation("Assignee")
+  vulnerabilityHistory VulnerabilityHistory[]
   uploads       UploadHistory[]  @relation("UploadedBy")
   createdAt     DateTime         @default(now())
 }
@@ -51,6 +52,7 @@ model Site {
   name          String           @unique
   createdAt     DateTime         @default(now())
   vulnerabilities Vulnerability[]
+  vulnerabilityHistory VulnerabilityHistory[]
   uploads       UploadHistory[]
 }
 
@@ -138,4 +140,36 @@ model ImportConfig {
   id                    String   @id @default("singleton")
   pluginGracePeriodDays Int      @default(30)
   updatedAt             DateTime @updatedAt
+}
+
+model VulnerabilityHistory {
+  id                       String               @id @default(uuid()) @db.Uuid
+  siteId                   String               @db.Uuid
+  assigneeId               String?              @db.Uuid
+  status                   VulnerabilityStatus  @default(Remediated)
+  lastSeenAt               DateTime
+  archivedAt               DateTime             @default(now())
+  createdAt                DateTime
+  pluginId                 String
+  cve                      String?
+  cvssScore                Float?
+  risk                     Risk                 @default(None)
+  host                     String
+  protocol                 String
+  port                     String
+  name                     String
+  synopsis                 String?
+  description              String?
+  solution                 String?
+  seeAlso                  String?
+  pluginOutput             String?
+  pluginPublicationDate    DateTime?
+  pluginModificationDate   DateTime?
+
+  site                     Site                 @relation(fields: [siteId], references: [id])
+  assignee                 User?                @relation(fields: [assigneeId], references: [id])
+
+  @@index([lastSeenAt])
+  @@index([archivedAt])
+  @@index([siteId, risk])
 }

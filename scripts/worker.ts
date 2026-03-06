@@ -73,14 +73,25 @@ async function processJob(uploadId: string) {
       await redis.del(getLockKey(upload.siteId));
     }
     // Optimization: run maintenance after successfully processing an upload
-    if (shouldDeletePayload) {
-      try {
-        await prisma.$executeRawUnsafe(`VACUUM ANALYZE "Vulnerability";`);
-        console.log(`✓ Maintenance complete for site ${upload.siteId}`);
-      } catch (err) {
-        // Silently skip if vacuum fails (e.g. concurrent vacuum in progress)
-        console.log(`Note: Maintenance skipped for ${uploadId}`);
+    try {
+      await prisma.$executeRawUnsafe(`VACUUM ANALYZE "Vulnerability";`);
+      await prisma.$executeRawUnsafe(`VACUUM ANALYZE "VulnerabilityHistory";`);
+
+      // 12-month retention policy cleanup
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+      const { count } = await prisma.vulnerabilityHistory.deleteMany({
+        where: { archivedAt: { lt: twelveMonthsAgo } }
+      });
+
+      if (count > 0) {
+        console.log(`✓ Cleaned up ${count} expired history records`);
       }
+
+      console.log(`✓ Maintenance complete for site ${upload.siteId}`);
+    } catch (err) {
+      // Silently skip if vacuum fails (e.g. concurrent vacuum in progress)
+      console.log(`Note: Maintenance skipped for ${uploadId}`);
     }
   }
 }
