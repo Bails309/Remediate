@@ -3,6 +3,56 @@ import { parseNessusCsv } from "@/lib/csv";
 import { setProgress } from "@/lib/progress";
 import { Risk, UploadStatus, VulnerabilityStatus } from "@prisma/client";
 
+function parseValidDate(value?: string | null) {
+  if (!value) return null;
+  const s = value.toString().trim();
+
+  // Try native parsing first (covers ISO and many textual formats)
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // Try common numeric date formats like dd/MM/yyyy or d/M/yyyy (prefer UK-style)
+  const numeric = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]);
+    let year = Number(numeric[3]);
+    const hour = Number(numeric[4] ?? 0);
+    const minute = Number(numeric[5] ?? 0);
+    const second = Number(numeric[6] ?? 0);
+
+    if (year < 100) {
+      year += year >= 70 ? 1900 : 2000; // two-digit year heuristic
+    }
+
+    // Interpret as dd/MM/yyyy (UK) first
+    const candidateUK = new Date(year, month - 1, day, hour, minute, second);
+    if (!isNaN(candidateUK.getTime())) return candidateUK;
+
+    // Fallback to MM/DD/YYYY
+    const candidateUS = new Date(year, day - 1, month, hour, minute, second);
+    if (!isNaN(candidateUS.getTime())) return candidateUS;
+  }
+
+  // Try patterns like '14 Jun 2024' etc.
+  const textual = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (textual) {
+    const day = Number(textual[1]);
+    const monthName = textual[2];
+    let year = Number(textual[3]);
+    const hour = Number(textual[4] ?? 0);
+    const minute = Number(textual[5] ?? 0);
+    const second = Number(textual[6] ?? 0);
+    const monthIdx = new Date(`${monthName} 1, 2000`).getMonth();
+    if (!isNaN(monthIdx)) {
+      if (year < 100) year += year >= 70 ? 1900 : 2000;
+      const candidate = new Date(year, monthIdx, day, hour, minute, second);
+      if (!isNaN(candidate.getTime())) return candidate;
+    }
+  }
+
+  return null;
+}
 function normalizeRisk(risk?: string) {
   const value = (risk ?? "").toLowerCase();
   if (value.includes("critical")) return Risk.Critical;
@@ -33,12 +83,14 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     if (normalizeRisk(row.risk) === Risk.None) return false;
 
     if (gracePeriodDays > 0 && row.pluginPublicationDate) {
-      const pubDate = new Date(row.pluginPublicationDate);
-      const diffTime = Math.abs(now.getTime() - pubDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const pubDate = parseValidDate(row.pluginPublicationDate);
+      if (pubDate) {
+        const diffTime = Math.abs(now.getTime() - pubDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays <= gracePeriodDays) {
-        return false;
+        if (diffDays <= gracePeriodDays) {
+          return false;
+        }
       }
     }
 
@@ -121,8 +173,8 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
         solution: row.solution,
         seeAlso: row.seeAlso,
         pluginOutput: row.pluginOutput,
-        pluginPublicationDate: row.pluginPublicationDate ? new Date(row.pluginPublicationDate) : null,
-        pluginModificationDate: row.pluginModificationDate ? new Date(row.pluginModificationDate) : null,
+        pluginPublicationDate: parseValidDate(row.pluginPublicationDate),
+        pluginModificationDate: parseValidDate(row.pluginModificationDate),
       });
     }
 
@@ -147,7 +199,27 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
   if (createData.length > 0) {
     for (let i = 0; i < createData.length; i += chunkSize) {
       const chunk = createData.slice(i, i + chunkSize);
-      await prisma.vulnerability.createMany({ data: chunk });
+      // sanitize date fields to avoid passing invalid Date objects to Prisma
+      const safeChunk = chunk.map((item: any) => {
+        let pub = item.pluginPublicationDate;
+        let mod = item.pluginModificationDate;
+        if (typeof pub === "string") pub = parseValidDate(pub);
+        if (typeof mod === "string") mod = parseValidDate(mod);
+        if (pub instanceof Date && isNaN(pub.getTime())) pub = null;
+        if (mod instanceof Date && isNaN(mod.getTime())) mod = null;
+        return {
+          ...item,
+          pluginPublicationDate: pub,
+          pluginModificationDate: mod,
+        };
+      });
+      try {
+        await prisma.vulnerability.createMany({ data: safeChunk });
+      } catch (err: any) {
+        console.error("createMany failed, retrying with nulled dates", err?.message ?? err);
+        const nulled = safeChunk.map((it: any) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null }));
+        await prisma.vulnerability.createMany({ data: nulled });
+      }
     }
   }
 

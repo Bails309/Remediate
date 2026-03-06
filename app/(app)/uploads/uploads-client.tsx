@@ -91,7 +91,26 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
 
     poller = setInterval(pollProgress, 2000);
 
-    const eventSource = new EventSource(`/api/uploads/${uploadId}/events`);
+    // Ensure the events endpoint is available before opening EventSource to avoid
+    // spurious 404s (dev server/state race). Probe with fetch and retry a few
+    // times before falling back to opening the EventSource immediately.
+    const waitForEventsEndpoint = async (id: string, attempts = 5, delayMs = 300) => {
+      const url = `/api/uploads/events?uploadId=${id}`;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const res = await fetch(url, { method: "GET", cache: "no-store" });
+          if (res.ok || res.status === 200 || res.status === 204) return true;
+          // If it's 404, wait and retry
+        } catch (e) {
+          // network error, wait and retry
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      return false;
+    };
+
+    const eventsAvailable = await waitForEventsEndpoint(uploadId, 6, 300);
+    const eventSource = new EventSource(`/api/uploads/events?uploadId=${uploadId}`);
     eventSource.addEventListener("progress", (event) => {
       const data = JSON.parse((event as MessageEvent).data) as { step: string; progress: number };
       setProgress(data);

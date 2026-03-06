@@ -4,13 +4,13 @@ FROM node:lts-slim AS deps
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 FROM node:lts-slim AS dev
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --include=dev --legacy-peer-deps
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate

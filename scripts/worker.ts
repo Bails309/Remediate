@@ -48,6 +48,7 @@ async function processJob(uploadId: string) {
     shouldDeletePayload = true;
     shouldReleaseLock = true;
   } catch (error) {
+    console.error('Error processing upload', uploadId, error);
     const attempt = await incrementRetry(uploadId);
     if (attempt <= MAX_RETRIES) {
       const delay = BASE_DELAY_SECONDS * Math.pow(2, attempt - 1);

@@ -41,7 +41,10 @@ export function ClientDate({
         if (isNaN(d.getTime())) {
             return <span className={className}>{fallback}</span>;
         }
-        return <span className={className}>{d.toLocaleString(undefined, formatOptions)}</span>;
+
+        // Force UK formatting for dates in the client UI.
+        const locale = "en-GB";
+        return <span className={className}>{d.toLocaleString(locale, formatOptions)}</span>;
     } catch (e) {
         return <span className={className}>{fallback}</span>;
     }

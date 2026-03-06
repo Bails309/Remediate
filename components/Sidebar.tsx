@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
 import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart } from "lucide-react";
 import type { Session } from "next-auth";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const baseNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -16,6 +19,12 @@ const baseNav = [
 
 export function Sidebar({ session }: { session?: Session | null }) {
   const pathname = usePathname();
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const nav = session?.user?.role === "Admin"
     ? [
@@ -27,15 +36,32 @@ export function Sidebar({ session }: { session?: Session | null }) {
     ]
     : baseNav;
 
+  const logoSrc = mounted && theme === "light" ? "/logo-light.jpg" : "/logo-dark.jpg";
+
   return (
-    <aside className="glass glass-edge hidden h-full w-64 flex-col gap-6 rounded-[32px] p-6 lg:flex">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--color-accent)] text-white font-semibold">
-          R
+    <aside className="glass glass-edge hidden h-full w-64 flex-col gap-8 rounded-[32px] p-6 lg:flex">
+      <div className="flex flex-col items-center gap-4 pt-4 text-center">
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-[24px] bg-white/5 p-1 ring-1 ring-white/10 transition-all hover:scale-105 hover:bg-white/10">
+          <div className="h-full w-full overflow-hidden rounded-[20px]">
+            {mounted ? (
+              <Image
+                src={logoSrc}
+                alt="Logo"
+                width={72}
+                height={72}
+                className="h-full w-full object-cover"
+                priority
+                unoptimized
+              />
+            ) : (
+              <div className="h-full w-full bg-[color:var(--color-accent)] animate-pulse" />
+            )}
+          </div>
+          <div className="absolute inset-0 -z-10 rounded-[24px] blur-xl bg-[color:var(--color-accent)] opacity-10" />
         </div>
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[color:var(--color-accent-2)]">Remediate</p>
-          <p className="text-lg font-semibold">Nessus Triage</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[color:var(--color-accent-2)]">Remediate</p>
+          <p className="mt-1 text-xl font-bold tracking-tight">Nessus Triage</p>
         </div>
       </div>
       <nav className="flex flex-col gap-2">
