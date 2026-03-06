@@ -89,7 +89,7 @@ async function processJob(uploadId: string) {
       }
 
       console.log(`✓ Maintenance complete for site ${upload.siteId}`);
-    } catch (err) {
+    } catch {
       // Silently skip if vacuum fails (e.g. concurrent vacuum in progress)
       console.log(`Note: Maintenance skipped for ${uploadId}`);
     }

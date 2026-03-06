@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const cfg = await getOidcConfigFromDb();
     return NextResponse.json({ enabled: !!cfg });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ enabled: false });
   }
 }

@@ -4,7 +4,6 @@ import type { JWT } from "next-auth/jwt";
 import authConfig from "./auth.config";
 import { prisma } from "@/lib/prisma";
 import Keycloak from "next-auth/providers/keycloak";
-import { NextRequest } from "next/server";
 
 // Dynamic configuration for NextAuth v5
 const result = NextAuth(async () => {

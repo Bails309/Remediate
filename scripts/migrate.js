@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 ; (async () => {
   const { execSync } = require("child_process");
 
   let PrismaClient;
   try {
     ({ PrismaClient } = require("@prisma/client"));
-  } catch (err) {
+  } catch {
     // ESM-only fallback
     const mod = await import("@prisma/client");
     PrismaClient = mod.PrismaClient;
