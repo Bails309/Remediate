@@ -1,8 +1,7 @@
 import crypto from "crypto";
 
-const secret = process.env.AUTH_SECRET ?? "";
-
 function getKey() {
+  const secret = process.env.AUTH_SECRET;
   if (!secret) {
     throw new Error("AUTH_SECRET is required for encryption");
   }

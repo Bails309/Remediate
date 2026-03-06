@@ -22,33 +22,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
         ],
         callbacks: {
             ...authConfig.callbacks,
-            async signIn({ user, account, profile }: any) {
-                const email = user.email || profile?.email;
-                if (!email) return false;
-
-                const provider = account?.provider;
-                const localAuthEmail = process.env.LOCAL_AUTH_EMAIL;
-                const isLocal = provider === "credentials" || (localAuthEmail && email.toLowerCase() === localAuthEmail.toLowerCase());
-                const authSource = isLocal ? "Local" : "SSO";
-
-                const adminEmail = process.env.ADMIN_EMAIL;
-                const role = adminEmail && adminEmail.toLowerCase() === email.toLowerCase() ? "Admin" : "User";
-
-                await prisma.user.upsert({
-                    where: { email },
-                    update: {
-                        name: user.name || "User",
-                        role,
-                        authSource
-                    },
-                    create: {
-                        email,
-                        name: user.name || "User",
-                        role,
-                        authSource
-                    },
-                });
-                return true;
+            async signIn(params: any) {
+                const { provisionUser } = await import("@/lib/auth-provisioning");
+                return provisionUser(params);
             },
             async jwt({ token, user }: any) {
                 // This only runs on sign in when the user object is available
