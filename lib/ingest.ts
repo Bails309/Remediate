@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseNessusCsv } from "@/lib/csv";
 import { setProgress } from "@/lib/progress";
-import { Risk, UploadStatus, VulnerabilityStatus } from "@prisma/client";
+import { Risk, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
 
 function parseValidDate(value?: string | null) {
   if (!value) return null;
@@ -214,12 +214,12 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
         };
       });
       try {
-        await prisma.vulnerability.createMany({ data: safeChunk as any });
+        await prisma.vulnerability.createMany({ data: safeChunk as Prisma.VulnerabilityCreateManyInput[] });
       } catch (err: unknown) {
         const error = err as Error;
         console.error("createMany failed, retrying with nulled dates", error.message);
-        const nulled = safeChunk.map((it: Record<string, unknown>) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null }));
-        await prisma.vulnerability.createMany({ data: nulled as any });
+        const nulled = safeChunk.map((it: Record<string, unknown>) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null })) as Prisma.VulnerabilityCreateManyInput[];
+        await prisma.vulnerability.createMany({ data: nulled });
       }
     }
   }

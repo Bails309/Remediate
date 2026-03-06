@@ -13,17 +13,17 @@ async function main() {
         await prisma.$executeRawUnsafe(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "Vulnerability_name_trgm_idx" 
       ON "Vulnerability" USING gin (name gin_trgm_ops);
-    `).catch(e => console.log("Note: Concurrent index creation failed or already exists (likely already in progress)"));
+    `).catch(() => console.log("Note: Concurrent index creation failed or already exists (likely already in progress)"));
 
         await prisma.$executeRawUnsafe(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "Vulnerability_host_trgm_idx" 
       ON "Vulnerability" USING gin (host gin_trgm_ops);
-    `).catch(e => console.log("Note: Concurrent index creation failed or already exists"));
+    `).catch(() => console.log("Note: Concurrent index creation failed or already exists"));
 
         await prisma.$executeRawUnsafe(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "Vulnerability_pluginId_trgm_idx" 
       ON "Vulnerability" USING gin ("pluginId" gin_trgm_ops);
-    `).catch(e => console.log("Note: Concurrent index creation failed or already exists"));
+    `).catch(() => console.log("Note: Concurrent index creation failed or already exists"));
 
         console.log("✓ Trigram indexes applied for search performance");
 

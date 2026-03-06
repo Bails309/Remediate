@@ -1,4 +1,5 @@
-;(async () => {
+/* eslint-disable @typescript-eslint/no-require-imports */
+; (async () => {
   const { execSync } = require("child_process");
 
   let PrismaClient;
@@ -33,7 +34,7 @@
     try {
       await waitForDatabase(prisma);
       await prisma.$executeRawUnsafe(`SELECT pg_advisory_lock(${LOCK_ID})`);
-      execSync("npx prisma migrate deploy", { stdio: "inherit" });
+      execSync("npm run prisma migrate deploy", { stdio: "inherit" });
     } catch (error) {
       console.error("Migration failed", error);
       process.exitCode = 1;

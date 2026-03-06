@@ -14,7 +14,7 @@ RUN npm install --include=dev --legacy-peer-deps
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npm run migrate && npm run dev"]
 
 FROM node:lts-slim AS builder
 WORKDIR /app

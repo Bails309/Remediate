@@ -40,7 +40,8 @@ export function Sidebar({ session }: { session?: Session | null }) {
   const [isAdminExpanded, setIsAdminExpanded] = useState(isAdminChildActive);
 
   useEffect(() => {
-    setMounted(true);
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   // Sync expansion state if pathname changes to an admin child (during render to avoid cascading renders)

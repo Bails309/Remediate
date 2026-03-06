@@ -94,9 +94,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     return () => cancelAnimationFrame(handle);
   }, [fetchData]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [siteId, status, risk, assigneeId, query, pageSize, foldDuplicates]);
+  // Reset to first page when filters change: perform reset inline in handlers
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -219,7 +217,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_2fr]">
         <Select
           value={siteId}
-          onChange={setSiteId}
+          onChange={(v) => { setSiteId(v); setPage(1); }}
           placeholder="All sites"
           options={[
             { label: "All sites", value: "" },
@@ -228,7 +226,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         />
         <Select
           value={status}
-          onChange={setStatus}
+          onChange={(v) => { setStatus(v); setPage(1); }}
           placeholder="All status"
           options={[
             { label: "All status", value: "" },
@@ -240,7 +238,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         />
         <Select
           value={risk}
-          onChange={setRisk}
+          onChange={(v) => { setRisk(v); setPage(1); }}
           placeholder="All risk"
           options={[
             { label: "All risk", value: "" },
@@ -252,7 +250,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         />
         <Select
           value={assigneeId}
-          onChange={setAssigneeId}
+          onChange={(v) => { setAssigneeId(v); setPage(1); }}
           placeholder="All assignees"
           options={[
             { label: "All assignees", value: "" },
@@ -262,7 +260,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         />
         <Input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => { setQuery(event.target.value); setPage(1); }}
           placeholder="Search by host, plugin, CVE"
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -280,7 +278,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         <div className="flex flex-wrap items-center gap-3">
           <Select
             value={String(pageSize)}
-            onChange={(val) => setPageSize(Number(val))}
+            onChange={(val) => { setPageSize(Number(val)); setPage(1); }}
             options={[
               { label: "25 / page", value: "25" },
               { label: "50 / page", value: "50" },
@@ -352,7 +350,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         />
         <Button
           variant="outline"
-          onClick={() => setFoldDuplicates(!foldDuplicates)}
+          onClick={() => { setFoldDuplicates(!foldDuplicates); setPage(1); }}
           className={cn(foldDuplicates && "bg-[color:var(--color-primary)] text-white")}
         >
           {foldDuplicates ? "Folding Active" : "Fold Duplicates"}

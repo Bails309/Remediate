@@ -10,15 +10,23 @@ Remediate is a Nessus remediation triage app built with Next.js, Prisma, Postgre
 ## Local Development (Docker)
 1. Copy env file:
    ```bash
-   copy .env.example .env
+  # Windows (PowerShell)
+  copy .env.example .env
+
+  # macOS / Linux
+  cp .env.example .env
    ```
 2. Start services:
    ```bash
-   docker compose up --build
+  docker compose up -d --build
    ```
 3. Open http://localhost:3000
 4. Apply Prisma schema:
   ```bash
+  # Alternatively run migrations from the host
+  npx prisma migrate dev
+
+  # Or inside a container (Windows example)
   docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:push
   ```
 5. Optional seed data:
@@ -70,8 +78,25 @@ Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service 
 - Report settings are stored encrypted in Postgres using AUTH_SECRET.
 
 ## Migrations
-- On container startup, the app runs `prisma migrate deploy` under a Postgres advisory lock.
-- This prevents multiple instances from racing when scaled in Azure.
+On container startup the `app` and `worker` entrypoints run `prisma migrate deploy` inside `scripts/migrate.js`.
+
+Key points:
+- `scripts/migrate.js` waits for the database to be reachable, then acquires a Postgres advisory lock before running `npx prisma migrate deploy`. This ensures only one instance applies migrations at a time.
+- The repository also includes a guarded `scripts/optimize-db.ts` script that applie(s) optional database optimizations (indexes, views, VACUUM). The app startup command runs this after migrations when appropriate.
+- A CI workflow (.github/workflows/migrations.yml) is provided to run migrations + DB optimizations as part of your deploy pipeline — recommended for production.
+
+Recommended patterns:
+- CI-driven: run `npx prisma migrate deploy` in your CI before updating production containers (strongly recommended for Azure Container Apps).
+- Runtime fallback: keep `scripts/migrate.js` as a startup fallback — advisory lock prevents concurrent runs but CI-first is preferred to avoid runtime surprises.
+
+To run migrations locally:
+```bash
+# Run migrations (development)
+npx prisma migrate dev
+
+# Run migrations (deploy-style)
+npx prisma migrate deploy
+```
 
 ## Authentication
 - Keycloak OIDC is configured via .env or the Admin UI.
@@ -89,6 +114,14 @@ Recommended ACA settings:
 - Min replicas: 0, Max replicas: 3+
 - Scale on HTTP concurrency
 - Use managed identities for Azure resources where possible
+
+Migration recommendation for ACA:
+- Use a CI-driven migration step or an Azure Container Apps Job to run:
+  - `npx prisma migrate deploy`
+  - `npx tsx scripts/optimize-db.ts`
+- Keep the runtime `scripts/migrate.js` as a safe fallback — it uses an advisory lock so multiple replicas won't race.
+
+CI example: see `.github/workflows/migrations.yml` which runs migrations and DB optimizations on push to `main`.
 
 ## Repo Structure
 - app/: Next.js app router
