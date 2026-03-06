@@ -20,13 +20,27 @@ export async function GET(request: NextRequest) {
   const assigneeId = searchParams.get("assigneeId") ?? undefined;
   const fold = searchParams.get("fold") === "true";
   const ids = searchParams.get("ids")?.split(",") ?? undefined;
+
+  // For expansion: fetch all members of a group by its attributes
+  const gName = searchParams.get("gName") ?? undefined;
+  const gHost = searchParams.get("gHost") ?? undefined;
+  const gPort = searchParams.get("gPort") ?? undefined;
+  const gPluginId = searchParams.get("gPluginId") ?? undefined;
+
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? "25");
 
-  if (ids) {
+  if (ids || (gName && gHost && gPort && gPluginId)) {
     const items = await prisma.vulnerability.findMany({
-      where: { id: { in: ids } },
+      where: ids ? { id: { in: ids } } : {
+        name: gName,
+        host: gHost,
+        port: gPort,
+        pluginId: gPluginId,
+        siteId: siteId ?? undefined, // Keep site context if provided
+      },
       include: { site: true, assignee: true },
+      orderBy: { lastSeenAt: 'desc' }
     });
     return NextResponse.json({ items });
   }

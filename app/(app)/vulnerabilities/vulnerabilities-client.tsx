@@ -114,6 +114,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
 
     toast.success("Assignments updated");
     setSelected([]);
+    setSubItems({});
+    setExpandedGroups(new Set());
     fetchData();
   };
 
@@ -133,6 +135,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     toast.success("Status updated");
     setSelected([]);
     setBulkStatus("");
+    setSubItems({});
+    setExpandedGroups(new Set());
     fetchData();
   };
 
@@ -168,8 +172,15 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     }
 
     // Expanding: fetch sub-items if not already loaded
-    if (!subItems[key] && group.groupIds) {
-      const response = await fetch(`/api/vulnerabilities?ids=${group.groupIds}`);
+    if (!subItems[key]) {
+      const gParams = new URLSearchParams();
+      gParams.set("gName", group.name);
+      gParams.set("gHost", group.host);
+      gParams.set("gPort", group.port);
+      gParams.set("gPluginId", group.pluginId);
+      if (siteId) gParams.set("siteId", siteId);
+
+      const response = await fetch(`/api/vulnerabilities?${gParams.toString()}`);
       if (response.ok) {
         const payload = await response.json();
         setSubItems(prev => ({ ...prev, [key]: payload.items }));
