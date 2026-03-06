@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { ImportSettingsClient } from "./import-settings-client";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/rbac";
+
+export const metadata: Metadata = {
+    title: "Import Settings",
+};
 
 export const dynamic = "force-dynamic";
 

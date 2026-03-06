@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { DeadLetterClient } from "@/app/(app)/admin/dead-letter/dead-letter-client";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/rbac";
+
+export const metadata: Metadata = {
+  title: "Dead Letter Queue",
+};
 
 export const dynamic = "force-dynamic";
 

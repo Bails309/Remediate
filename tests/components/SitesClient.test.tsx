@@ -1,6 +1,5 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { describe, it, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { SitesClient } from "@/app/(app)/sites/sites-client";
 import { toast } from "sonner";
@@ -11,17 +10,18 @@ beforeEach(() => {
 
 describe("SitesClient", () => {
   it("creates and removes a site", async () => {
-    const mockFetch = vi.fn((input: any) => {
-      if (typeof input === "string" && input.includes("/api/sites") && !(input.includes("/api/sites/"))) {
+    const mockFetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : input.url);
+      if (url.includes("/api/sites") && !url.includes("/api/sites/")) {
         // POST create
-        return Promise.resolve({ ok: true, json: async () => ({ id: "s-new", name: "New Site" }) });
+        return Promise.resolve({ ok: true, json: async () => ({ id: "s-new", name: "New Site" }) } as Response);
       }
-      if (typeof input === "string" && input.includes("/api/sites/") && input.includes("DELETE")) {
-        return Promise.resolve({ ok: true, json: async () => ({}) });
+      if (url.includes("/api/sites/") && url.includes("DELETE")) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
       }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as unknown as typeof fetch;
 
     const toastSpy = vi.spyOn(toast, "success").mockImplementation(() => ({} as any));
 

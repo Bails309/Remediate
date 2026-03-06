@@ -23,9 +23,9 @@ describe("Auth Provisioning", () => {
     });
 
     it("should provision a new user as 'User' by default", async () => {
-        (prisma.user.findUnique as any).mockResolvedValue(null);
+        vi.mocked(prisma.user.findUnique).mockResolvedValue(null as any);
 
-        await provisionUser({ user: normalUser, account: { provider: "keycloak" } });
+        await provisionUser({ user: normalUser as any, account: { provider: "keycloak" } as any });
 
         expect(prisma.user.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -39,9 +39,9 @@ describe("Auth Provisioning", () => {
     });
 
     it("should provision the primary admin as 'Admin'", async () => {
-        (prisma.user.findUnique as any).mockResolvedValue(null);
+        vi.mocked(prisma.user.findUnique).mockResolvedValue(null as any);
 
-        await provisionUser({ user: primaryAdmin, account: { provider: "credentials" } });
+        await provisionUser({ user: primaryAdmin as any, account: { provider: "credentials" } as any });
 
         expect(prisma.user.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -82,7 +82,7 @@ describe("Auth Provisioning", () => {
         await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } });
 
         // Verify it doesn't default back to "User"
-        const upsertCall = (prisma.user.upsert as any).mock.calls[0][0];
+        const upsertCall = vi.mocked(prisma.user.upsert).mock.calls[0][0];
         expect(upsertCall.update.role).toBe("Admin");
     });
 });

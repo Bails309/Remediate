@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Build conditions for raw SQL
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
     let valIdx = 1;
 
     if (siteId) {
@@ -84,16 +84,17 @@ export async function GET(request: NextRequest) {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // 1. Get total number of unique groups
-    const [{ count }] = await prisma.$queryRawUnsafe<any>(`
+    const countResults = await prisma.$queryRawUnsafe<{ count: number }[]>(`
       SELECT count(*)::int as count FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") id
         FROM "Vulnerability"
         ${whereClause}
       ) as groups
     `, ...values);
+    const count = countResults[0]?.count ?? 0;
 
     // 2. Get the representative row for each group with groupCount and groupIds
-    const items = await prisma.$queryRawUnsafe<any>(`
+    const items = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`
       SELECT * FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") 
           *,
@@ -109,12 +110,9 @@ export async function GET(request: NextRequest) {
     `, ...values);
 
     // Hydrate the items with assignee info (since group by loses relations)
-    // We can do this with another query if needed, or join in the raw SQL.
-    // Joining is better. Let's update the query above.
-    // Actually, let's keep it simple for now and hydrate in JS if items is small.
-    const hydratedItems = await Promise.all(items.map(async (item: any) => {
+    const hydratedItems = await Promise.all(items.map(async (item) => {
       if (item.assigneeId) {
-        const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId } });
+        const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId as string } });
         return { ...item, assignee };
       }
       return item;
@@ -135,10 +133,10 @@ export async function GET(request: NextRequest) {
     ...(query
       ? {
         OR: [
-          { name: { contains: query, mode: "insensitive" as any } },
-          { host: { contains: query, mode: "insensitive" as any } },
-          { pluginId: { contains: query, mode: "insensitive" as any } },
-          { cve: { contains: query, mode: "insensitive" as any } },
+          { name: { contains: query, mode: "insensitive" as const } },
+          { host: { contains: query, mode: "insensitive" as const } },
+          { pluginId: { contains: query, mode: "insensitive" as const } },
+          { cve: { contains: query, mode: "insensitive" as const } },
         ],
       }
       : {}),

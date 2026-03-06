@@ -13,8 +13,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Remediate",
-  description: "Nessus remediation triage and lifecycle management.",
+  title: {
+    default: "Remediate",
+    template: "%s | Remediate",
+  },
+  description: "Advanced Nessus vulnerability remediation triage and lifecycle management.",
+  keywords: ["Vulnerability Management", "Triage", "Nessus", "Remediation", "Security"],
+  authors: [{ name: "Remediate Team" }],
 };
 
 export default function RootLayout({

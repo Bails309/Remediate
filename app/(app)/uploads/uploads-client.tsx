@@ -101,7 +101,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
           const res = await fetch(url, { method: "GET", cache: "no-store" });
           if (res.ok || res.status === 200 || res.status === 204) return true;
           // If it's 404, wait and retry
-        } catch (e) {
+        } catch {
           // network error, wait and retry
         }
         await new Promise((r) => setTimeout(r, delayMs));
@@ -109,7 +109,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
       return false;
     };
 
-    const eventsAvailable = await waitForEventsEndpoint(uploadId, 6, 300);
+    await waitForEventsEndpoint(uploadId, 6, 300);
     const eventSource = new EventSource(`/api/uploads/events?uploadId=${uploadId}`);
     eventSource.addEventListener("progress", (event) => {
       const data = JSON.parse((event as MessageEvent).data) as { step: string; progress: number };

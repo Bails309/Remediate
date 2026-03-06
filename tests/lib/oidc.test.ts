@@ -25,7 +25,7 @@ describe("OIDC logic", () => {
     });
 
     it("should return null if no config in DB", async () => {
-        (prisma.oidcConfig.findFirst as any).mockResolvedValue(null);
+        vi.mocked(prisma.oidcConfig.findFirst).mockResolvedValue(null);
         const result = await getOidcConfigFromDb();
         expect(result).toBeNull();
     });
@@ -37,14 +37,14 @@ describe("OIDC logic", () => {
             clientSecretEnc: crypto.encrypt(mockConfig.clientSecret),
             issuerUrlEnc: crypto.encrypt(mockConfig.issuerUrl),
         };
-        (prisma.oidcConfig.findFirst as any).mockResolvedValue(encryptedData);
+        vi.mocked(prisma.oidcConfig.findFirst).mockResolvedValue(encryptedData as any);
 
         const result = await getOidcConfigFromDb();
         expect(result).toEqual(mockConfig);
     });
 
     it("should create new config if none exists", async () => {
-        (prisma.oidcConfig.findFirst as any).mockResolvedValue(null);
+        vi.mocked(prisma.oidcConfig.findFirst).mockResolvedValue(null);
 
         await upsertOidcConfig(mockConfig);
 
@@ -58,7 +58,7 @@ describe("OIDC logic", () => {
     });
 
     it("should update existing config if it exists", async () => {
-        (prisma.oidcConfig.findFirst as any).mockResolvedValue({ id: "existing-id" });
+        vi.mocked(prisma.oidcConfig.findFirst).mockResolvedValue({ id: "existing-id" } as any);
 
         await upsertOidcConfig(mockConfig);
 

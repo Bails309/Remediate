@@ -35,7 +35,10 @@ export function DeadLetterClient() {
   };
 
   useEffect(() => {
-    load();
+    const handle = requestAnimationFrame(() => {
+      void load();
+    });
+    return () => cancelAnimationFrame(handle);
   }, []);
 
   const requeue = async (uploadId: string) => {

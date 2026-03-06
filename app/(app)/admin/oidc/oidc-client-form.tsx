@@ -58,7 +58,7 @@ export function OidcClientForm() {
       }
 
       toast.success(`Successfully connected to ${data.issuer}`);
-    } catch (error) {
+    } catch {
       toast.error("Network error during connection test");
     } finally {
       setTesting(false);

@@ -16,7 +16,7 @@ describe("Sites API Integration", () => {
         vi.clearAllMocks();
         // Cleanup in correct order
         await prisma.vulnerability.deleteMany();
-        await (prisma as any).vulnerabilityHistory.deleteMany();
+        await (prisma as unknown as { vulnerabilityHistory: { deleteMany: () => Promise<unknown> } }).vulnerabilityHistory.deleteMany();
         await prisma.uploadHistory.deleteMany();
         await prisma.site.deleteMany();
     });

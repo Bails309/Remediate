@@ -1,6 +1,7 @@
+import type { User, Account, Profile } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
-export async function provisionUser({ user, account, profile }: any) {
+export async function provisionUser({ user, account, profile }: { user: User; account: Account | null; profile?: Profile }) {
     const email = user.email || profile?.email;
     if (!email) return false;
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, PATCH } from "../../app/api/admin/users/route";
 import { prisma } from "../../lib/prisma";
 import { NextRequest } from "next/server";
+import { User } from "@prisma/client";
 
 // Mock auth and rate limit
 vi.mock("../../auth", () => ({
@@ -14,15 +15,15 @@ vi.mock("../../lib/rate-limit", () => ({
 import { auth } from "../../auth";
 
 describe("Admin Users API Integration", () => {
-    let adminUser: any;
-    let targetUser: any;
+    let adminUser: User;
+    let targetUser: User;
 
     beforeEach(async () => {
         vi.clearAllMocks();
 
         // Cleanup in correct order
         await prisma.vulnerability.deleteMany();
-        await (prisma as any).vulnerabilityHistory.deleteMany();
+        await (prisma as unknown as { vulnerabilityHistory: { deleteMany: () => Promise<unknown> } }).vulnerabilityHistory.deleteMany();
         await prisma.uploadHistory.deleteMany();
         await prisma.user.deleteMany();
 
@@ -43,13 +44,13 @@ describe("Admin Users API Integration", () => {
         });
 
         // Mock admin session
-        (auth as any).mockResolvedValue({
+        vi.mocked(auth).mockResolvedValue({
             user: {
                 id: adminUser.id,
                 email: adminUser.email,
                 role: "Admin"
             }
-        });
+        } as any);
     });
 
     it("GET /api/admin/users returns all users", async () => {
@@ -57,9 +58,9 @@ describe("Admin Users API Integration", () => {
         const res = await GET(req);
         expect(res.status).toBe(200);
 
-        const data = await res.json();
+        const data = await res.json() as User[];
         expect(data.length).toBeGreaterThanOrEqual(2);
-        expect(data.find((u: any) => u.email === targetUser.email)).toBeDefined();
+        expect(data.find((u) => u.email === targetUser.email)).toBeDefined();
     });
 
     it("PATCH /api/admin/users can promote a user", async () => {

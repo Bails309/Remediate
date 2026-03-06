@@ -43,12 +43,14 @@ export function Sidebar({ session }: { session?: Session | null }) {
     setMounted(true);
   }, []);
 
-  // Sync expansion state if pathname changes to an admin child
-  useEffect(() => {
+  // Sync expansion state if pathname changes to an admin child (during render to avoid cascading renders)
+  const [prevAdminChildActive, setPrevAdminChildActive] = useState(isAdminChildActive);
+  if (isAdminChildActive !== prevAdminChildActive) {
+    setPrevAdminChildActive(isAdminChildActive);
     if (isAdminChildActive) {
       setIsAdminExpanded(true);
     }
-  }, [isAdminChildActive]);
+  }
 
   const logoSrc = mounted && theme === "light" ? "/logo-light.jpg" : "/logo-dark.jpg";
 
@@ -79,7 +81,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+      <nav aria-label="Main Navigation" className="flex flex-1 flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
         {/* Workspace Group */}
         <div className="space-y-2">
           <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 flex items-center gap-2">
@@ -114,6 +116,8 @@ export function Sidebar({ session }: { session?: Session | null }) {
           <div className="space-y-2">
             <button
               onClick={() => setIsAdminExpanded(!isAdminExpanded)}
+              aria-expanded={isAdminExpanded}
+              aria-controls="admin-nav-group"
               className="w-full px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 hover:opacity-100 transition-opacity flex items-center justify-between group"
             >
               <span className="flex items-center gap-2">
@@ -123,10 +127,12 @@ export function Sidebar({ session }: { session?: Session | null }) {
               {isAdminExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
 
-            <div className={cn(
-              "flex flex-col gap-1 overflow-hidden transition-all duration-300",
-              isAdminExpanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
-            )}>
+            <div
+              id="admin-nav-group"
+              className={cn(
+                "flex flex-col gap-1 overflow-hidden transition-all duration-300",
+                isAdminExpanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
+              )}>
               {adminNavItems.map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;

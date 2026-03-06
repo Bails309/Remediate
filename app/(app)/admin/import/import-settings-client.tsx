@@ -52,8 +52,9 @@ export function ImportSettingsClient() {
             setPluginGracePeriodDays(updated.pluginGracePeriodDays);
             setSuccess("Import settings updated successfully");
             setTimeout(() => setSuccess(null), 3000);
-        } catch (e: any) {
-            setError(e.message);
+        } catch (e: unknown) {
+            const err = e as Error;
+            setError(err.message);
         } finally {
             setIsSaving(false);
         }

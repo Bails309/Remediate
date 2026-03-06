@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
 
@@ -12,20 +12,20 @@ describe("UploadsClient", () => {
   it("starts upload and updates progress via polling", async () => {
     const mockFetch = vi.fn();
     // first call: POST /api/uploads/nessus
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ uploadId: "u1" }) });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ uploadId: "u1" }) } as Response);
     // second call: /api/uploads/progress returns Completed
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ progress: { step: "Completed", progress: 100 } }) });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ progress: { step: "Completed", progress: 100 } }) } as Response);
     // third call: /api/uploads/history
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ([]) });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ([]) } as Response);
 
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as unknown as typeof fetch;
 
     // Mock EventSource to avoid network
-    (global as any).EventSource = class {
-      addEventListener() {}
-      close() {}
+    global.EventSource = class {
+      addEventListener() { }
+      close() { }
       onerror = null;
-    } as any;
+    } as unknown as typeof EventSource;
 
     const { container } = render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1" }]} initialUploads={[]} />);
 

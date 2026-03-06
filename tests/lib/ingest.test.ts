@@ -33,23 +33,23 @@ beforeEach(() => {
 describe("processNessusUpload", () => {
   it("filters out Risk.None rows and writes uploadHistory and progress", async () => {
     // two rows: one None and one High
-    (parseNessusCsv as any).mockReturnValue([
+    vi.mocked(parseNessusCsv).mockReturnValue([
       { pluginId: "p1", host: "h1", port: "80", risk: "None" },
       { pluginId: "p2", host: "h2", port: "443", risk: "High", cve: "CVE-1", cvssScore: "7.5", name: "Test", synopsis: "s", description: "d", solution: "sol", seeAlso: "", pluginOutput: "o", pluginPublicationDate: null, pluginModificationDate: null, protocol: "tcp" },
-    ]);
+    ] as any);
 
-    (prisma as any).importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 0 });
-    (prisma as any).vulnerability.findMany.mockResolvedValue([]);
-    (prisma as any).vulnerability.createMany.mockResolvedValue({ count: 1 });
-    (prisma as any).vulnerability.updateMany.mockResolvedValue({ count: 0 });
-    (prisma as any).uploadHistory.update.mockResolvedValue({ id: "upload-1" });
-    (prisma as any).$transaction.mockResolvedValue([[]]);
+    vi.mocked((prisma as any).importConfig.findUnique).mockResolvedValue({ pluginGracePeriodDays: 0 } as any);
+    vi.mocked(prisma.vulnerability.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.vulnerability.createMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.vulnerability.updateMany).mockResolvedValue({ count: 0 });
+    vi.mocked(prisma.uploadHistory.update).mockResolvedValue({ id: "upload-1" } as any);
+    vi.mocked(prisma.$transaction).mockResolvedValue([[]]);
 
     await processNessusUpload({ uploadId: "upload-1", siteId: "site-1", text: "csv" });
 
     // setProgress called multiple times; final call should be Completed
     expect(setProgress).toHaveBeenCalled();
     expect(prisma.uploadHistory.update).toHaveBeenCalledWith({ where: { id: "upload-1" }, data: { status: expect.anything(), rowCount: 1 } });
-    expect((prisma as any).vulnerability.createMany).toHaveBeenCalled();
+    expect(prisma.vulnerability.createMany).toHaveBeenCalled();
   });
 });

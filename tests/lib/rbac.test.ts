@@ -24,14 +24,13 @@ beforeEach(() => {
 
 describe("requireUser", () => {
   it("throws when no session user email", async () => {
-    (auth as unknown as jest.Mock) = auth as any;
-    (auth as any).mockResolvedValue({});
+    vi.mocked(auth).mockResolvedValue({} as any);
 
     await expect(requireUser()).rejects.toThrow("Unauthorized");
   });
 
   it("returns session when id and role are present", async () => {
-    (auth as any).mockResolvedValue({ user: { email: "a@b.com", id: "u1", role: "User" } });
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@b.com", id: "u1", role: "User" } } as any);
     const session = await requireUser();
     expect(session.user.id).toBe("u1");
     expect(session.user.role).toBe("User");
@@ -39,10 +38,10 @@ describe("requireUser", () => {
 
   it("creates user in DB when missing and assigns Admin role if ADMIN_EMAIL matches", async () => {
     process.env.ADMIN_EMAIL = "admin@example.com";
-    (auth as any).mockResolvedValue({ user: { email: "admin@example.com", name: "Admin" } });
+    vi.mocked(auth).mockResolvedValue({ user: { email: "admin@example.com", name: "Admin" } } as any);
 
-    (prisma as any).user.findUnique.mockResolvedValue(null);
-    (prisma as any).user.create.mockResolvedValue({ id: "new-id", email: "admin@example.com", name: "Admin", role: "Admin" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue({ id: "new-id", email: "admin@example.com", name: "Admin", role: "Admin" } as any);
 
     const session = await requireUser();
     expect(prisma.user.create).toHaveBeenCalled();

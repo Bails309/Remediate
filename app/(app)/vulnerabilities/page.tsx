@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { VulnerabilitiesClient } from "@/app/(app)/vulnerabilities/vulnerabilities-client";
 
 import { auth } from "@/auth";
+
+export const metadata: Metadata = {
+  title: "Vulnerabilities",
+};
 
 export const dynamic = "force-dynamic";
 

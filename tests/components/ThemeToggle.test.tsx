@@ -1,6 +1,6 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, vi } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),

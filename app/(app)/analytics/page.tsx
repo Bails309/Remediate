@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { SiteFilter } from "@/components/SiteFilter";
 import { TrendChart } from "@/components/analytics/TrendChart";
 import { HeatmapTable } from "@/components/analytics/HeatmapTable";
 import { StatusDonutChart } from "@/components/analytics/StatusDonutChart";
 import { BarChart } from "@/components/analytics/BarChart";
+
+export const metadata: Metadata = {
+    title: "Analytics",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +19,13 @@ export default async function AnalyticsPage({
 }) {
     const params = await searchParams;
     const siteId = params.siteId;
+    const nowVal = new Date().getTime();
 
     const sites = await prisma.site.findMany({ orderBy: { name: "asc" } });
 
     // Define common where conditions for raw SQL
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
     if (siteId) {
         conditions.push(`"siteId" = $1::uuid`);
         values.push(siteId);
@@ -85,13 +91,23 @@ export default async function AnalyticsPage({
         GROUP BY "siteId", risk
     `);
 
-    const sitesMap = new Map<string, any>();
+    interface RiskCounts {
+        Critical: number;
+        High: number;
+        Medium: number;
+        Low: number;
+        [key: string]: number;
+    }
+
+    const sitesMap = new Map<string, RiskCounts>();
     sitesDataRaw.forEach(row => {
         if (!sitesMap.has(row.siteId)) {
             sitesMap.set(row.siteId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
         const counts = sitesMap.get(row.siteId);
-        counts[row.risk] = row.count;
+        if (counts) {
+            counts[row.risk] = row.count;
+        }
     });
 
     const sitesData = sites.map(site => {
@@ -115,13 +131,15 @@ export default async function AnalyticsPage({
         GROUP BY "assigneeId", risk
     `, ...values);
 
-    const techCountsMap = new Map<string, any>();
+    const techCountsMap = new Map<string, RiskCounts>();
     techDataRaw.forEach(row => {
         if (!techCountsMap.has(row.assigneeId)) {
             techCountsMap.set(row.assigneeId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
         const counts = techCountsMap.get(row.assigneeId);
-        counts[row.risk] = row.count;
+        if (counts) {
+            counts[row.risk] = row.count;
+        }
     });
 
     const users = await prisma.user.findMany();
@@ -134,6 +152,11 @@ export default async function AnalyticsPage({
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         };
     }).filter(t => t.Total > 0);
+
+    const techDataTop = techData
+        .slice()
+        .sort((a, b) => b.Total - a.Total)
+        .slice(0, 6);
 
     // 5. Remediation Status Overview (Logical)
     const statusRiskGroups = await prisma.$queryRawUnsafe<{ status: string; count: number }[]>(`
@@ -159,7 +182,7 @@ export default async function AnalyticsPage({
         color: statusColors[g.status] || "#3b82f6"
     }));
 
-    // 6. Top 5 Most Vulnerable Hosts (Logical)
+    // 6. Top 6 Most Vulnerable Hosts (Logical)
     const hostRiskGroups = await prisma.$queryRawUnsafe<{ host: string; risk: string; count: number }[]>(`
         SELECT host::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
@@ -185,9 +208,9 @@ export default async function AnalyticsPage({
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         }))
         .sort((a, b) => b.Total - a.Total)
-        .slice(0, 5);
+        .slice(0, 6);
 
-    // 7. Top 5 Most Common Vulnerabilities (Logical)
+    // 7. Top 6 Most Common Vulnerabilities (Logical)
     const commonVulnGroups = await prisma.$queryRawUnsafe<{ name: string; risk: string; count: number }[]>(`
         SELECT name::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
@@ -213,7 +236,7 @@ export default async function AnalyticsPage({
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         }))
         .sort((a, b) => b.Total - a.Total)
-        .slice(0, 5);
+        .slice(0, 6);
 
     // 8. Aging SLA Data (Logical)
     const agingGroups = await prisma.$queryRawUnsafe<{ createdAt: Date; risk: string }[]>(`
@@ -226,7 +249,6 @@ export default async function AnalyticsPage({
     `, ...values);
 
     const agingCounts = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "91+ Days": 0 };
-    const nowVal = Date.now();
     agingGroups.forEach(v => {
         const days = Math.floor((nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24));
         if (days <= 30) agingCounts["0-30 Days"]++;
@@ -285,7 +307,7 @@ export default async function AnalyticsPage({
             <div className="grid gap-6 lg:grid-cols-2">
                 <div className="space-y-6">
                     <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                        <h3 className="mb-6 font-semibold text-lg">Top 5 Most Vulnerable Hosts</h3>
+                        <h3 className="mb-6 font-semibold text-lg">Top 6 Most Vulnerable Hosts</h3>
                         <HeatmapTable title="" data={topHostsData} showTotal={true} />
                     </div>
                 </div>
@@ -310,7 +332,7 @@ export default async function AnalyticsPage({
 
             <div className="grid gap-6 lg:grid-cols-2">
                 <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                    <h3 className="mb-6 font-semibold text-lg">Top 5 Most Common Vulnerabilities</h3>
+                    <h3 className="mb-6 font-semibold text-lg">Top 6 Most Common Vulnerabilities</h3>
                     <HeatmapTable title="" data={commonVulnData} showTotal={true} />
                 </div>
                 <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
@@ -329,7 +351,7 @@ export default async function AnalyticsPage({
                 <div className="space-y-6">
                     <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
                         <h3 className="mb-6 font-semibold text-lg">Task Count Assigned Per Tech</h3>
-                        <HeatmapTable title="" data={techData} />
+                        <HeatmapTable title="" data={techDataTop} />
                     </div>
                 </div>
             </div>

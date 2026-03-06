@@ -36,16 +36,19 @@ export function ClientDate({
         return <span className={className}>{fallback}</span>;
     }
 
+    let dateString: string;
     try {
         const d = new Date(date);
         if (isNaN(d.getTime())) {
-            return <span className={className}>{fallback}</span>;
+            dateString = fallback;
+        } else {
+            // Force UK formatting for dates in the client UI.
+            const locale = "en-GB";
+            dateString = d.toLocaleString(locale, formatOptions);
         }
-
-        // Force UK formatting for dates in the client UI.
-        const locale = "en-GB";
-        return <span className={className}>{d.toLocaleString(locale, formatOptions)}</span>;
-    } catch (e) {
-        return <span className={className}>{fallback}</span>;
+    } catch {
+        dateString = fallback;
     }
+
+    return <span className={className}>{dateString}</span>;
 }

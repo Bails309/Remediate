@@ -1,4 +1,20 @@
 services:
+  migrator:
+    build:
+      context: .
+      target: dev
+    command: sh -c "node /app/scripts/migrate.js && npx tsx /app/scripts/optimize-db.ts"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build:
       context: .
@@ -21,6 +37,8 @@ services:
       - .:/app
       - /app/node_modules
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -46,6 +64,8 @@ services:
       - .:/app
       - /app/node_modules
     depends_on:
+      migrator:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:

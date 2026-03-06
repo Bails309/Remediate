@@ -8,7 +8,7 @@ function parseValidDate(value?: string | null) {
   const s = value.toString().trim();
 
   // Try native parsing first (covers ISO and many textual formats)
-  let d = new Date(s);
+  const d = new Date(s);
   if (!isNaN(d.getTime())) return d;
 
   // Try common numeric date formats like dd/MM/yyyy or d/M/yyyy (prefer UK-style)
@@ -200,7 +200,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     for (let i = 0; i < createData.length; i += chunkSize) {
       const chunk = createData.slice(i, i + chunkSize);
       // sanitize date fields to avoid passing invalid Date objects to Prisma
-      const safeChunk = chunk.map((item: any) => {
+      const safeChunk = chunk.map((item: Record<string, unknown>) => {
         let pub = item.pluginPublicationDate;
         let mod = item.pluginModificationDate;
         if (typeof pub === "string") pub = parseValidDate(pub);
@@ -214,11 +214,12 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
         };
       });
       try {
-        await prisma.vulnerability.createMany({ data: safeChunk });
-      } catch (err: any) {
-        console.error("createMany failed, retrying with nulled dates", err?.message ?? err);
-        const nulled = safeChunk.map((it: any) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null }));
-        await prisma.vulnerability.createMany({ data: nulled });
+        await prisma.vulnerability.createMany({ data: safeChunk as any });
+      } catch (err: unknown) {
+        const error = err as Error;
+        console.error("createMany failed, retrying with nulled dates", error.message);
+        const nulled = safeChunk.map((it: Record<string, unknown>) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null }));
+        await prisma.vulnerability.createMany({ data: nulled as any });
       }
     }
   }

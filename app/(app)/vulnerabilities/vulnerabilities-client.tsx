@@ -66,7 +66,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [subItems, setSubItems] = useState<Record<string, Vulnerability[]>>({});
 
-  const fetchData = async () => {
+  const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     if (siteId) params.set("siteId", siteId);
     if (status) params.set("status", status);
@@ -85,11 +85,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     const payload = await response.json();
     setData(payload.items ?? []);
     setTotal(payload.total ?? 0);
-  };
+  }, [siteId, status, risk, query, assigneeId, foldDuplicates, page, pageSize]);
 
   useEffect(() => {
-    fetchData();
-  }, [siteId, status, risk, assigneeId, page, pageSize, foldDuplicates]);
+    const handle = requestAnimationFrame(() => {
+      void fetchData();
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [fetchData]);
 
   useEffect(() => {
     setPage(1);

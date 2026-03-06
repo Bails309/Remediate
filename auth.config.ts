@@ -1,3 +1,5 @@
+import type { NextAuthConfig, User, Session } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 
 export default {
@@ -24,7 +26,7 @@ export default {
                         name: localName,
                         email: localEmail as string,
                         role: "Admin",
-                    };
+                    } as User;
                 }
                 return null;
             }
@@ -34,19 +36,19 @@ export default {
         signIn: "/login",
     },
     callbacks: {
-        async jwt({ token, user }: any) {
+        async jwt({ token, user }: { token: JWT, user?: User }) {
             if (user) {
                 token.role = user.role;
                 token.userId = user.id;
             }
             return token;
         },
-        async session({ session, token }: any) {
+        async session({ session, token }: { session: Session, token: JWT }) {
             if (session.user) {
                 session.user.id = token.userId as string;
-                session.user.role = token.role as any;
+                session.user.role = token.role as string;
             }
             return session;
         },
     },
-};
+} satisfies NextAuthConfig;

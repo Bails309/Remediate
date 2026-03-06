@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     try {
         await requireAdmin();
-    } catch (err) {
+    } catch {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     try {
         await prisma.$queryRaw`SELECT 1`;
         dbLatency = Date.now() - startDb;
-    } catch (err) {
+    } catch {
         dbStatus = "Unhealthy";
     }
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         const info = await redis.info("memory");
         const match = info.match(/used_memory_human:(\d+\.?\d*[KMG]B)/);
         if (match) redisMemory = match[1];
-    } catch (err) {
+    } catch {
         redisStatus = "Unhealthy";
     }
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     try {
         // A simple check to see if core tables exist
         await prisma.vulnerability.count();
-    } catch (err) {
+    } catch {
         schemaStatus = "Out of sync";
     }
 

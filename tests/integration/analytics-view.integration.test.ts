@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { prisma } from "../../lib/prisma";
+import { Site } from "@prisma/client";
 
 describe("Analytics View Integration", () => {
-    let site: any;
+    let site: Site;
 
     beforeAll(async () => {
         // Ensure the view exists in the test database
@@ -20,7 +21,7 @@ describe("Analytics View Integration", () => {
 
     beforeEach(async () => {
         await prisma.vulnerability.deleteMany();
-        await (prisma as any).vulnerabilityHistory.deleteMany();
+        await (prisma as unknown as { vulnerabilityHistory: { deleteMany: () => Promise<unknown> } }).vulnerabilityHistory.deleteMany();
         await prisma.uploadHistory.deleteMany();
         await prisma.site.deleteMany();
         await prisma.user.deleteMany();
@@ -47,7 +48,7 @@ describe("Analytics View Integration", () => {
         });
 
         // 2. Create historical vulnerability
-        await (prisma as any).vulnerabilityHistory.create({
+        await (prisma as unknown as { vulnerabilityHistory: { create: (args: unknown) => Promise<unknown> } }).vulnerabilityHistory.create({
             data: {
                 pluginId: "456",
                 name: "Old Bug",
@@ -64,7 +65,7 @@ describe("Analytics View Integration", () => {
         });
 
         // 3. Query the view
-        const results: any[] = await prisma.$queryRawUnsafe(`SELECT * FROM "VulnerabilityView" ORDER BY name ASC`);
+        const results = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "VulnerabilityView" ORDER BY name ASC`);
 
         expect(results.length).toBe(2);
 
@@ -72,9 +73,9 @@ describe("Analytics View Integration", () => {
         const history = results.find(r => r.name === "Old Bug");
 
         expect(active).toBeDefined();
-        expect(active.isHistory).toBe(false);
+        expect(active!.isHistory).toBe(false);
 
         expect(history).toBeDefined();
-        expect(history.isHistory).toBe(true);
+        expect(history!.isHistory).toBe(true);
     });
 });

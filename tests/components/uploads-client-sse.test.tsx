@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
 
@@ -10,28 +10,28 @@ beforeEach(() => {
 
 describe("UploadsClient SSE", () => {
   it("updates progress when EventSource emits progress events", async () => {
-    const mockFetch = vi.fn((input: any) => {
-      if (typeof input === "string" && input.includes("/api/uploads/nessus")) {
-        return Promise.resolve({ ok: true, json: async () => ({ uploadId: "u1" }) });
+    const mockFetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : input.url);
+      if (url.includes("/api/uploads/nessus")) {
+        return Promise.resolve({ ok: true, json: async () => ({ uploadId: "u1" }) } as Response);
       }
-      // progress poll or history
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as unknown as typeof fetch;
 
     // Mock EventSource
     class MockEventSource {
-      listeners: Record<string, (ev: any) => void> = {};
+      listeners: Record<string, (ev: MessageEvent) => void> = {};
       constructor(public url: string) {
-        (global as any).__lastEventSource = this;
+        (global as Record<string, unknown>).__lastEventSource = this;
       }
-      addEventListener(name: string, cb: any) {
+      addEventListener(name: string, cb: (ev: MessageEvent) => void) {
         this.listeners[name] = cb;
       }
-      close() {}
-      emit(name: string, data: any) {
+      close() { }
+      emit(name: string, data: unknown) {
         const cb = this.listeners[name];
-        if (cb) cb({ data: JSON.stringify(data) });
+        if (cb) cb({ data: JSON.stringify(data) } as MessageEvent);
       }
     }
     (global as any).EventSource = MockEventSource as any;
@@ -52,8 +52,8 @@ describe("UploadsClient SSE", () => {
     fireEvent.click(btn);
 
     // Wait for EventSource instance to be created
-    await waitFor(() => expect((global as any).__lastEventSource).toBeDefined());
-    const es = (global as any).__lastEventSource as any;
+    await waitFor(() => expect((global as Record<string, any>).__lastEventSource).toBeDefined());
+    const es = (global as Record<string, any>).__lastEventSource;
 
     // Emit a processing event
     es.emit("progress", { step: "Processing", progress: 15 });
@@ -86,7 +86,7 @@ describe("UploadsClient SSE", () => {
       addEventListener(name: string, cb: any) {
         // progress handled elsewhere in other test
       }
-      close() {}
+      close() { }
       emitError() {
         if (this.onerror) this.onerror();
       }

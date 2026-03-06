@@ -37,6 +37,6 @@ export async function requireAdmin() {
   return session;
 }
 
-export function checkAdmin(user: any) {
+export function checkAdmin(user: { role?: string | null } | null | undefined) {
   return user?.role === "Admin";
 }

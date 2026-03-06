@@ -46,12 +46,13 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ ok: true, issuer: data.issuer });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const err = error as Error;
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: "Invalid Issuer URL format" }, { status: 400 });
         }
         return NextResponse.json(
-            { error: error.message || "Failed to reach OIDC provider" },
+            { error: err.message || "Failed to reach OIDC provider" },
             { status: 500 }
         );
     }

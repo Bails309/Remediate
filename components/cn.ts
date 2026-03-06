@@ -1,6 +1,6 @@
 import { twMerge } from "tailwind-merge";
 
-function flattenClasses(input: Array<any>): string[] {
+function flattenClasses(input: unknown[]): string[] {
   const out: string[] = [];
   for (const item of input) {
     if (!item) continue;
@@ -14,7 +14,7 @@ function flattenClasses(input: Array<any>): string[] {
 }
 
 export function cn(...classes: Array<string | false | null | undefined | Array<string | null | undefined>>) {
-  const flattened = flattenClasses(classes as any);
+  const flattened = flattenClasses(classes);
   const joined = flattened.join(" ");
   return twMerge(joined);
 }

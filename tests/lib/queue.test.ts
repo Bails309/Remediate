@@ -32,14 +32,14 @@ describe("queue operations", () => {
   });
 
   it("getPayload returns redis.get", async () => {
-    (redis.get as any).mockResolvedValue("payload");
+    vi.mocked(redis.get).mockResolvedValue("payload");
     const val = await queue.getPayload("u1");
     expect(val).toBe("payload");
   });
 
   it("dequeueUpload returns id when brpop returns tuple", async () => {
-    (redis.zrangebyscore as any).mockResolvedValue([]);
-    (redis.brpop as any).mockResolvedValue(["upload:queue", "u1"]);
+    vi.mocked(redis.zrangebyscore).mockResolvedValue([]);
+    vi.mocked(redis.brpop).mockResolvedValue(["upload:queue", "u1"]);
     const id = await queue.dequeueUpload();
     expect(id).toBe("u1");
   });

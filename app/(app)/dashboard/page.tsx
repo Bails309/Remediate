@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/StatCard";
 import { SiteFilter } from "@/components/SiteFilter";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
 
 const riskOrder = ["Critical", "High", "Medium", "Low"] as const;
 
@@ -19,7 +24,7 @@ export default async function DashboardPage({
 
   // Get counts of logical issues (unique groups) per risk
   const conditions: string[] = [`status != 'Remediated'`];
-  const values: any[] = [];
+  const values: (string | number)[] = [];
   if (siteId) {
     conditions.push(`"siteId" = $1::uuid`);
     values.push(siteId);
@@ -95,7 +100,7 @@ export default async function DashboardPage({
           <ul className="mt-4 space-y-3 text-sm opacity-70">
             <li>Upload one site at a time to preserve lifecycle accuracy.</li>
             <li>Assign owners early to reduce dwell time.</li>
-            <li>Review "No Fix" weekly for vendor updates.</li>
+            <li>Review &quot;No Fix&quot; weekly for vendor updates.</li>
           </ul>
         </div>
       </div>

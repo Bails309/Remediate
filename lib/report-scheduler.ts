@@ -30,25 +30,25 @@ export function startReportScheduler() {
         return;
       }
 
-    const lastSentAt = config.lastSentAt ? new Date(config.lastSentAt) : null;
-    const next = getNextScheduledDate(config);
-    const now = new Date();
+      const lastSentAt = config.lastSentAt ? new Date(config.lastSentAt) : null;
+      const next = getNextScheduledDate(config);
+      const now = new Date();
 
-    if (lastSentAt && lastSentAt >= next) {
-      return;
-    }
+      if (lastSentAt && lastSentAt >= next) {
+        return;
+      }
 
-    if (now < next) {
-      return;
-    }
+      if (now < next) {
+        return;
+      }
 
-    const { summary, totals } = await getWeeklyCriticalHighSummary();
-    const subject = `Weekly Critical/High Report (${totals.critical} critical, ${totals.high} high)`;
-    const lines = summary
-      .map((item) => `${item.siteName}: ${item.risk}=${item.count}`)
-      .join("\n");
-    const text = `Weekly Critical/High Report\n\nTotal Critical: ${totals.critical}\nTotal High: ${totals.high}\n\nBy Site:\n${lines}`;
-    const html = `
+      const { summary, totals } = await getWeeklyCriticalHighSummary();
+      const subject = `Weekly Critical/High Report (${totals.critical} critical, ${totals.high} high)`;
+      const lines = summary
+        .map((item) => `${item.siteName}: ${item.risk}=${item.count}`)
+        .join("\n");
+      const text = `Weekly Critical/High Report\n\nTotal Critical: ${totals.critical}\nTotal High: ${totals.high}\n\nBy Site:\n${lines}`;
+      const html = `
       <h2>Weekly Critical/High Report</h2>
       <p><strong>Total Critical:</strong> ${totals.critical}</p>
       <p><strong>Total High:</strong> ${totals.high}</p>
@@ -58,7 +58,7 @@ export function startReportScheduler() {
       </ul>
     `;
 
-    await sendReportEmail(config, subject, html, text);
+      await sendReportEmail(config, subject, html, text);
 
       const existing = await prisma.reportConfig.findFirst();
       if (existing) {
@@ -67,7 +67,7 @@ export function startReportScheduler() {
           data: { lastSentAt: now },
         });
       }
-    } catch (error) {
+    } catch {
       // Ignore missing table or transient startup errors.
       return;
     }
