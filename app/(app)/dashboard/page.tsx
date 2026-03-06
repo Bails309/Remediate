@@ -17,16 +17,26 @@ export default async function DashboardPage({
   const params = await searchParams;
   const siteId = params.siteId;
 
-  const [sites, groups, latest] = await Promise.all([
+  // Get counts of logical issues (unique groups) per risk
+  const conditions: string[] = [`status != 'Remediated'`];
+  const values: any[] = [];
+  if (siteId) {
+    conditions.push(`"siteId" = $1::uuid`);
+    values.push(siteId);
+  }
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+  const [sites, riskGroups, latest] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
-    prisma.vulnerability.groupBy({
-      by: ["risk"],
-      where: {
-        ...(siteId ? { siteId } : {}),
-        status: { not: "Remediated" },
-      },
-      _count: { _all: true },
-    }),
+    prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
+      SELECT risk::text, count(*)::int as count FROM (
+        SELECT DISTINCT ON (name, host, port, "pluginId") risk
+        FROM "Vulnerability"
+        ${whereClause}
+        ORDER BY name, host, port, "pluginId", risk ASC
+      ) as groups
+      GROUP BY risk
+    `, ...values),
     prisma.uploadHistory.findMany({
       include: { site: true },
       orderBy: { uploadDate: "desc" },
@@ -34,7 +44,7 @@ export default async function DashboardPage({
     }),
   ]);
 
-  const counts = new Map(groups.map((g) => [g.risk, g._count._all]));
+  const counts = new Map(riskGroups.map((g) => [g.risk, g.count]));
 
   return (
     <div className="space-y-8">

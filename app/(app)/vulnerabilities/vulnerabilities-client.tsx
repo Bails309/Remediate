@@ -53,7 +53,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [siteId, setSiteId] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("Open");
   const [risk, setRisk] = useState("");
   const [query, setQuery] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -245,7 +245,6 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             { label: "High", value: "High" },
             { label: "Medium", value: "Medium" },
             { label: "Low", value: "Low" },
-            { label: "None", value: "None" },
           ]}
         />
         <Select
@@ -285,17 +284,15 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               { label: "100 / page", value: "100" },
             ]}
           />
-          <Button variant="outline" onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
-            Previous
-          </Button>
-          <span className="text-sm opacity-70">Page {page}</span>
-          <Button
-            variant="outline"
-            onClick={() => setPage((prev) => prev + 1)}
-            disabled={page * pageSize >= total}
-          >
-            Next
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+              Previous
+            </Button>
+            <span className="text-sm opacity-60">Page {page}</span>
+            <Button variant="ghost" disabled={page * pageSize >= total} onClick={() => setPage(prev => prev + 1)}>
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

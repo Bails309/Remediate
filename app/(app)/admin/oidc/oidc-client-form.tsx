@@ -13,6 +13,7 @@ type OidcState = {
 
 export function OidcClientForm() {
   const [loading, setLoading] = useState(true);
+  const [testing, setTesting] = useState(false);
   const [form, setForm] = useState<OidcState>({
     clientId: "",
     clientSecret: "",
@@ -27,7 +28,7 @@ export function OidcClientForm() {
         if (data.configured) {
           setForm({
             clientId: data.clientId ?? "",
-            clientSecret: "",
+            clientSecret: data.clientSecretMasked ?? "********",
             issuerUrl: data.issuerUrl ?? "",
           });
         }
@@ -39,6 +40,29 @@ export function OidcClientForm() {
 
   const updateField = (field: keyof OidcState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/oidc/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issuerUrl: form.issuerUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || "Connection test failed");
+        return;
+      }
+
+      toast.success(`Successfully connected to ${data.issuer}`);
+    } catch (error) {
+      toast.error("Network error during connection test");
+    } finally {
+      setTesting(false);
+    }
   };
 
   const save = async () => {
@@ -65,6 +89,9 @@ export function OidcClientForm() {
       <div>
         <h2 className="text-2xl font-semibold">SSO Configuration</h2>
         <p className="text-sm opacity-70">Manage Keycloak OIDC parameters securely.</p>
+        <div className="mt-2 text-xs font-mono opacity-50 bg-white/5 p-2 rounded w-fit">
+          Callback URL: [your-domain]/api/auth/callback/keycloak
+        </div>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
@@ -103,7 +130,12 @@ export function OidcClientForm() {
         </div>
       </div>
 
-      <Button onClick={save}>Save Settings</Button>
+      <div className="flex gap-4">
+        <Button onClick={save}>Save Settings</Button>
+        <Button variant="outline" onClick={testConnection} loading={testing}>
+          Test Connection
+        </Button>
+      </div>
     </div>
   );
 }

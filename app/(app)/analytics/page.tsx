@@ -17,17 +17,27 @@ export default async function AnalyticsPage({
 
     const sites = await prisma.site.findMany({ orderBy: { name: "asc" } });
 
-    // 1. Trend Data (Mocked over 7 days based on current totals per Option A)
-    const currentRiskCounts = await prisma.vulnerability.groupBy({
-        by: ["risk"],
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open"
-        },
-        _count: { _all: true },
-    });
+    // Define common where conditions for raw SQL
+    const conditions: string[] = [];
+    const values: any[] = [];
+    if (siteId) {
+        conditions.push(`"siteId" = $1::uuid`);
+        values.push(siteId);
+    }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    const riskMap = new Map(currentRiskCounts.map(g => [g.risk, g._count._all]));
+    // 1. Trend Data (Logical Issue Counts)
+    const currentRiskGroups = await prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
+        SELECT risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open'" : "WHERE status = 'Open'"}
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY risk
+    `, ...values);
+
+    const riskMap = new Map(currentRiskGroups.map(g => [g.risk, g.count]));
 
     const trendData = [];
     for (let i = 6; i >= 0; i--) {
@@ -42,17 +52,18 @@ export default async function AnalyticsPage({
         });
     }
 
-    // 2. Unassigned Tasks
-    const unassignedGroups = await prisma.vulnerability.groupBy({
-        by: ["risk"],
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open",
-            assigneeId: null,
-        },
-        _count: { _all: true },
-    });
-    const unassignedMap = new Map(unassignedGroups.map(g => [g.risk, g._count._all]));
+    // 2. Unassigned Tasks (Logical)
+    const unassignedRisks = await prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
+        SELECT risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open' AND \"assigneeId\" IS NULL" : "WHERE status = 'Open' AND \"assigneeId\" IS NULL"}
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY risk
+    `, ...values);
+
+    const unassignedMap = new Map(unassignedRisks.map(g => [g.risk, g.count]));
     const unassignedData = [{
         id: 'unassigned',
         name: 'Unassigned',
@@ -63,23 +74,28 @@ export default async function AnalyticsPage({
         Total: (unassignedMap.get('Critical') || 0) + (unassignedMap.get('High') || 0) + (unassignedMap.get('Medium') || 0) + (unassignedMap.get('Low') || 0)
     }];
 
-    // 3. Vulnerabilities By Site
-    const sitesDataRaw = await prisma.site.findMany({
-        include: {
-            vulnerabilities: {
-                where: {
-                    status: "Open"
-                },
-                select: { risk: true }
-            }
+    // 3. Vulnerabilities By Site (Logical)
+    const sitesDataRaw = await prisma.$queryRawUnsafe<{ siteId: string; risk: string; count: number }[]>(`
+        SELECT "siteId"::text as "siteId", risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") "siteId", risk
+            FROM "Vulnerability"
+            WHERE status = 'Open'
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY "siteId", risk
+    `);
+
+    const sitesMap = new Map<string, any>();
+    sitesDataRaw.forEach(row => {
+        if (!sitesMap.has(row.siteId)) {
+            sitesMap.set(row.siteId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
+        const counts = sitesMap.get(row.siteId);
+        counts[row.risk] = row.count;
     });
 
-    const sitesData = sitesDataRaw.map(site => {
-        const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
-        site.vulnerabilities.forEach(v => {
-            if (counts[v.risk as keyof typeof counts] !== undefined) counts[v.risk as keyof typeof counts]++;
-        });
+    const sitesData = sites.map(site => {
+        const counts = sitesMap.get(site.id) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
         return {
             id: site.id,
             name: site.name,
@@ -88,40 +104,47 @@ export default async function AnalyticsPage({
         };
     }).filter(s => s.Total > 0 && (!siteId || s.id === siteId));
 
-    // 4. Tasks By Tech
-    const techDataRaw = await prisma.user.findMany({
-        include: {
-            vulnerabilities: {
-                where: {
-                    ...(siteId ? { siteId } : {}),
-                    status: "Open"
-                },
-                select: { risk: true }
-            }
+    // 4. Tasks By Tech (Logical)
+    const techDataRaw = await prisma.$queryRawUnsafe<{ assigneeId: string; risk: string; count: number }[]>(`
+        SELECT "assigneeId"::text as "assigneeId", risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") "assigneeId", risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open' AND \"assigneeId\" IS NOT NULL" : "WHERE status = 'Open' AND \"assigneeId\" IS NOT NULL"}
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY "assigneeId", risk
+    `, ...values);
+
+    const techCountsMap = new Map<string, any>();
+    techDataRaw.forEach(row => {
+        if (!techCountsMap.has(row.assigneeId)) {
+            techCountsMap.set(row.assigneeId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
+        const counts = techCountsMap.get(row.assigneeId);
+        counts[row.risk] = row.count;
     });
 
-    const techData = techDataRaw.map(tech => {
-        const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
-        tech.vulnerabilities.forEach(v => {
-            if (counts[v.risk as keyof typeof counts] !== undefined) counts[v.risk as keyof typeof counts]++;
-        });
+    const users = await prisma.user.findMany();
+    const techData = users.map(user => {
+        const counts = techCountsMap.get(user.id) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
         return {
-            id: tech.id,
-            name: tech.name,
+            id: user.id,
+            name: user.name,
             ...counts,
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         };
     }).filter(t => t.Total > 0);
 
-    // 5. Remediation Status Overview
-    const statusCounts = await prisma.vulnerability.groupBy({
-        by: ["status"],
-        where: {
-            ...(siteId ? { siteId } : {}),
-        },
-        _count: { _all: true },
-    });
+    // 5. Remediation Status Overview (Logical)
+    const statusRiskGroups = await prisma.$queryRawUnsafe<{ status: string; count: number }[]>(`
+        SELECT status::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") status
+            FROM "Vulnerability"
+            ${whereClause}
+            ORDER BY name, host, port, "pluginId"
+        ) as groups
+        GROUP BY status
+    `, ...values);
 
     const statusColors: Record<string, string> = {
         Open: "#ef4444",         // Red
@@ -130,28 +153,27 @@ export default async function AnalyticsPage({
         NoFixAvailable: "#8b5cf6" // Purple
     };
 
-    const statusData = statusCounts.map(g => ({
+    const statusData = statusRiskGroups.map(g => ({
         name: g.status,
-        value: g._count._all,
+        value: g.count,
         color: statusColors[g.status] || "#3b82f6"
     }));
 
-    // 6. Top 5 Most Vulnerable Hosts
-    const hostsRaw = await prisma.vulnerability.groupBy({
-        by: ["host", "risk"],
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open"
-        },
-        _count: { _all: true },
-    });
+    // 6. Top 5 Most Vulnerable Hosts (Logical)
+    const hostRiskGroups = await prisma.$queryRawUnsafe<{ host: string; risk: string; count: number }[]>(`
+        SELECT host::text, risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open'" : "WHERE status = 'Open'"}
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY host, risk
+    `, ...values);
 
-    // Aggregate risks by host
     const hostAggregates = new Map<string, { Critical: number, High: number, Medium: number, Low: number }>();
-    hostsRaw.forEach(h => {
-        if (!h.host) return;
+    hostRiskGroups.forEach(h => {
         const current = hostAggregates.get(h.host) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
-        current[h.risk as keyof typeof current] += h._count._all;
+        current[h.risk as keyof typeof current] += h.count;
         hostAggregates.set(h.host, current);
     });
 
@@ -165,22 +187,21 @@ export default async function AnalyticsPage({
         .sort((a, b) => b.Total - a.Total)
         .slice(0, 5);
 
-    // 7. Top 5 Most Common Vulnerabilities
-    const commonRaw = await prisma.vulnerability.groupBy({
-        by: ["name", "risk"],
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open"
-        },
-        _count: { _all: true },
-    });
+    // 7. Top 5 Most Common Vulnerabilities (Logical)
+    const commonVulnGroups = await prisma.$queryRawUnsafe<{ name: string; risk: string; count: number }[]>(`
+        SELECT name::text, risk::text, count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open'" : "WHERE status = 'Open'"}
+            ORDER BY name, host, port, "pluginId", risk ASC
+        ) as groups
+        GROUP BY name, risk
+    `, ...values);
 
-    // Aggregate risks by vulnerability name
     const commonAggregates = new Map<string, { Critical: number, High: number, Medium: number, Low: number }>();
-    commonRaw.forEach(v => {
-        if (!v.name) return;
+    commonVulnGroups.forEach(v => {
         const current = commonAggregates.get(v.name) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
-        current[v.risk as keyof typeof current] += v._count._all;
+        current[v.risk as keyof typeof current] += v.count;
         commonAggregates.set(v.name, current);
     });
 
@@ -194,52 +215,33 @@ export default async function AnalyticsPage({
         .sort((a, b) => b.Total - a.Total)
         .slice(0, 5);
 
-    // 8. Aging SLA Data
-    const agingRaw = await prisma.vulnerability.findMany({
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open"
-        },
-        select: { createdAt: true, risk: true }
-    });
+    // 8. Aging SLA Data (Logical)
+    const agingGroups = await prisma.$queryRawUnsafe<{ createdAt: Date; risk: string }[]>(`
+        SELECT "createdAt", risk::text FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") "createdAt", risk
+            FROM "Vulnerability"
+            ${whereClause ? whereClause + " AND status = 'Open'" : "WHERE status = 'Open'"}
+            ORDER BY name, host, port, "pluginId", "createdAt" ASC
+        ) as groups
+    `, ...values);
 
-    const agingCounts = {
-        "0-30 Days": 0,
-        "31-60 Days": 0,
-        "61-90 Days": 0,
-        "91+ Days": 0
-    };
-
+    const agingCounts = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "91+ Days": 0 };
     const nowVal = Date.now();
-    agingRaw.forEach(v => {
-        const days = Math.floor((nowVal - v.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    agingGroups.forEach(v => {
+        const days = Math.floor((nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24));
         if (days <= 30) agingCounts["0-30 Days"]++;
         else if (days <= 60) agingCounts["31-60 Days"]++;
         else if (days <= 90) agingCounts["61-90 Days"]++;
         else agingCounts["91+ Days"]++;
     });
 
-    const agingData = Object.entries(agingCounts)
-        .filter(([_, v]) => v > 0 || true)
-        .map(([name, value]) => ({
-            name,
-            value,
-            fill: name === "91+ Days" ? "#ef4444" : name === "61-90 Days" ? "#f97316" : name === "31-60 Days" ? "#eab308" : "#22c55e"
-        }));
+    const agingData = Object.entries(agingCounts).map(([name, value]) => ({
+        name,
+        value,
+        fill: name === "91+ Days" ? "#ef4444" : name === "61-90 Days" ? "#f97316" : name === "31-60 Days" ? "#eab308" : "#22c55e"
+    }));
 
-    // 9. Average Dwell Time by Risk (Days)
-    const openVulns = await prisma.vulnerability.findMany({
-        where: {
-            ...(siteId ? { siteId } : {}),
-            status: "Open"
-        },
-        select: {
-            risk: true,
-            createdAt: true
-        }
-    });
-
-    const now = Date.now();
+    // 9. Average Dwell Time by Risk (Logical)
     const dwellAggregates = {
         Critical: { totalDays: 0, count: 0 },
         High: { totalDays: 0, count: 0 },
@@ -247,9 +249,8 @@ export default async function AnalyticsPage({
         Low: { totalDays: 0, count: 0 },
     };
 
-    openVulns.forEach(v => {
-        if (v.risk === 'None') return;
-        const daysOpen = (now - v.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    agingGroups.forEach(v => {
+        const daysOpen = (nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24);
         const agg = dwellAggregates[v.risk as keyof typeof dwellAggregates];
         if (agg) {
             agg.totalDays += daysOpen;

@@ -37,7 +37,17 @@ export async function POST(request: NextRequest) {
   }
 
   await requireAdmin();
-  const payload = oidcSchema.parse(await request.json());
+  const body = await request.json();
+
+  // If the secret is the placeholder, we need to fetch the existing one to pass schema validation and upsert
+  if (body.clientSecret === "********") {
+    const existing = await getOidcConfigFromDb();
+    if (existing) {
+      body.clientSecret = existing.clientSecret;
+    }
+  }
+
+  const payload = oidcSchema.parse(body);
   await upsertOidcConfig(payload);
   return NextResponse.json({ ok: true });
 }

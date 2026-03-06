@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart } from "lucide-react";
+import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart, LogOut, Activity, Users, ChevronDown, ChevronRight, Briefcase, Wrench } from "lucide-react";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
+import { signOut } from "next-auth/react";
 
 const baseNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -17,24 +18,37 @@ const baseNav = [
   { href: "/sites", label: "Sites", icon: Shield },
 ];
 
+const adminNavItems = [
+  { href: "/admin/oidc", label: "Auth Settings", icon: Settings },
+  { href: "/admin/import", label: "Import Settings", icon: Settings },
+  { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox },
+  { href: "/admin/reports", label: "Reports", icon: Mail },
+  { href: "/admin/health", label: "System Health", icon: Activity },
+  { href: "/admin/users", label: "Users", icon: Users },
+];
+
 export function Sidebar({ session }: { session?: Session | null }) {
   const pathname = usePathname();
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const isAdmin = session?.user?.role === "Admin";
+
+  const isAdminChildActive = useMemo(() =>
+    adminNavItems.some(item => pathname === item.href),
+    [pathname]);
+
+  const [isAdminExpanded, setIsAdminExpanded] = useState(isAdminChildActive);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const nav = session?.user?.role === "Admin"
-    ? [
-      ...baseNav,
-      { href: "/admin/oidc", label: "Admin", icon: Settings },
-      { href: "/admin/import", label: "Import Settings", icon: Settings },
-      { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox },
-      { href: "/admin/reports", label: "Reports", icon: Mail },
-    ]
-    : baseNav;
+  // Sync expansion state if pathname changes to an admin child
+  useEffect(() => {
+    if (isAdminChildActive) {
+      setIsAdminExpanded(true);
+    }
+  }, [isAdminChildActive]);
 
   const logoSrc = mounted && theme === "light" ? "/logo-light.jpg" : "/logo-dark.jpg";
 
@@ -64,30 +78,98 @@ export function Sidebar({ session }: { session?: Session | null }) {
           <p className="mt-1 text-xl font-bold tracking-tight">Nessus Triage</p>
         </div>
       </div>
-      <nav className="flex flex-col gap-2">
-        {nav.map((item) => {
-          const active = pathname === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-[20px] px-4 py-3.5 text-sm font-medium transition-all",
-                active
-                  ? "glass glass-edge shadow-[0_8px_16px_rgba(0,0,0,0.1)] text-[color:var(--color-accent)]"
-                  : "text-[color:var(--color-foreground)] opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
-              )}
+
+      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+        {/* Workspace Group */}
+        <div className="space-y-2">
+          <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 flex items-center gap-2">
+            <Briefcase size={10} />
+            Workspace
+          </p>
+          <div className="flex flex-col gap-1">
+            {baseNav.map((item) => {
+              const active = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium transition-all group",
+                    active
+                      ? "glass glass-edge shadow-[0_8px_16px_rgba(0,0,0,0.1)] text-[color:var(--color-accent)]"
+                      : "text-[color:var(--color-foreground)] opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
+                  )}
+                >
+                  <Icon size={18} className={cn("transition-transform group-hover:scale-110", active && "scale-110")} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Administration Group */}
+        {isAdmin && (
+          <div className="space-y-2">
+            <button
+              onClick={() => setIsAdminExpanded(!isAdminExpanded)}
+              className="w-full px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 hover:opacity-100 transition-opacity flex items-center justify-between group"
             >
-              <Icon size={18} />
-              {item.label}
-            </Link>
-          );
-        })}
+              <span className="flex items-center gap-2">
+                <Wrench size={10} />
+                Administration
+              </span>
+              {isAdminExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+
+            <div className={cn(
+              "flex flex-col gap-1 overflow-hidden transition-all duration-300",
+              isAdminExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+            )}>
+              {adminNavItems.map((item) => {
+                const active = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium transition-all group ml-2",
+                      active
+                        ? "glass glass-edge shadow-[0_8px_16px_rgba(0,0,0,0.1)] text-[color:var(--color-accent)]"
+                        : "text-[color:var(--color-foreground)] opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
+                    )}
+                  >
+                    <Icon size={18} className={cn("transition-transform group-hover:scale-110", active && "scale-110")} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </nav>
-      <div className="mt-auto rounded-2xl border border-[color:var(--color-border)] p-4 text-xs text-[color:var(--color-foreground)]">
-        <p className="font-semibold">Environment</p>
-        <p className="opacity-70">Secure triage workspace</p>
+
+      <div className="mt-auto space-y-4 pt-4 border-t border-white/5">
+        {session?.user && (
+          <div className="flex items-center gap-3 px-2">
+            <div className="h-8 w-8 rounded-full bg-[color:var(--color-accent)]/20 flex items-center justify-center text-xs font-bold text-[color:var(--color-accent)]">
+              {session.user.name?.charAt(0) || "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{session.user.name}</p>
+              <p className="truncate text-[10px] opacity-60 uppercase tracking-tighter">{session.user.role}</p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-red-500 transition-all hover:bg-red-500/10 group"
+        >
+          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          Sign Out
+        </button>
       </div>
     </aside>
   );
