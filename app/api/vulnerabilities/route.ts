@@ -18,8 +18,96 @@ export async function GET(request: NextRequest) {
   const risk = searchParams.get("risk") ?? undefined;
   const query = searchParams.get("q") ?? undefined;
   const assigneeId = searchParams.get("assigneeId") ?? undefined;
+  const fold = searchParams.get("fold") === "true";
+  const ids = searchParams.get("ids")?.split(",") ?? undefined;
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? "25");
+
+  if (ids) {
+    const items = await prisma.vulnerability.findMany({
+      where: { id: { in: ids } },
+      include: { site: true, assignee: true },
+    });
+    return NextResponse.json({ items });
+  }
+
+  if (fold) {
+    // For folding, we use raw SQL to handle grouping and pagination correctly
+    // We group by name, host, port, and pluginId using DISTINCT ON
+    const skip = (page - 1) * pageSize;
+
+    // Build conditions for raw SQL
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let valIdx = 1;
+
+    if (siteId) {
+      conditions.push(`"siteId" = $${valIdx++}::uuid`);
+      values.push(siteId);
+    }
+    if (status) {
+      conditions.push(`"status"::text = $${valIdx++}`);
+      values.push(status);
+    }
+    if (risk) {
+      conditions.push(`"risk"::text = $${valIdx++}`);
+      values.push(risk);
+    }
+    if (assigneeId) {
+      if (assigneeId === "unassigned") {
+        conditions.push(`"assigneeId" IS NULL`);
+      } else {
+        conditions.push(`"assigneeId" = $${valIdx++}::uuid`);
+        values.push(assigneeId);
+      }
+    }
+    if (query) {
+      conditions.push(`(name ILIKE $${valIdx} OR host ILIKE $${valIdx} OR "pluginId" ILIKE $${valIdx} OR cve ILIKE $${valIdx})`);
+      values.push(`%${query}%`);
+      valIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // 1. Get total number of unique groups
+    const [{ count }] = await prisma.$queryRawUnsafe<any>(`
+      SELECT count(*)::int as count FROM (
+        SELECT DISTINCT ON (name, host, port, "pluginId") id
+        FROM "Vulnerability"
+        ${whereClause}
+      ) as groups
+    `, ...values);
+
+    // 2. Get the representative row for each group with groupCount and groupIds
+    const items = await prisma.$queryRawUnsafe<any>(`
+      SELECT * FROM (
+        SELECT DISTINCT ON (name, host, port, "pluginId") 
+          *,
+          COUNT(*) OVER (PARTITION BY name, host, port, "pluginId")::int as "groupCount",
+          STRING_AGG(id::text, ',') OVER (PARTITION BY name, host, port, "pluginId") as "groupIds",
+          STRING_AGG(COALESCE(cve, ''), ', ') OVER (PARTITION BY name, host, port, "pluginId") as "groupCves"
+        FROM "Vulnerability"
+        ${whereClause}
+        ORDER BY name, host, port, "pluginId", risk ASC, "lastSeenAt" DESC
+      ) as grouped
+      ORDER BY risk ASC, "lastSeenAt" DESC
+      LIMIT ${pageSize} OFFSET ${skip}
+    `, ...values);
+
+    // Hydrate the items with assignee info (since group by loses relations)
+    // We can do this with another query if needed, or join in the raw SQL.
+    // Joining is better. Let's update the query above.
+    // Actually, let's keep it simple for now and hydrate in JS if items is small.
+    const hydratedItems = await Promise.all(items.map(async (item: any) => {
+      if (item.assigneeId) {
+        const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId } });
+        return { ...item, assignee };
+      }
+      return item;
+    }));
+
+    return NextResponse.json({ total: count, items: hydratedItems, page, pageSize });
+  }
 
   const where = {
     ...(siteId ? { siteId } : {}),

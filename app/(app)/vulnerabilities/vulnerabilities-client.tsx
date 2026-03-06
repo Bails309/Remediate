@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
+import { cn } from "@/components/cn";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -37,6 +39,9 @@ type Vulnerability = {
   description?: string | null;
   solution?: string | null;
   pluginOutput?: string | null;
+  groupCount?: number;
+  groupIds?: string;
+  groupCves?: string;
 };
 
 type Props = {
@@ -57,6 +62,9 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
+  const [foldDuplicates, setFoldDuplicates] = useState(true);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [subItems, setSubItems] = useState<Record<string, Vulnerability[]>>({});
 
   const fetchData = async () => {
     const params = new URLSearchParams();
@@ -65,6 +73,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     if (risk) params.set("risk", risk);
     if (query) params.set("q", query);
     if (assigneeId) params.set("assigneeId", assigneeId);
+    if (foldDuplicates) params.set("fold", "true");
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
 
@@ -80,11 +89,11 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
 
   useEffect(() => {
     fetchData();
-  }, [siteId, status, risk, assigneeId, page, pageSize]);
+  }, [siteId, status, risk, assigneeId, page, pageSize, foldDuplicates]);
 
   useEffect(() => {
     setPage(1);
-  }, [siteId, status, risk, assigneeId, query, pageSize]);
+  }, [siteId, status, risk, assigneeId, query, pageSize, foldDuplicates]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -135,6 +144,54 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       setSelected([]);
     } else {
       setSelected(data.map((item) => item.id));
+    }
+  };
+
+  const groupedData = useMemo(() => {
+    return data.map(item => {
+      if (foldDuplicates && item.groupCount && item.groupCount > 1) {
+        return { type: 'group' as const, key: item.id, item };
+      }
+      return { type: 'single' as const, item };
+    });
+  }, [data, foldDuplicates]);
+
+  const toggleGroup = async (group: Vulnerability) => {
+    const key = group.id;
+    if (expandedGroups.has(key)) {
+      setExpandedGroups(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      return;
+    }
+
+    // Expanding: fetch sub-items if not already loaded
+    if (!subItems[key] && group.groupIds) {
+      const response = await fetch(`/api/vulnerabilities?ids=${group.groupIds}`);
+      if (response.ok) {
+        const payload = await response.json();
+        setSubItems(prev => ({ ...prev, [key]: payload.items }));
+      }
+    }
+
+    setExpandedGroups(prev => new Set(prev).add(key));
+  };
+
+  const isGroupSelected = (group: Vulnerability) => {
+    const ids = group.groupIds?.split(",") || [group.id];
+    return ids.every(id => selected.includes(id));
+  };
+
+  const toggleGroupSelect = (group: Vulnerability) => {
+    const ids = group.groupIds?.split(",") || [group.id];
+    const allSelected = isGroupSelected(group);
+
+    if (allSelected) {
+      setSelected(prev => prev.filter(id => !ids.includes(id)));
+    } else {
+      setSelected(prev => [...new Set([...prev, ...ids])]);
     }
   };
 
@@ -282,6 +339,13 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             { label: "Remediated", value: "Remediated" },
           ]}
         />
+        <Button
+          variant="outline"
+          onClick={() => setFoldDuplicates(!foldDuplicates)}
+          className={cn(foldDuplicates && "bg-[color:var(--color-primary)] text-white")}
+        >
+          {foldDuplicates ? "Folding Active" : "Fold Duplicates"}
+        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-[28px] border border-[color:var(--color-border)]">
@@ -301,41 +365,117 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 && (
-              <tr>
-                <td className="p-6 text-sm opacity-60" colSpan={7}>
-                  No vulnerabilities match the current filters.
-                </td>
-              </tr>
-            )}
-            {data.map((item) => (
-              <tr key={item.id} className="border-b border-[color:var(--color-border)] last:border-none">
-                <td className="p-4">
-                  <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} />
-                </td>
-                <td className="p-4">
-                  <p className="font-semibold">{item.name}</p>
-                  <p className="text-xs opacity-60">Plugin {item.pluginId}</p>
-                </td>
-                <td className="p-4">
-                  <p className="font-semibold">{item.host}:{item.port}</p>
-                  <p className="text-xs opacity-60">{item.cve ?? "No CVE"}</p>
-                </td>
-                <td className="p-4">
-                  <Badge tone={riskToneMap[item.risk] ?? "neutral"}>{item.risk}</Badge>
-                </td>
-                <td className="p-4">{item.status}</td>
-                <td className="p-4">{item.assignee?.name ?? "Unassigned"}</td>
-                <td className="p-4">
-                  <ClientDate date={item.lastSeenAt} className="text-xs opacity-70" />
-                </td>
-                <td className="p-4">
-                  <Button variant="ghost" onClick={() => setDetail(item)}>
-                    View
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {groupedData.flatMap((entry) => {
+              if (entry.type === 'single') {
+                const { item } = entry;
+                return (
+                  <tr key={item.id} className="border-b border-[color:var(--color-border)] last:border-none">
+                    <td className="p-4">
+                      <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} />
+                    </td>
+                    <td className="p-4">
+                      <p className="font-semibold">{item.name}</p>
+                      <p className="text-xs opacity-60">Plugin {item.pluginId}</p>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-semibold">{item.host}:{item.port}</p>
+                      <p className="text-xs opacity-60">{item.cve ?? "No CVE"}</p>
+                    </td>
+                    <td className="p-4">
+                      <Badge tone={riskToneMap[item.risk] ?? "neutral"}>{item.risk}</Badge>
+                    </td>
+                    <td className="p-4">{item.status}</td>
+                    <td className="p-4">{item.assignee?.name ?? "Unassigned"}</td>
+                    <td className="p-4">
+                      <ClientDate date={item.lastSeenAt} className="text-xs opacity-70" />
+                    </td>
+                    <td className="p-4">
+                      <Button variant="ghost" onClick={() => setDetail(item)}>
+                        View
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              const isExpanded = expandedGroups.has(entry.key);
+              const { item: group } = entry;
+              const groupMembers = subItems[entry.key] || [];
+
+              return [
+                <tr key={`group-${entry.key}`} className="bg-[color:var(--color-surface-hover)] border-b border-[color:var(--color-border)]">
+                  <td className="p-4">
+                    <input
+                      type="checkbox"
+                      checked={isGroupSelected(group)}
+                      onChange={() => toggleGroupSelect(group)}
+                    />
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => toggleGroup(group)} className="p-1 hover:bg-white/10 rounded transition-colors">
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </button>
+                      <div>
+                        <p className="font-semibold">{group.name}</p>
+                        <p className="text-xs opacity-60">Plugin {group.pluginId} • {group.groupCount} issues</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <p className="font-semibold">{group.host}:{group.port}</p>
+                    <p className="text-xs opacity-60 truncate max-w-[200px]" title={group.groupCves ?? ""}>
+                      {group.groupCount} CVEs: {group.groupCves}
+                    </p>
+                  </td>
+                  <td className="p-4">
+                    <Badge tone={riskToneMap[group.risk] ?? "neutral"}>{group.risk}</Badge>
+                  </td>
+                  <td className="p-4">{group.status}</td>
+                  <td className="p-4">{group.assignee?.name ?? "Unassigned"}</td>
+                  <td className="p-4">
+                    <ClientDate date={group.lastSeenAt} className="text-xs opacity-70" />
+                  </td>
+                  <td className="p-4">
+                    <Button variant="ghost" onClick={() => toggleGroup(group)}>
+                      {isExpanded ? "Collapse" : "Expand"}
+                    </Button>
+                  </td>
+                </tr>,
+                ...(isExpanded ? (groupMembers.length > 0 ? groupMembers.map((member) => (
+                  <tr key={member.id} className="border-b border-[color:var(--color-border)] last:border-none opacity-80 bg-white/5">
+                    <td className="p-4 pl-12">
+                      <input type="checkbox" checked={selected.includes(member.id)} onChange={() => toggleSelect(member.id)} />
+                    </td>
+                    <td className="p-4">
+                      <p className="text-sm">{member.name}</p>
+                    </td>
+                    <td className="p-4">
+                      <p className="text-xs font-mono">{member.cve ?? "No CVE"}</p>
+                    </td>
+                    <td className="p-4">
+                      <div className="scale-75 origin-left">
+                        <Badge tone={riskToneMap[member.risk] ?? "neutral"}>{member.risk}</Badge>
+                      </div>
+                    </td>
+                    <td className="p-4 text-xs">{member.status}</td>
+                    <td className="p-4 text-xs">{member.assignee?.name ?? "-"}</td>
+                    <td className="p-4">
+                      <ClientDate date={member.lastSeenAt} className="text-[10px] opacity-60" />
+                    </td>
+                    <td className="p-4">
+                      <Button variant="ghost" onClick={() => setDetail(member)}>
+                        View
+                      </Button>
+                    </td>
+                  </tr>
+                )) : [
+                  <tr key={`${entry.key}-loading`}>
+                    <td colSpan={8} className="p-4 pl-12 text-xs opacity-50">Loading group members...</td>
+                  </tr>
+                ]) : [])
+              ];
+            })}
           </tbody>
         </table>
       </div>
@@ -362,6 +502,6 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           <p className="mt-2 whitespace-pre-wrap">{detail?.pluginOutput ?? "No plugin output."}</p>
         </div>
       </SideSheet>
-    </div>
+    </div >
   );
 }
