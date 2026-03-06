@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
 }
 
 enum UserRole {
@@ -82,6 +84,11 @@ model Vulnerability {
   @@index([siteId, pluginId, host, port])
   @@index([status])
   @@index([risk])
+  @@index([siteId, status, risk])
+  @@index([risk, lastSeenAt(sort: Desc)])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([host(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([pluginId(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model OidcConfig {
