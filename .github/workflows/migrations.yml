@@ -22,9 +22,20 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
     env:
       # Point at the service started above via the runner's localhost port forwarding.
       DATABASE_URL: postgresql://remediate:remediate_password@localhost:5432/remediate?schema=public
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +52,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+
+      - name: Install redis client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
 
       - name: Debug DNS / connectivity to postgres service
         run: |
@@ -77,6 +93,19 @@ jobs:
           docker inspect postgres || true
           echo "=== Recent logs (if available) ==="
           docker logs postgres --tail 200 || true
+          exit 1
+
+      - name: Wait for Redis service
+        run: |
+          for i in $(seq 1 60); do
+            if redis-cli -h localhost -p 6379 ping | grep -q PONG; then
+              echo "Redis is ready"; exit 0
+            fi
+            echo "localhost:6379 - no response"
+            echo "Waiting for Redis ($i/60)..."
+            sleep 2
+          done
+          echo "Redis did not become ready" >&2
           exit 1
 
       - name: Generate Prisma client
