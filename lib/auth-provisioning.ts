@@ -1,4 +1,5 @@
 import type { User, Account, Profile } from "next-auth";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function provisionUser({ user, account, profile }: { user: User; account: Account | null; profile?: Profile }) {
@@ -14,9 +15,9 @@ export async function provisionUser({ user, account, profile }: { user: User; ac
     const existingUser = await prisma.user.findUnique({ where: { email } });
     const isPrimaryAdmin = !!(adminEmail && adminEmail.toLowerCase() === email.toLowerCase());
 
-    const defaultRoles = ["web_app_user"];
-    const adminRoles = ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"];
-    const roles = isPrimaryAdmin ? adminRoles : (existingUser?.roles || defaultRoles);
+    const defaultRoles: UserRole[] = ["web_app_user"];
+    const adminRoles: UserRole[] = ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"];
+    const roles: UserRole[] = isPrimaryAdmin ? adminRoles : (existingUser?.roles || defaultRoles) as UserRole[];
 
     await prisma.user.upsert({
         where: { email },
