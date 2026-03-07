@@ -36,6 +36,7 @@ const result = NextAuth(async () => {
                     if (dbUser) {
                         token.role = dbUser.role;
                         token.userId = dbUser.id;
+                        token.authSource = dbUser.authSource;
                     }
                 }
                 return token;
@@ -44,6 +45,7 @@ const result = NextAuth(async () => {
                 if (session.user) {
                     session.user.id = token.userId as string;
                     session.user.role = token.role as string;
+                    session.user.authSource = token.authSource as string;
                 }
                 return session;
             }

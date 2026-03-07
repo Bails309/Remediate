@@ -7,25 +7,31 @@ export async function requireUser() {
     throw new Error("Unauthorized");
   }
   const email = session.user.email;
-  // Use session data if available, otherwise check DB
-  if (session.user.id && session.user.role) {
-    return session;
-  }
 
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const role = adminEmail && adminEmail.toLowerCase() === email.toLowerCase() ? "Admin" : "User";
-    user = await prisma.user.create({
-      data: {
-        email,
-        name: session.user.name ?? "User",
-        role,
-      },
-    });
+    // Re-provision if database record is missing but session is valid
+    const { provisionUser } = await import("@/lib/auth-provisioning");
+
+    // Create a minimal user object for provisioning
+    const provisionParams = {
+      user: {
+        email: session.user.email,
+        name: session.user.name || "User",
+      } as any,
+      account: {
+        provider: session.user.authSource === "Local" ? "credentials" : "keycloak",
+      } as any,
+    };
+
+    await provisionUser(provisionParams);
+    user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new Error("Failed to re-provision user");
   }
+
   session.user.id = user.id;
   session.user.role = user.role;
+  session.user.authSource = user.authSource;
   return session;
 }
 
