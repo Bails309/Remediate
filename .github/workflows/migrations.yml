@@ -15,6 +15,8 @@ jobs:
           POSTGRES_USER: remediate
           POSTGRES_PASSWORD: remediate_password
           POSTGRES_DB: remediate
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U remediate -d remediate"
           --health-interval=5s
@@ -47,19 +49,24 @@ jobs:
           cat /etc/resolv.conf || true
           echo '--- getent hosts postgres ---'
           getent hosts postgres || true
+          echo '--- getent hosts localhost ---'
+          getent hosts localhost || true
           echo '--- ping postgres (1) ---'
           ping -c 1 postgres || true
+          echo '--- ping localhost (1) ---'
+          ping -c 1 localhost || true
           echo '--- trying to resolve via dig ---'
           dig +short postgres || true
+          dig +short localhost || true
 
       - name: Wait for Postgres service
         run: |
           # Try for up to ~5 minutes (60 attempts x 5s)
           for i in $(seq 1 60); do
-            if pg_isready -h postgres -p 5432 -U remediate; then
+            if pg_isready -h localhost -p 5432 -U remediate; then
               echo "Postgres is ready"; exit 0
             fi
-            echo "postgres:5432 - no response"
+            echo "localhost:5432 - no response"
             echo "Waiting for Postgres ($i/60)..."
             sleep 5
           done
