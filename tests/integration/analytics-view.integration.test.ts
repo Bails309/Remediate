@@ -24,6 +24,8 @@ describe("Analytics View Integration", () => {
         await (prisma as unknown as { vulnerabilityHistory: { deleteMany: () => Promise<unknown> } }).vulnerabilityHistory.deleteMany();
         await prisma.uploadHistory.deleteMany();
         await prisma.site.deleteMany();
+        // Remove pentest execution logs before deleting users to avoid FK constraint errors
+        await prisma.pentestExecution.deleteMany();
         await prisma.user.deleteMany();
 
         site = await prisma.site.create({

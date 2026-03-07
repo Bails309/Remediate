@@ -11,6 +11,7 @@ services:
     environment:
       DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
       REDIS_URL: redis://redis:6379
+      PENTEST_BACKEND_URL: ${PENTEST_BACKEND_URL:-http://pentest-backend:8000}
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_URL: ${AUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
@@ -26,6 +27,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - default
+      - pentest_internal
 
   worker:
     build:
@@ -67,6 +71,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - default
+      - pentest_internal
 
   redis:
     image: redis:7-alpine
@@ -80,6 +87,32 @@ services:
       timeout: 3s
       retries: 10
 
+  pentest-backend:
+    build:
+      context: ./pentest-backend
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
+      TOOLS_CONFIG_PATH: /config/tools.json
+      PENTEST_JWT_ISSUER: remediate
+      PENTEST_JWT_AUDIENCE: pentest-backend
+    volumes:
+      - ./pentest-backend/config:/config
+      - ./pentest-backend/wordlists:/wordlists:ro
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+      - pentest_internal
+
 volumes:
   db_data:
   redis_data:
+
+networks:
+  pentest_internal:
+    internal: true

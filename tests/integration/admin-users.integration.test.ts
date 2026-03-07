@@ -25,13 +25,15 @@ describe("Admin Users API Integration", () => {
         await prisma.vulnerability.deleteMany();
         await (prisma as unknown as { vulnerabilityHistory: { deleteMany: () => Promise<unknown> } }).vulnerabilityHistory.deleteMany();
         await prisma.uploadHistory.deleteMany();
+        // Ensure pentest execution logs removed before deleting users to avoid FK constraints
+        await prisma.pentestExecution.deleteMany();
         await prisma.user.deleteMany();
 
         adminUser = await prisma.user.create({
             data: {
                 email: "admin@test.com",
                 name: "Admin",
-                role: "Admin"
+                roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"]
             }
         });
 
@@ -39,7 +41,7 @@ describe("Admin Users API Integration", () => {
             data: {
                 email: "user@test.com",
                 name: "User",
-                role: "User"
+                roles: ["web_app_user"]
             }
         });
 
@@ -48,7 +50,7 @@ describe("Admin Users API Integration", () => {
             user: {
                 id: adminUser.id,
                 email: adminUser.email,
-                role: "Admin"
+                roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"]
             }
         } as any);
     });
@@ -68,7 +70,7 @@ describe("Admin Users API Integration", () => {
             method: "PATCH",
             body: JSON.stringify({
                 userId: targetUser.id,
-                role: "Admin"
+                roles: ["site_admin", "web_app_admin", "web_app_user"]
             })
         });
 
@@ -76,7 +78,7 @@ describe("Admin Users API Integration", () => {
         expect(res.status).toBe(200);
 
         const updated = await prisma.user.findUnique({ where: { id: targetUser.id } });
-        expect(updated?.role).toBe("Admin");
+        expect(updated?.roles).toContain("site_admin");
     });
 
     it("PATCH /api/admin/users prevents removing the last admin", async () => {
@@ -85,7 +87,7 @@ describe("Admin Users API Integration", () => {
             method: "PATCH",
             body: JSON.stringify({
                 userId: adminUser.id,
-                role: "User"
+                roles: ["web_app_user"]
             })
         });
 
@@ -93,9 +95,9 @@ describe("Admin Users API Integration", () => {
         expect(res.status).toBe(400);
 
         const body = await res.json();
-        expect(body.error).toBe("Cannot remove last admin");
+        expect(body.error).toBe("Cannot remove last site admin");
 
         const updated = await prisma.user.findUnique({ where: { id: adminUser.id } });
-        expect(updated?.role).toBe("Admin");
+        expect(updated?.roles).toContain("site_admin");
     });
 });
