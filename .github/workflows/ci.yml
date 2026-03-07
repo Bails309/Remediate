@@ -9,6 +9,25 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: remediate
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd='pg_isready -U postgres' --health-interval=5s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd='redis-cli ping' --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -19,6 +38,24 @@ jobs:
         run: npm ci --omit=dev
       - name: Install dev dependencies (for tests)
         run: npm install --include=dev
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Install redis client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
+      - name: Wait for Postgres and Redis
+        run: |
+          echo "Waiting for Postgres and Redis to be ready..."
+          for i in {1..60}; do
+            pg_isready -h localhost -p 5432 -U postgres && redis-cli -h localhost -p 6379 ping | grep -q PONG && break || sleep 1
+          done
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply migrations
+        run: npx prisma migrate deploy || true
       - name: Lint
         run: npm run lint
       - name: Build
