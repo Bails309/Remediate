@@ -80,7 +80,7 @@ jobs:
         image: redis:7
         ports: ["6379:6379"]
         options: >-
-          --health-cmd='redis-cli ping' --health-interval=5s --health-timeout=5s --health-retries=10
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
       REDIS_URL: redis://localhost:6379
