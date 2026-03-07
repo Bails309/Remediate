@@ -5,7 +5,7 @@ services:
       target: dev
     ports:
       - "3000:3000"
-    command: sh -c "rm -rf .next/dev/lock && npm run migrate && npm run dev"
+    command: sh -c "rm -rf .next/dev/lock && npm ci --legacy-peer-deps --no-audit && npm run migrate && npm run dev"
     env_file:
       - .env
     environment:
@@ -31,7 +31,7 @@ services:
     build:
       context: .
       target: dev
-    command: sh -c "npm run migrate && npm run optimize-db && npm run worker"
+    command: sh -c "npm ci --legacy-peer-deps --no-audit && npm run migrate && npm run optimize-db && npm run worker"
     env_file:
       - .env
     environment:

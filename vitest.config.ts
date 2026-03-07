@@ -14,10 +14,8 @@ export default defineConfig({
             "@": path.resolve(__dirname, "."),
         },
         coverage: {
-            provider: "istanbul",
+            provider: "v8",
             reporter: ["text", "html"],
-            include: ["lib/**", "app/**", "components/**"],
-            exclude: ["**/tests/**", "**/*.test.*", "node_modules"],
         },
     },
 });
