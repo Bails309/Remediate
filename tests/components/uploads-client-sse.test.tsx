@@ -83,7 +83,7 @@ describe("UploadsClient SSE", () => {
       constructor(public url: string) {
         (global as any).__lastEventSource = this;
       }
-      addEventListener(_name: string, _cb: any) {
+      addEventListener() {
         // progress handled elsewhere in other test
       }
       close() { }
