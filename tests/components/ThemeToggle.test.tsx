@@ -11,8 +11,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 describe("ThemeToggle", () => {
   it("toggles theme on click", async () => {
-    const { getByRole } = render(<ThemeToggle />);
-    const btn = await getByRole("button");
+    const { findByRole } = render(<ThemeToggle />);
+    const btn = await findByRole("button");
     expect(btn).toBeTruthy();
     fireEvent.click(btn);
     // setTheme is mocked within module; ensure no error thrown and button exists
