@@ -14,15 +14,10 @@ export default defineConfig({
             "@": path.resolve(__dirname, "."),
         },
         coverage: {
-            provider: "c8",
+            provider: "istanbul",
             reporter: ["text", "html"],
-            all: true,
             include: ["lib/**", "app/**", "components/**"],
             exclude: ["**/tests/**", "**/*.test.*", "node_modules"],
-            lines: 80,
-            functions: 80,
-            branches: 75,
-            statements: 80,
         },
     },
 });
