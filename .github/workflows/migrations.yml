@@ -23,8 +23,8 @@ jobs:
           --health-timeout=3s
           --health-retries=20
     env:
-      # Point at the service started above. Using the service hostname 'postgres'.
-      DATABASE_URL: postgresql://remediate:remediate_password@postgres:5432/remediate?schema=public
+      # Point at the service started above via the runner's localhost port forwarding.
+      DATABASE_URL: postgresql://remediate:remediate_password@localhost:5432/remediate?schema=public
     steps:
       - name: Checkout
         uses: actions/checkout@v4
