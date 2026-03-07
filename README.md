@@ -113,6 +113,16 @@ npx prisma migrate deploy
 - Only users with `pentest_user`, `pentest_admin`, or `site_admin` roles can access `/tools`.
 - Execution logs are stored in Postgres in the `PentestExecution` table.
 
+Local development notes (pentest-backend):
+
+- The pentest backend is reachable from the app via the internal Docker network at `http://pentest-backend:8000`. For local Next.js running on the host you can set `PENTEST_BACKEND_URL=http://localhost:8000` in your `.env` and expose the backend with `ports: - "8000:8000"` in `docker-compose.yml` (not the default for security).
+- If the pentest backend needs to resolve public domains, the compose file now configures DNS servers for the service and attaches it to the default network to allow outbound network access. See `docker-compose.yml` for the `dns:` and `networks:` entries.
+- Tools are strictly allowlisted via `pentest-backend/config/tools.json`. Review allowed flags and inputs before enabling additional tools.
+- The backend requires `AUTH_SECRET` to validate signed tokens issued by the app; the app signs short-lived JWTs for proxying requests to the toolkit.
+
+Security note:
+- The pentest toolkit executes native binaries. In production, run it in an isolated environment with strict network egress controls, resource limits, and audit logging. Consider running as a separate project with dedicated secrets and monitoring.
+
 ## Deployment (Azure Container Apps)
 High-level steps:
 1. Build and push image to ACR (or another registry).
