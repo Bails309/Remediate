@@ -27,7 +27,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
       REDIS_URL: redis://localhost:6379
-      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'test-secret' }}
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
