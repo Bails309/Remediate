@@ -5,7 +5,8 @@ async function main() {
     const users = await prisma.user.findMany()
     console.log('Current Users in DB:')
     users.forEach(u => {
-        console.log(`- ${u.name} (${u.email}): role=${u.role}, authSource=${u.authSource}`)
+        const roles = Array.isArray(u.roles) ? u.roles.join(',') : String(u.roles);
+        console.log(`- ${u.name} (${u.email}): roles=${roles}, authSource=${u.authSource}`)
     })
 }
 
