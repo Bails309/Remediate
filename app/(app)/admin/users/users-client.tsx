@@ -12,15 +12,24 @@ type User = {
     id: string;
     name: string;
     email: string;
-    role: "Admin" | "User";
+    roles: string[];
     authSource: string;
     createdAt: string;
 };
+
+const roleOptions = [
+    { value: "site_admin", label: "Site Admin" },
+    { value: "web_app_admin", label: "Web App Admin" },
+    { value: "pentest_admin", label: "Pentest Admin" },
+    { value: "web_app_user", label: "Web App User" },
+    { value: "pentest_user", label: "Pentest User" },
+];
 
 export function UsersClient() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [draftRoles, setDraftRoles] = useState<Record<string, string[]>>({});
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -29,6 +38,11 @@ export function UsersClient() {
             if (!res.ok) throw new Error("Failed to fetch users");
             const data = await res.json();
             setUsers(data);
+            const roleMap: Record<string, string[]> = {};
+            data.forEach((user: User) => {
+                roleMap[user.id] = user.roles?.length ? [...user.roles] : ["web_app_user"];
+            });
+            setDraftRoles(roleMap);
         } catch {
             toast.error("Failed to load users");
         } finally {
@@ -40,15 +54,15 @@ export function UsersClient() {
         fetchUsers();
     }, []);
 
-    const toggleRole = async (user: User) => {
-        const newRole = user.role === "Admin" ? "User" : "Admin";
+    const updateRoles = async (user: User) => {
+        const roles = draftRoles[user.id] || [];
         setUpdatingId(user.id);
 
         try {
             const res = await fetch("/api/admin/users", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId: user.id, role: newRole }),
+                body: JSON.stringify({ userId: user.id, roles }),
             });
 
             if (!res.ok) {
@@ -56,14 +70,27 @@ export function UsersClient() {
                 throw new Error(payload.error || "Failed to update role");
             }
 
-            toast.success(`User role updated to ${newRole}`);
-            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
+            toast.success("User roles updated");
+            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, roles } : u));
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(error.message);
         } finally {
             setUpdatingId(null);
         }
+    };
+
+    const toggleDraftRole = (userId: string, role: string) => {
+        setDraftRoles((prev) => {
+            const current = prev[userId] || [];
+            const next = current.includes(role)
+                ? current.filter((item) => item !== role)
+                : [...current, role];
+            if (!next.includes("web_app_user")) {
+                next.push("web_app_user");
+            }
+            return { ...prev, [userId]: next };
+        });
     };
 
     return (
@@ -93,7 +120,7 @@ export function UsersClient() {
                             <tr className="border-b border-white/5 bg-white/5 text-[10px] font-bold uppercase tracking-wider opacity-60">
                                 <th className="px-6 py-4">User</th>
                                 <th className="px-6 py-4">Authentication</th>
-                                <th className="px-6 py-4">Role</th>
+                                <th className="px-6 py-4">Roles</th>
                                 <th className="px-6 py-4">Registered</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -142,14 +169,35 @@ export function UsersClient() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <Badge tone={user.role === "Admin" ? "critical" : "neutral"} className="rounded-full px-3 py-0.5">
-                                                {user.role === "Admin" ? (
-                                                    <Shield className="mr-1 h-3 w-3 inline" />
-                                                ) : (
-                                                    <UserIcon className="mr-1 h-3 w-3 inline" />
-                                                )}
-                                                {user.role}
-                                            </Badge>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(user.roles?.length ? user.roles : ["web_app_user"]).map((role) => (
+                                                    <Badge
+                                                        key={role}
+                                                        tone={role.includes("admin") ? "critical" : "neutral"}
+                                                        className="rounded-full px-3 py-0.5"
+                                                    >
+                                                        {role.includes("admin") ? (
+                                                            <Shield className="mr-1 h-3 w-3 inline" />
+                                                        ) : (
+                                                            <UserIcon className="mr-1 h-3 w-3 inline" />
+                                                        )}
+                                                        {role.replace(/_/g, " ")}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                {roleOptions.map((role) => (
+                                                    <label key={role.value} className="flex items-center gap-2 text-[11px]">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5"
+                                                            checked={(draftRoles[user.id] || []).includes(role.value)}
+                                                            onChange={() => toggleDraftRole(user.id, role.value)}
+                                                        />
+                                                        <span>{role.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 opacity-70">
                                             <ClientDate date={user.createdAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric' }} />
@@ -157,17 +205,14 @@ export function UsersClient() {
                                         <td className="px-6 py-4 text-right">
                                             <Button
                                                 variant="ghost"
-                                                onClick={() => toggleRole(user)}
+                                                onClick={() => updateRoles(user)}
                                                 disabled={updatingId === user.id}
-                                                className={cn(
-                                                    "glass glass-edge text-xs font-medium transition-all",
-                                                    user.role === "Admin" ? "hover:text-red-400" : "hover:text-amber-400"
-                                                )}
+                                                className="glass glass-edge text-xs font-medium transition-all hover:text-[color:var(--color-accent)]"
                                             >
                                                 {updatingId === user.id ? (
                                                     <RefreshCw className="h-3 w-3 animate-spin mr-2" />
                                                 ) : null}
-                                                {user.role === "Admin" ? "Demote to User" : "Promote to Admin"}
+                                                Save roles
                                             </Button>
                                         </td>
                                     </tr>

@@ -14,20 +14,21 @@ export async function provisionUser({ user, account, profile }: { user: User; ac
     const existingUser = await prisma.user.findUnique({ where: { email } });
     const isPrimaryAdmin = !!(adminEmail && adminEmail.toLowerCase() === email.toLowerCase());
 
-    // Preserve existing role unless they are the primary admin defined in ENV
-    const role = isPrimaryAdmin ? "Admin" : (existingUser?.role || "User");
+    const defaultRoles = ["web_app_user"];
+    const adminRoles = ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"];
+    const roles = isPrimaryAdmin ? adminRoles : (existingUser?.roles || defaultRoles);
 
     await prisma.user.upsert({
         where: { email },
         update: {
             name: user.name || "User",
-            role,
+            roles,
             authSource
         },
         create: {
             email,
             name: user.name || "User",
-            role,
+            roles,
             authSource
         },
     });

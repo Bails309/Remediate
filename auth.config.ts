@@ -25,7 +25,7 @@ export default {
                         id: localEmail as string,
                         name: localName,
                         email: localEmail as string,
-                        role: "Admin",
+                        roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
                     } as User;
                 }
                 return null;
@@ -38,7 +38,7 @@ export default {
     callbacks: {
         async jwt({ token, user }: { token: JWT, user?: User }) {
             if (user) {
-                token.role = user.role;
+                token.roles = user.roles;
                 token.userId = user.id;
             }
             return token;
@@ -46,7 +46,7 @@ export default {
         async session({ session, token }: { session: Session, token: JWT }) {
             if (session.user) {
                 session.user.id = token.userId as string;
-                session.user.role = token.role as string;
+                session.user.roles = token.roles as string[];
             }
             return session;
         },

@@ -4,6 +4,8 @@ Direct, Serious, Zero Fluff
 ## Overview
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
 
+The platform now includes an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
+
 ## Prerequisites
 - Docker Desktop (for local development)
 
@@ -59,6 +61,9 @@ See .env.example for all required values. Minimum local dev values:
 - AUTH_SECRET
 - ADMIN_EMAIL
 
+Pentest toolkit:
+- PENTEST_BACKEND_URL (defaults to http://pentest-backend:8000 in Docker)
+
 AUTH_SECRET is used to encrypt OIDC config stored in Postgres.
 
 External DB/Redis support:
@@ -101,6 +106,12 @@ npx prisma migrate deploy
 ## Authentication
 - Keycloak OIDC is configured via .env or the Admin UI.
 - If you prefer UI configuration, set the values in the Admin page and redeploy or restart to pick them up.
+
+## Pentest Toolkit
+- The pentest backend runs in a separate container without host-exposed ports.
+- Tools are defined in `pentest-backend/config/tools.json` and mounted into the backend container.
+- Only users with `pentest_user`, `pentest_admin`, or `site_admin` roles can access `/tools`.
+- Execution logs are stored in Postgres in the `PentestExecution` table.
 
 ## Deployment (Azure Container Apps)
 High-level steps:

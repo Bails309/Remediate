@@ -1,4 +1,4 @@
-import { PrismaClient, Risk, VulnerabilityStatus, UserRole } from "@prisma/client";
+import { PrismaClient, Risk, VulnerabilityStatus } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -11,7 +11,7 @@ async function main() {
     create: {
       email: adminEmail,
       name: "Admin User",
-      role: UserRole.Admin,
+      roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
     },
   });
 

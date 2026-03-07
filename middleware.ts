@@ -28,8 +28,14 @@ export default auth((req: AuthRequest) => {
         return NextResponse.redirect(new URL("/login", nextUrl));
     }
 
-    const userRole = req.auth?.user?.role;
-    if (nextUrl.pathname.startsWith("/admin") && userRole !== "Admin") {
+    const roles = req.auth?.user?.roles || [];
+    const hasAnyRole = (allowed: string[]) => allowed.some((role) => roles.includes(role));
+
+    if (nextUrl.pathname.startsWith("/admin") && !hasAnyRole(["site_admin", "web_app_admin"])) {
+        return NextResponse.redirect(new URL("/dashboard", nextUrl));
+    }
+
+    if (nextUrl.pathname.startsWith("/tools") && !hasAnyRole(["site_admin", "pentest_admin", "pentest_user"])) {
         return NextResponse.redirect(new URL("/dashboard", nextUrl));
     }
 

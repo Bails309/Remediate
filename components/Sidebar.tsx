@@ -27,11 +27,17 @@ const adminNavItems = [
   { href: "/admin/users", label: "Users", icon: Users },
 ];
 
+const toolsNavItems = [
+  { href: "/tools", label: "Tools", icon: Wrench },
+];
+
 export function Sidebar({ session }: { session?: Session | null }) {
   const pathname = usePathname();
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const isAdmin = session?.user?.role === "Admin";
+  const roles = session?.user?.roles || [];
+  const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  const isPentestUser = roles.includes("site_admin") || roles.includes("pentest_admin") || roles.includes("pentest_user");
 
   const isAdminChildActive = useMemo(() =>
     adminNavItems.some(item => pathname === item.href),
@@ -112,8 +118,38 @@ export function Sidebar({ session }: { session?: Session | null }) {
           </div>
         </div>
 
+        {isPentestUser && (
+          <div className="space-y-2">
+            <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 flex items-center gap-2">
+              <Wrench size={10} />
+              Security Tools
+            </p>
+            <div className="flex flex-col gap-1">
+              {toolsNavItems.map((item) => {
+                const active = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium transition-all group",
+                      active
+                        ? "glass glass-edge shadow-[0_8px_16px_rgba(0,0,0,0.1)] text-[color:var(--color-accent)]"
+                        : "text-[color:var(--color-foreground)] opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
+                    )}
+                  >
+                    <Icon size={18} className={cn("transition-transform group-hover:scale-110", active && "scale-110")} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Administration Group */}
-        {isAdmin && (
+        {isWebAdmin && (
           <div className="space-y-2">
             <button
               onClick={() => setIsAdminExpanded(!isAdminExpanded)}
@@ -166,7 +202,9 @@ export function Sidebar({ session }: { session?: Session | null }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.user.name}</p>
-              <p className="truncate text-[10px] opacity-60 uppercase tracking-tighter">{session.user.role}</p>
+              <p className="truncate text-[10px] opacity-60 uppercase tracking-tighter">
+                {(session.user.roles || []).slice(0, 2).join(" · ")}
+              </p>
             </div>
           </div>
         )}

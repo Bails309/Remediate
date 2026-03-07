@@ -22,7 +22,7 @@ describe("Auth Provisioning", () => {
         vi.stubEnv("LOCAL_AUTH_EMAIL", adminEmail);
     });
 
-    it("should provision a new user as 'User' by default", async () => {
+    it("should provision a new user with web_app_user role by default", async () => {
         vi.mocked(prisma.user.findUnique).mockResolvedValue(null as any);
 
         await provisionUser({ user: normalUser as any, account: { provider: "keycloak" } as any });
@@ -31,14 +31,14 @@ describe("Auth Provisioning", () => {
             expect.objectContaining({
                 create: expect.objectContaining({
                     email: normalUser.email,
-                    role: "User",
+                    roles: ["web_app_user"],
                     authSource: "SSO"
                 }),
             })
         );
     });
 
-    it("should provision the primary admin as 'Admin'", async () => {
+    it("should provision the primary admin with all admin roles", async () => {
         vi.mocked(prisma.user.findUnique).mockResolvedValue(null as any);
 
         await provisionUser({ user: primaryAdmin as any, account: { provider: "credentials" } as any });
@@ -47,18 +47,18 @@ describe("Auth Provisioning", () => {
             expect.objectContaining({
                 create: expect.objectContaining({
                     email: adminEmail,
-                    role: "Admin",
+                    roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
                     authSource: "Local"
                 }),
             })
         );
     });
 
-    it("should preserve manually assigned 'Admin' role for non-primary admin", async () => {
+    it("should preserve manually assigned roles for non-primary admin", async () => {
         const dashboardAdmin = { email: "secondary@example.com", name: "Secondary Admin" };
         (prisma.user.findUnique as any).mockResolvedValue({
             email: dashboardAdmin.email,
-            role: "Admin"
+            roles: ["web_app_admin", "web_app_user"]
         });
 
         await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } });
@@ -66,23 +66,23 @@ describe("Auth Provisioning", () => {
         expect(prisma.user.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
                 update: expect.objectContaining({
-                    role: "Admin"
+                    roles: ["web_app_admin", "web_app_user"]
                 }),
             })
         );
     });
 
-    it("should not demote manually assigned Admin", async () => {
+    it("should not demote manually assigned roles", async () => {
         const dashboardAdmin = { email: "secondary@example.com", name: "Secondary Admin" };
         (prisma.user.findUnique as any).mockResolvedValue({
             email: dashboardAdmin.email,
-            role: "Admin"
+            roles: ["web_app_admin", "web_app_user"]
         });
 
         await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } });
 
         // Verify it doesn't default back to "User"
         const upsertCall = vi.mocked(prisma.user.upsert).mock.calls[0][0];
-        expect(upsertCall.update.role).toBe("Admin");
+        expect(upsertCall.update.roles).toEqual(["web_app_admin", "web_app_user"]);
     });
 });
