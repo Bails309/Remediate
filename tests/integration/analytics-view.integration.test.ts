@@ -67,6 +67,11 @@ describe("Analytics View Integration", () => {
         // 3. Query the view
         const results = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "VulnerabilityView" ORDER BY name ASC`);
 
+        // DEBUG: log results to help diagnose why only one row may be returned
+        // (temporary — remove once debugging is complete)
+        // eslint-disable-next-line no-console
+        console.log('DEBUG VulnerabilityView results:', results);
+
         expect(results.length).toBe(2);
 
         const active = results.find(r => r.name === "Active Bug");
