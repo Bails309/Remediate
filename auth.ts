@@ -36,7 +36,9 @@ const result = NextAuth(async () => {
                     if (dbUser) {
                         token.role = dbUser.role;
                         token.userId = dbUser.id;
-                        token.authSource = dbUser.authSource;
+                        /* eslint-disable @typescript-eslint/no-explicit-any */
+                        token.authSource = (dbUser as any).authSource;
+                        /* eslint-enable @typescript-eslint/no-explicit-any */
                     }
                 }
                 return token;
