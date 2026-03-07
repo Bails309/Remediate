@@ -40,6 +40,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Debug DNS / connectivity to postgres service
+        run: |
+          sudo apt-get install -y iputils-ping dnsutils
+          echo '--- /etc/resolv.conf ---'
+          cat /etc/resolv.conf || true
+          echo '--- getent hosts postgres ---'
+          getent hosts postgres || true
+          echo '--- ping postgres (1) ---'
+          ping -c 1 postgres || true
+          echo '--- trying to resolve via dig ---'
+          dig +short postgres || true
+
       - name: Wait for Postgres service
         run: |
           # Try for up to ~5 minutes (60 attempts x 5s)
