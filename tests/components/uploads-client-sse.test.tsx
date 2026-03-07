@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
@@ -56,11 +56,15 @@ describe("UploadsClient SSE", () => {
     const es = (global as Record<string, any>).__lastEventSource;
 
     // Emit a processing event
-    es.emit("progress", { step: "Processing", progress: 15 });
+    await act(async () => {
+      es.emit("progress", { step: "Processing", progress: 15 });
+    });
     await waitFor(() => screen.getByText("Processing"));
 
     // Emit completed
-    es.emit("progress", { step: "Completed", progress: 100 });
+    await act(async () => {
+      es.emit("progress", { step: "Completed", progress: 100 });
+    });
     await waitFor(() => screen.getByText("Completed"));
   });
 
@@ -110,7 +114,9 @@ describe("UploadsClient SSE", () => {
     const es = (global as any).__lastEventSource as any;
 
     // Trigger error
-    es.emitError();
+    await act(async () => {
+      es.emitError();
+    });
 
     await waitFor(() => expect(toastSpy).toHaveBeenCalled());
 
