@@ -15,7 +15,8 @@ export function Button({ className, variant = "primary", loading, children, ...p
         "disabled:cursor-not-allowed disabled:opacity-60",
         variant === "primary" && "bg-[color:var(--color-accent)] text-white hover:opacity-90",
         variant === "outline" &&
-        "border border-[color:var(--color-border)] text-[color:var(--color-foreground)] hover:bg-[color:var(--color-muted)]",
+        "border border-slate-300 bg-transparent text-slate-700 rounded-md hover:bg-slate-50 transition-colors",
+        variant === "outline" && "dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800",
         variant === "ghost" && "text-[color:var(--color-foreground)] hover:bg-[color:var(--color-muted)]",
         className
       )}

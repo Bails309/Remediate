@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { SideSheet } from "@/components/SideSheet";
+import { EmptyState } from "@/components/EmptyState";
+import { Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { ClientDate } from "@/components/ClientDate";
 
@@ -103,26 +105,32 @@ export function DeadLetterClient() {
         <p className="text-sm opacity-70">Failed uploads that exceeded retry limits.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" onClick={() => setConfirmAction("requeue")}>
-          Requeue All
-        </Button>
-        <div className="flex items-center gap-2">
-          <Input
-            value={purgeDays}
-            onChange={(event) => setPurgeDays(event.target.value)}
-            placeholder="Days"
-            className="w-24"
-          />
-          <Button variant="outline" onClick={() => setConfirmAction("purge")}>
-            Purge Stale
+      <div className="bg-white dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 shadow-sm rounded-xl p-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={() => setConfirmAction("requeue")}>
+            Requeue All
           </Button>
+          <div className="flex items-center gap-2">
+            <Input
+              value={purgeDays}
+              onChange={(event) => setPurgeDays(event.target.value)}
+              placeholder="Days"
+              className="w-24"
+            />
+            <Button
+              variant="outline"
+              onClick={() => setConfirmAction("purge")}
+              className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-900/20"
+            >
+              Purge Stale
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-[28px] border border-[color:var(--color-border)]">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-[color:var(--color-border)] text-xs uppercase tracking-[0.2em]">
+          <thead className="border-b border-[color:var(--color-border)] text-xs font-semibold uppercase tracking-wider text-gray-500">
             <tr>
               <th className="p-4">Upload</th>
               <th className="p-4">Site</th>
@@ -135,8 +143,12 @@ export function DeadLetterClient() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td className="p-6 text-sm opacity-60" colSpan={6}>
-                  Dead-letter queue is empty.
+                <td className="p-6" colSpan={6}>
+                  <EmptyState
+                    title="Dead-letter queue is empty"
+                    description="Uploads that exceed retry limits will appear here for review."
+                    icon={<Inbox className="h-8 w-8" />}
+                  />
                 </td>
               </tr>
             )}

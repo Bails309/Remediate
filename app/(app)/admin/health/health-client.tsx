@@ -76,9 +76,9 @@ export function HealthClient() {
                     <h1 className="text-4xl font-bold tracking-tight">System Health</h1>
                     <p className="mt-2 text-lg opacity-60">Real-time status and diagnostics for core infrastructure.</p>
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-black/20 px-4 py-2 text-xs font-medium backdrop-blur-md">
-                    <RefreshCw className={`h-3 w-3 ${nextRefresh === 60 ? 'animate-spin' : ''}`} />
-                    <span className="opacity-70">Auto-refreshing in {nextRefresh}s</span>
+                <div className="flex items-center gap-2 rounded-full border border-border bg-foreground/10 px-4 py-2 text-xs font-medium backdrop-blur-md">
+                    <RefreshCw className={`h-3 w-3 text-accent ${nextRefresh === 60 ? 'animate-spin' : ''}`} />
+                    <span className="text-foreground/70">Auto-refreshing in {nextRefresh}s</span>
                 </div>
             </div>
 
@@ -130,7 +130,7 @@ export function HealthClient() {
                 <SmallHealthCard label="ENVIRONMENT" value={data.process.environment} icon={<Activity className="h-4 w-4" />} />
             </div>
 
-            <div className="text-right text-[10px] uppercase tracking-widest opacity-30">
+            <div className="text-right text-[10px] uppercase tracking-widest text-foreground/30">
                 Last Checked: {new Date(data.timestamp).toLocaleString()}
             </div>
         </div>
@@ -150,14 +150,14 @@ function HealthCard({ title, subtitle, icon, status, metrics, glowColor }: Healt
     const isHealthy = status === "Healthy";
     return (
         <div
-            className="group relative overflow-hidden rounded-[32px] border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-8 transition-all hover:border-[color:var(--color-accent)]/50"
+            className="glass glass-edge group relative overflow-hidden rounded-[32px] p-8 transition-all hover:border-accent/50"
             style={{ boxShadow: `0 0 40px -10px ${glowColor}` }}
         >
             <div className="flex items-start justify-between">
-                <div className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 group-hover:ring-white/20">
+                <div className="rounded-2xl bg-foreground/5 p-3 ring-1 ring-foreground/10 group-hover:ring-foreground/20">
                     {icon}
                 </div>
-                <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${isHealthy ? 'bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]' : 'bg-red-500/10 text-red-400 shadow-[0_0_10px_rgba(248,113,113,0.2)]'}`}>
+                <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${isHealthy ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_10px_rgba(52,211,153,0.2)]' : 'bg-red-500/10 text-red-500 shadow-[0_0_10px_rgba(248,113,113,0.2)]'}`}>
                     {isHealthy ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
                     {status}
                 </div>
@@ -168,11 +168,11 @@ function HealthCard({ title, subtitle, icon, status, metrics, glowColor }: Healt
                 <p className="text-xs opacity-50">{subtitle}</p>
             </div>
 
-            <div className="mt-8 space-y-4 border-t border-white/5 pt-6">
+            <div className="mt-8 space-y-4 border-t border-foreground/5 pt-6">
                 {metrics.map((m, i) => (
                     <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="opacity-40">{m.label}</span>
-                        <span className="font-mono font-bold uppercase">{m.value}</span>
+                        <span className="text-foreground/60">{m.label}</span>
+                        <span className="font-mono font-bold uppercase text-foreground">{m.value}</span>
                     </div>
                 ))}
             </div>
@@ -188,13 +188,13 @@ interface SmallHealthCardProps {
 
 function SmallHealthCard({ label, value, icon }: SmallHealthCardProps) {
     return (
-        <div className="flex items-center gap-4 rounded-[20px] border border-white/5 bg-white/[0.02] p-4 backdrop-blur-sm transition-all hover:bg-white/[0.04]">
-            <div className="rounded-lg bg-white/5 p-2 text-white/40">
+        <div className="glass flex items-center gap-4 rounded-[20px] p-4 transition-all hover:bg-foreground/5">
+            <div className="rounded-lg bg-foreground/10 p-2 text-foreground/70">
                 {icon}
             </div>
             <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] opacity-40">{label}</p>
-                <p className="text-sm font-bold tracking-tight">{value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/50">{label}</p>
+                <p className="text-sm font-bold tracking-tight text-foreground">{value}</p>
             </div>
         </div>
     );

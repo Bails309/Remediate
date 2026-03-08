@@ -34,9 +34,9 @@ const result = NextAuth(async () => {
                 if (user) {
                     const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
                     if (dbUser) {
-                        token.roles = dbUser.roles as string[];
-                        token.userId = dbUser.id;
                         /* eslint-disable @typescript-eslint/no-explicit-any */
+                        token.roles = (dbUser as any).roles as string[];
+                        token.userId = dbUser.id;
                         token.authSource = (dbUser as any).authSource;
                         /* eslint-enable @typescript-eslint/no-explicit-any */
                     }

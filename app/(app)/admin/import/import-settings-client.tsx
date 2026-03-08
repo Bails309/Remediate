@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Save, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/components/cn";
+import { Card } from "@/components/Card";
+import { Input } from "@/components/Input";
 
 export function ImportSettingsClient() {
     const [isSaving, setIsSaving] = useState(false);
@@ -62,14 +64,14 @@ export function ImportSettingsClient() {
 
     if (loading) {
         return (
-            <div className="glass glass-edge max-w-2xl rounded-[32px] p-6 lg:p-8">
+            <Card className="bg-white dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 shadow-sm rounded-xl p-6 max-w-2xl">
                 <p className="text-sm opacity-70">Loading configuration...</p>
-            </div>
+            </Card>
         );
     }
 
     return (
-        <div className="glass glass-edge max-w-2xl rounded-[32px] p-6 lg:p-8">
+        <Card className="max-w-2xl">
             <div className="mb-8">
                 <h2 className="text-2xl font-semibold">CSV Import Settings</h2>
                 <p className="mt-1 text-sm opacity-70">
@@ -92,23 +94,19 @@ export function ImportSettingsClient() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-4">
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">Plugin Publication Grace Period (Days)</label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={pluginGracePeriodDays}
-                            onChange={(e) => setPluginGracePeriodDays(parseInt(e.target.value) || 0)}
-                            className={cn(
-                                "h-12 w-full rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 text-sm outline-none transition",
-                                "focus:border-[color:var(--color-accent)] focus:ring-2 focus:ring-[color:color-mix(in srgb,var(--color-accent) 35%,transparent)]"
-                            )}
-                        />
-                        <p className="mt-2 text-xs opacity-60">
-                            Vulnerabilities published within this window will be ignored during CSV upload to allow automated patching tools time to remediate them. Set to 0 to ingest all findings immediately.
-                        </p>
-                    </div>
+                <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Plugin Publication Grace Period (Days)
+                    </label>
+                    <Input
+                        type="number"
+                        min="0"
+                        value={pluginGracePeriodDays}
+                        onChange={(e) => setPluginGracePeriodDays(parseInt(e.target.value) || 0)}
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
+                        Vulnerabilities published within this window will be ignored during CSV upload to allow automated patching tools time to remediate them. Set to 0 to ingest all findings immediately.
+                    </p>
                 </div>
 
                 <div className="pt-4">
@@ -129,6 +127,6 @@ export function ImportSettingsClient() {
                     </button>
                 </div>
             </form>
-        </div>
+        </Card>
     );
 }

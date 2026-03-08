@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
-import { Badge } from "@/components/Badge";
 import { toast } from "sonner";
-import { Shield, User as UserIcon, LogIn, Key, RefreshCw } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -24,6 +23,24 @@ const roleOptions = [
     { value: "web_app_user", label: "Web App User" },
     { value: "pentest_user", label: "Pentest User" },
 ];
+
+function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            className={cn(
+                "cursor-pointer inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors border select-none",
+                checked
+                    ? "bg-teal-500/10 border-teal-500 text-teal-700 dark:bg-teal-400/10 dark:border-teal-400 dark:text-teal-300"
+                    : "bg-transparent border-slate-300 text-slate-500 hover:border-slate-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
+            )}
+        >
+            {checked ? <Check className="h-3 w-3" /> : null}
+            {label}
+        </button>
+    );
+}
 
 export function UsersClient() {
     const [users, setUsers] = useState<User[]>([]);
@@ -117,7 +134,7 @@ export function UsersClient() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="border-b border-white/5 bg-white/5 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                            <tr className="border-b border-white/5 bg-white/5 text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 <th className="px-6 py-4">User</th>
                                 <th className="px-6 py-4">Authentication</th>
                                 <th className="px-6 py-4">Roles</th>
@@ -145,7 +162,7 @@ export function UsersClient() {
                             ) : (
                                 users.map((user) => (
                                     <tr key={user.id} className="group hover:bg-white/5 transition-colors">
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-3">
                                             <div className="flex items-center gap-3">
                                                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)] font-bold">
                                                     {user.name.charAt(0).toUpperCase()}
@@ -156,7 +173,7 @@ export function UsersClient() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-3">
                                             <div className="flex items-center gap-2">
                                                 {user.authSource === "SSO" ? (
                                                     <LogIn className="h-4 w-4 text-blue-400" />
@@ -168,41 +185,22 @@ export function UsersClient() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-3">
                                             <div className="flex flex-wrap gap-2">
-                                                {(user.roles?.length ? user.roles : ["web_app_user"]).map((role) => (
-                                                    <Badge
-                                                        key={role}
-                                                        tone={role.includes("admin") ? "critical" : "neutral"}
-                                                        className="rounded-full px-3 py-0.5"
-                                                    >
-                                                        {role.includes("admin") ? (
-                                                            <Shield className="mr-1 h-3 w-3 inline" />
-                                                        ) : (
-                                                            <UserIcon className="mr-1 h-3 w-3 inline" />
-                                                        )}
-                                                        {role.replace(/_/g, " ")}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                                                 {roleOptions.map((role) => (
-                                                    <label key={role.value} className="flex items-center gap-2 text-[11px]">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="h-3.5 w-3.5 rounded border-white/20 bg-white/5"
-                                                            checked={(draftRoles[user.id] || []).includes(role.value)}
-                                                            onChange={() => toggleDraftRole(user.id, role.value)}
-                                                        />
-                                                        <span>{role.label}</span>
-                                                    </label>
+                                                    <RoleTogglePill
+                                                        key={role.value}
+                                                        label={role.label}
+                                                        checked={(draftRoles[user.id] || []).includes(role.value)}
+                                                        onToggle={() => toggleDraftRole(user.id, role.value)}
+                                                    />
                                                 ))}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 opacity-70">
+                                        <td className="px-6 py-3 opacity-70">
                                             <ClientDate date={user.createdAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric' }} />
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-3 text-right">
                                             <Button
                                                 variant="ghost"
                                                 onClick={() => updateRoles(user)}

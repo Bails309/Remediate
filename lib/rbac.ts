@@ -40,8 +40,7 @@ export async function requireUser() {
   }
 
   session.user.id = user.id;
-  session.user.roles = user.roles as string[];
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  session.user.roles = (user as any).roles as string[];
   session.user.authSource = (user as any).authSource;
   return session;
 }

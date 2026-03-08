@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { Card } from "@/components/Card";
 import { toast } from "sonner";
 
 type OidcState = {
@@ -94,47 +95,63 @@ export function OidcClientForm() {
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Client ID</label>
-          <Input
-            value={form.clientId}
-            onChange={(event) => updateField("clientId", event.target.value)}
-            placeholder="e.g. remediate-app"
-          />
-          <p className="text-xs opacity-60">The unique identifier for the Remedate application in Keycloak.</p>
+      <div className="glass glass-edge rounded-3xl p-8 transition-all hover:shadow-md">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+          <div>
+            <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+              Client ID
+            </label>
+            <Input
+              value={form.clientId}
+              onChange={(event) => updateField("clientId", event.target.value)}
+              placeholder="e.g. remediate-app"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              The unique identifier for the Remediate application in Keycloak.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+              Client Secret
+            </label>
+            <Input
+              value={form.clientSecret}
+              onChange={(event) => updateField("clientSecret", event.target.value)}
+              placeholder="OIDC Client Secret"
+              type="password"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              The confidential secret used to authenticate with the OIDC provider.
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+              Issuer URL
+            </label>
+            <Input
+              value={form.issuerUrl}
+              onChange={(event) => updateField("issuerUrl", event.target.value)}
+              placeholder="https://keycloak.example.com/realms/myrealm"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              <strong>Format:</strong>{" "}
+              <code className="bg-foreground/5 px-2 py-0.5 rounded border border-foreground/10 text-[10px]">
+                https://[domain]/realms/[realm_name]
+              </code>
+              <br />
+              This must be the full OIDC discovery URL path for your Keycloak realm.
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Client Secret</label>
-          <Input
-            value={form.clientSecret}
-            onChange={(event) => updateField("clientSecret", event.target.value)}
-            placeholder="OIDC Client Secret"
-            type="password"
-          />
-          <p className="text-xs opacity-60">The confidential secret used to authenticate with the OIDC provider.</p>
+        <div className="mt-8 flex flex-wrap gap-4 border-t border-foreground/5 pt-6">
+          <Button onClick={save} className="bg-accent hover:bg-accent/90">Save Settings</Button>
+          <Button variant="outline" onClick={testConnection} loading={testing}>
+            Test Connection
+          </Button>
         </div>
-
-        <div className="space-y-2 lg:col-span-2">
-          <label className="text-sm font-medium">Issuer URL</label>
-          <Input
-            value={form.issuerUrl}
-            onChange={(event) => updateField("issuerUrl", event.target.value)}
-            placeholder="https://keycloak.example.com/realms/myrealm"
-          />
-          <p className="text-xs opacity-60">
-            <strong>Format:</strong> <code className="bg-white/10 px-1 rounded">https://[domain]/realms/[realm_name]</code>.
-            This must be the full OIDC discovery URL path for your Keycloak realm.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
-        <Button onClick={save}>Save Settings</Button>
-        <Button variant="outline" onClick={testConnection} loading={testing}>
-          Test Connection
-        </Button>
       </div>
     </div>
   );

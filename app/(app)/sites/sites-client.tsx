@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Site = { id: string; name: string };
@@ -67,18 +68,21 @@ export function SitesClient({ initialSites }: Props) {
         <Button onClick={createSite}>Add Site</Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3">
         {sites.map((site) => (
-          <div key={site.id} className="glass rounded-[24px] border border-[color:var(--color-border)] p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-lg font-semibold">{site.name}</p>
-                <p className="text-xs opacity-60">Site ID: {site.id}</p>
-              </div>
-              <Button variant="outline" onClick={() => removeSite(site)}>
-                Remove
-              </Button>
+          <div key={site.id} className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 py-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{site.name}</p>
+              <p className="truncate text-[11px] opacity-60">Site ID: {site.id}</p>
             </div>
+            <button
+              onClick={() => removeSite(site)}
+              className="rounded-md p-2 text-gray-400 transition-colors hover:text-red-500"
+              aria-label={`Remove ${site.name}`}
+              title={`Remove ${site.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           </div>
         ))}
       </div>

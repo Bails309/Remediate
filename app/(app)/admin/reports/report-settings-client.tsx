@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
+import { Card } from "@/components/Card";
 import { toast } from "sonner";
 
 const days = [
@@ -106,84 +107,131 @@ export function ReportSettingsClient() {
         <p className="text-sm opacity-70">Configure SMTP and schedule weekly critical/high reports.</p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Select
-          value={String(form.dayOfWeek)}
-          onChange={(val) => updateField("dayOfWeek", Number(val))}
-          options={days.map((day) => ({ label: String(day.label), value: String(day.value) }))}
-        />
-        <div className="flex gap-3">
-          <Input
-            value={String(form.hour)}
-            onChange={(event) => updateField("hour", event.target.value)}
-            placeholder="Hour"
-          />
-          <Input
-            value={String(form.minute)}
-            onChange={(event) => updateField("minute", event.target.value)}
-            placeholder="Minute"
-          />
+      <Card className="bg-white dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 shadow-sm rounded-xl p-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Day of Week
+            </label>
+            <Select
+              value={String(form.dayOfWeek)}
+              onChange={(val) => updateField("dayOfWeek", Number(val))}
+              options={days.map((day) => ({ label: String(day.label), value: String(day.value) }))}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Send Time (Hour / Minute)
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                value={String(form.hour)}
+                onChange={(event) => updateField("hour", event.target.value)}
+                placeholder="Hour"
+              />
+              <Input
+                value={String(form.minute)}
+                onChange={(event) => updateField("minute", event.target.value)}
+                placeholder="Minute"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Timezone
+            </label>
+            <Input
+              value={form.timezone}
+              onChange={(event) => updateField("timezone", event.target.value)}
+              placeholder="Timezone (e.g. UTC)"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Recipients
+            </label>
+            <Input
+              value={form.recipients}
+              onChange={(event) => updateField("recipients", event.target.value)}
+              placeholder="Recipients (comma separated)"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              SMTP Host
+            </label>
+            <Input
+              value={form.smtpHost}
+              onChange={(event) => updateField("smtpHost", event.target.value)}
+              placeholder="SMTP Host"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              SMTP Port
+            </label>
+            <Input
+              value={String(form.smtpPort)}
+              onChange={(event) => updateField("smtpPort", event.target.value)}
+              placeholder="SMTP Port"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              SMTP Username
+            </label>
+            <Input
+              value={form.smtpUser}
+              onChange={(event) => updateField("smtpUser", event.target.value)}
+              placeholder="SMTP Username"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              SMTP Password
+            </label>
+            <Input
+              value={form.smtpPass}
+              onChange={(event) => updateField("smtpPass", event.target.value)}
+              placeholder="SMTP Password"
+              type="password"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              From Address
+            </label>
+            <Input
+              value={form.smtpFrom}
+              onChange={(event) => updateField("smtpFrom", event.target.value)}
+              placeholder="From Address"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={form.smtpSecure}
+              onChange={(event) => updateField("smtpSecure", event.target.checked)}
+            />
+            <span className="text-sm">Use TLS</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={(event) => updateField("enabled", event.target.checked)}
+            />
+            <span className="text-sm">Enable weekly emails</span>
+          </div>
         </div>
-        <Input
-          value={form.timezone}
-          onChange={(event) => updateField("timezone", event.target.value)}
-          placeholder="Timezone (e.g. UTC)"
-        />
-        <Input
-          value={form.recipients}
-          onChange={(event) => updateField("recipients", event.target.value)}
-          placeholder="Recipients (comma separated)"
-        />
-        <Input
-          value={form.smtpHost}
-          onChange={(event) => updateField("smtpHost", event.target.value)}
-          placeholder="SMTP Host"
-        />
-        <Input
-          value={String(form.smtpPort)}
-          onChange={(event) => updateField("smtpPort", event.target.value)}
-          placeholder="SMTP Port"
-        />
-        <Input
-          value={form.smtpUser}
-          onChange={(event) => updateField("smtpUser", event.target.value)}
-          placeholder="SMTP Username"
-        />
-        <Input
-          value={form.smtpPass}
-          onChange={(event) => updateField("smtpPass", event.target.value)}
-          placeholder="SMTP Password"
-          type="password"
-        />
-        <Input
-          value={form.smtpFrom}
-          onChange={(event) => updateField("smtpFrom", event.target.value)}
-          placeholder="From Address"
-        />
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={form.smtpSecure}
-            onChange={(event) => updateField("smtpSecure", event.target.checked)}
-          />
-          <span className="text-sm">Use TLS</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(event) => updateField("enabled", event.target.checked)}
-          />
-          <span className="text-sm">Enable weekly emails</span>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Button onClick={save}>Save Settings</Button>
-        <Button variant="outline" onClick={sendTest}>
-          Send Test Email
-        </Button>
-      </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button onClick={save}>Save Settings</Button>
+          <Button variant="outline" onClick={sendTest}>
+            Send Test Email
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

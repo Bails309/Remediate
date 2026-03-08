@@ -38,9 +38,9 @@ describe("SitesClient", () => {
     // Mock confirm to allow removal
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    // There may be multiple Remove buttons; click the last one (the newly added site)
-    const removeButtons = screen.getAllByText("Remove");
-    fireEvent.click(removeButtons[removeButtons.length - 1]);
+    // Find the removal button for the newly added site by its aria-label
+    const removeBtn = screen.getByLabelText("Remove New Site");
+    fireEvent.click(removeBtn);
 
     await waitFor(() => expect(screen.queryByText("New Site")).toBeNull());
 

@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
+import { EmptyState } from "@/components/EmptyState";
+import { Activity, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/components/cn";
 
 type Site = { id: string; name: string };
 
@@ -169,29 +172,105 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
 
         <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
           <h3 className="text-lg font-semibold">Progress</h3>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--color-muted)]">
-            <div
-              className="h-full bg-[color:var(--color-accent)] transition-all"
-              style={{ width: `${progress?.progress ?? 0}%` }}
-            />
-          </div>
-          <p className="mt-3 text-sm opacity-70">{progress?.step ?? "Idle"}</p>
+          {progress ? (
+            <>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--color-muted)]">
+                <div
+                  className="h-full bg-[color:var(--color-accent)] transition-all"
+                  style={{ width: `${progress.progress}%` }}
+                />
+              </div>
+              <p className="mt-3 text-sm opacity-70">{progress.step}</p>
+            </>
+          ) : (
+            <div className="mt-4">
+              <EmptyState
+                title="No upload in progress"
+                description="Start a CSV upload to see live progress here."
+                icon={<Activity className="h-8 w-8" />}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
         <h3 className="text-lg font-semibold">Recent Uploads</h3>
         <div className="mt-4 space-y-4 text-sm">
-          {uploads.length === 0 && <p className="opacity-60">No uploads yet.</p>}
-          {uploads.map((upload) => (
-            <div key={upload.id} className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">{upload.site.name}</p>
-                <p className="opacity-60">{upload.fileName ?? "CSV"}</p>
+          {uploads.length === 0 && (
+            <EmptyState
+              title="No uploads yet"
+              description="Recent uploads will appear here once a CSV is processed."
+              icon={<Activity className="h-8 w-8" />}
+            />
+          )}
+          {uploads.map((upload, index) => {
+            const isLatest = index === 0;
+            const isFailed = upload.status.toLowerCase() === "failed";
+            const isCompleted = upload.status.toLowerCase() === "completed";
+
+            return (
+              <div
+                key={upload.id}
+                className={cn(
+                  "relative flex items-center justify-between transition-all duration-500",
+                  isLatest ? "glass glass-edge rounded-2xl p-5 shadow-lg" : "p-3 border-b border-foreground/5 last:border-0",
+                  isLatest && isCompleted && "bg-emerald-500/5 border-emerald-500/20",
+                  isLatest && isFailed && "bg-rose-500/5 border-rose-500/20",
+                  isLatest && "fade-up mb-4"
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  {isLatest && (
+                    <div className={cn(
+                      "p-2 rounded-xl",
+                      isFailed ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-emerald-500"
+                    )}>
+                      {isFailed ? <AlertCircle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <p className={cn("font-bold", isLatest ? "text-lg" : "text-sm")}>
+                        {upload.site.name}
+                      </p>
+                      {isLatest && (
+                        <span className={cn(
+                          "text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest",
+                          isFailed ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"
+                        )}>
+                          LATEST
+                        </span>
+                      )}
+                    </div>
+                    <p className={cn("opacity-60", isLatest ? "text-xs mt-1" : "text-[10px]")}>
+                      {upload.fileName ?? "CSV"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={cn(
+                    "font-black uppercase tracking-widest",
+                    isLatest ? "text-[10px]" : "text-[9px] opacity-40",
+                    isLatest && isCompleted && "text-emerald-500",
+                    isLatest && isFailed && "text-rose-500"
+                  )}>
+                    {upload.status}
+                  </span>
+                  {isLatest && (
+                    <p className="text-[10px] opacity-40 mt-1 uppercase font-bold tracking-tighter">
+                      {new Date(upload.uploadDate).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  )}
+                </div>
               </div>
-              <span className="text-xs uppercase tracking-[0.2em] opacity-70">{upload.status}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

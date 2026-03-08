@@ -20,6 +20,13 @@ const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neut
   None: "neutral",
 };
 
+const statusDotMap: Record<string, string> = {
+  Open: "bg-red-500",
+  Remediated: "bg-emerald-500",
+  FalsePositive: "bg-amber-500",
+  NoFixAvailable: "bg-slate-400",
+};
+
 type Site = { id: string; name: string };
 
 type User = { id: string; name: string };
@@ -143,6 +150,16 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
 
   const selectedCount = selected.length;
   const allSelected = useMemo(() => data.length > 0 && selected.length === data.length, [data, selected]);
+
+  const renderStatusBadge = (value: string) => {
+    const dotClass = statusDotMap[value] ?? "bg-slate-400";
+    return (
+      <Badge className="inline-flex items-center gap-2 px-3 py-1 normal-case">
+        <span className={cn("h-2 w-2 rounded-full", dotClass)} />
+        {value}
+      </Badge>
+    );
+  };
 
   const toggleAll = () => {
     if (allSelected) {
@@ -308,58 +325,70 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             }
           }}
           variant="outline"
+          className="text-slate-700 dark:text-gray-300"
         >
           {session?.user?.id && assigneeId === session.user.id ? "All Assignments" : "My Assignments"}
         </Button>
         <Button
-          onClick={() => {
-            if (session?.user?.id) {
-              assignTo(session.user.id);
-            } else {
-              toast.error("Missing user session");
-            }
-          }}
-          variant="outline"
-        >
-          Assign to Me
-        </Button>
-        <Button onClick={() => assignTo(null)} variant="outline">
-          Unassign ({selectedCount})
-        </Button>
-        <Select
-          value=""
-          onChange={(val) => assignTo(val)}
-          placeholder="Assign to user"
-          options={[
-            ...users.map((user) => ({ label: user.name, value: user.id }))
-          ]}
-        />
-        <Select
-          value={bulkStatus}
-          onChange={(val) => {
-            setBulkStatus(val);
-            updateStatus(val);
-          }}
-          placeholder="Change status"
-          options={[
-            { label: "Open", value: "Open" },
-            { label: "False Positive", value: "FalsePositive" },
-            { label: "No Fix", value: "NoFixAvailable" },
-            { label: "Remediated", value: "Remediated" },
-          ]}
-        />
-        <Button
           variant="outline"
           onClick={() => { setFoldDuplicates(!foldDuplicates); setPage(1); }}
-          className={cn(foldDuplicates && "bg-[color:var(--color-primary)] text-white")}
+          className={cn("text-slate-700 dark:text-gray-300", foldDuplicates && "bg-[color:var(--color-primary)] text-white")}
         >
           {foldDuplicates ? "Folding Active" : "Fold Duplicates"}
         </Button>
       </div>
 
+      {selectedCount > 0 && (
+        <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-full border border-gray-200 bg-white/90 px-6 py-3 shadow-2xl backdrop-blur-md transition-all duration-300 dark:border-gray-700 dark:bg-gray-900/90">
+          <span className="text-sm font-medium">{selectedCount} selected</span>
+          <span className="h-6 w-px bg-slate-200 dark:bg-gray-700" />
+          <Button
+            onClick={() => {
+              if (session?.user?.id) {
+                assignTo(session.user.id);
+              } else {
+                toast.error("Missing user session");
+              }
+            }}
+            variant="outline"
+          >
+            Assign to Me
+          </Button>
+          <Button onClick={() => assignTo(null)} variant="outline">
+            Unassign
+          </Button>
+          <div className="w-52">
+            <Select
+              value=""
+              onChange={(val) => assignTo(val)}
+              placeholder="Assign to user"
+              options={[
+                ...users.map((user) => ({ label: user.name, value: user.id }))
+              ]}
+            />
+          </div>
+          <div className="w-48">
+            <Select
+              value={bulkStatus}
+              onChange={(val) => {
+                setBulkStatus(val);
+                updateStatus(val);
+              }}
+              placeholder="Change status"
+              options={[
+                { label: "Open", value: "Open" },
+                { label: "False Positive", value: "FalsePositive" },
+                { label: "No Fix", value: "NoFixAvailable" },
+                { label: "Remediated", value: "Remediated" },
+              ]}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-[28px] border border-[color:var(--color-border)]">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-[color:var(--color-border)] text-xs uppercase tracking-[0.2em]">
+          <thead className="border-b border-[color:var(--color-border)] text-xs font-semibold uppercase tracking-wider text-gray-500">
             <tr>
               <th className="p-4">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} />
@@ -393,7 +422,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                     <td className="p-4">
                       <Badge tone={riskToneMap[item.risk] ?? "neutral"}>{item.risk}</Badge>
                     </td>
-                    <td className="p-4">{item.status}</td>
+                    <td className="p-4">{renderStatusBadge(item.status)}</td>
                     <td className="p-4">{item.assignee?.name ?? "Unassigned"}</td>
                     <td className="p-4">
                       <ClientDate date={item.lastSeenAt} className="text-xs opacity-70" />
@@ -440,7 +469,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   <td className="p-4">
                     <Badge tone={riskToneMap[group.risk] ?? "neutral"}>{group.risk}</Badge>
                   </td>
-                  <td className="p-4">{group.status}</td>
+                  <td className="p-4">{renderStatusBadge(group.status)}</td>
                   <td className="p-4">{group.assignee?.name ?? "Unassigned"}</td>
                   <td className="p-4">
                     <ClientDate date={group.lastSeenAt} className="text-xs opacity-70" />
@@ -467,7 +496,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                         <Badge tone={riskToneMap[member.risk] ?? "neutral"}>{member.risk}</Badge>
                       </div>
                     </td>
-                    <td className="p-4 text-xs">{member.status}</td>
+                    <td className="p-4 text-xs">{renderStatusBadge(member.status)}</td>
                     <td className="p-4 text-xs">{member.assignee?.name ?? "-"}</td>
                     <td className="p-4">
                       <ClientDate date={member.lastSeenAt} className="text-[10px] opacity-60" />
