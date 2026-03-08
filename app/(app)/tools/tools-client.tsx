@@ -64,7 +64,7 @@ function TerminalText({ text, fallback }: { text: string; fallback?: string }) {
   const codes = processed.match(ansiRegex) || [];
 
   const rendered: React.ReactNode[] = [];
-  let currentClasses = new Set<string>();
+  const currentClasses = new Set<string>();
 
   segments.forEach((content, i) => {
     if (content) {

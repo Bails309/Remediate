@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import type { User as NextAuthUser, Account as NextAuthAccount, Profile as NextAuthProfile } from "next-auth";
 
 export const WEB_APP_ADMIN_ROLES = ["site_admin", "web_app_admin"] as const;
 export const PENTEST_ROLES = ["site_admin", "pentest_admin", "pentest_user"] as const;
@@ -22,17 +23,16 @@ export async function requireUser() {
     const { provisionUser } = await import("@/lib/auth-provisioning");
 
     // Create a minimal user object for provisioning
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const provisionParams = {
+    const provisionParams: { user: NextAuthUser; account: NextAuthAccount | null; profile?: NextAuthProfile } = {
       user: {
         email: session.user.email,
         name: session.user.name || "User",
-      } as any,
+        id: undefined,
+      } as unknown as NextAuthUser,
       account: {
         provider: session.user.authSource === "Local" ? "credentials" : "keycloak",
-      } as any,
+      } as unknown as NextAuthAccount,
     };
-    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     await provisionUser(provisionParams);
     user = await prisma.user.findUnique({ where: { email } });
@@ -40,8 +40,8 @@ export async function requireUser() {
   }
 
   session.user.id = user.id;
-  session.user.roles = (user as any).roles as string[];
-  session.user.authSource = (user as any).authSource;
+  session.user.roles = (user as unknown as { roles?: string[] }).roles || [];
+  session.user.authSource = (user as unknown as { authSource?: string }).authSource || "Local";
   return session;
 }
 

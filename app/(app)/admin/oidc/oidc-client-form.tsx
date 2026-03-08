@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { Card } from "@/components/Card";
 import { toast } from "sonner";
 
 type OidcState = {
