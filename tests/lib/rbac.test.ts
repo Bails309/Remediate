@@ -14,6 +14,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw new Error(`Redirected to ${url}`);
+  }),
+}));
+
 import { requireUser } from "@/lib/rbac";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +33,7 @@ describe("requireUser", () => {
   it("throws when no session user email", async () => {
     vi.mocked(auth).mockResolvedValue({} as any);
 
-    await expect(requireUser()).rejects.toThrow("Unauthorized");
+    await expect(requireUser()).rejects.toThrow("Redirected to /login");
   });
 
   it("returns session when id and roles are present", async () => {
@@ -43,6 +49,6 @@ describe("requireUser", () => {
     vi.mocked(auth).mockResolvedValue({ user: { email: "deleted@example.com", name: "Deleted User" } } as any);
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
 
-    await expect(requireUser()).rejects.toThrow("Unauthorized");
+    await expect(requireUser()).rejects.toThrow("Redirected to /login?error=SessionExpired");
   });
 });
