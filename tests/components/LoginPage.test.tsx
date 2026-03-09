@@ -23,10 +23,10 @@ describe('LoginPage', () => {
 
     it('should show loading state and then disabled message if no methods available', async () => {
         render(<LoginPage />);
-        expect(screen.getByText(/Loading authentication methods/)).toBeInViewport();
+        expect(screen.getByText(/Loading authentication methods/)).toBeInTheDocument();
 
         await waitFor(() => {
-            expect(screen.getByText(/No authentication methods are enabled/)).toBeInViewport();
+            expect(screen.getByText(/No authentication methods are enabled/)).toBeInTheDocument();
         });
     });
 
@@ -38,7 +38,7 @@ describe('LoginPage', () => {
         render(<LoginPage />);
 
         await waitFor(() => {
-            expect(screen.getByText(/Continue with SSO/)).toBeInViewport();
+            expect(screen.getByText(/Continue with SSO/)).toBeInTheDocument();
         });
 
         fireEvent.click(screen.getByText(/Continue with SSO/));
@@ -53,7 +53,7 @@ describe('LoginPage', () => {
         render(<LoginPage />);
 
         await waitFor(() => {
-            expect(screen.getByPlaceholderText(/Username/)).toBeInViewport();
+            expect(screen.getByPlaceholderText(/Username/)).toBeInTheDocument();
         });
 
         fireEvent.change(screen.getByPlaceholderText(/Username/), { target: { value: 'testuser' } });
@@ -79,7 +79,7 @@ describe('LoginPage', () => {
         });
 
         await waitFor(() => {
-            expect(screen.getByText(/Invalid local credentials/)).toBeInViewport();
+            expect(screen.getByText(/Invalid local credentials/)).toBeInTheDocument();
         });
     });
 });

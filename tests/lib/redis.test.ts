@@ -3,10 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Mock ioredis BEFORE importing lib/redis
 vi.mock("ioredis", () => {
     return {
-        default: vi.fn().mockImplementation((url, options) => ({
-            url,
-            options,
-        })),
+        default: vi.fn(function (url, options) {
+            return { url, options };
+        }),
     };
 });
 

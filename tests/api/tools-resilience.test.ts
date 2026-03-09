@@ -79,6 +79,7 @@ describe('Tools API Resilience', () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
                 status: 401,
+                json: async () => ({ error: 'Unauthorized' }),
                 text: async () => 'Unauthorized',
             });
 
@@ -90,6 +91,7 @@ describe('Tools API Resilience', () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
                 status: 400,
+                json: async () => ({ error: 'Invalid Configuration' }),
                 text: async () => 'Invalid Configuration',
             });
 

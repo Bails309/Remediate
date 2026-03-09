@@ -12,7 +12,7 @@ export async function GET() {
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`[Backend Errror] Status: ${res.status}, Body: ${errorText.substring(0, 200)}`);
+    console.error(`[Backend Error] Status: ${res.status}, Body: ${errorText.substring(0, 200)}`);
     return NextResponse.json({ error: "Backend service unavailable" }, { status: res.status });
   }
 
