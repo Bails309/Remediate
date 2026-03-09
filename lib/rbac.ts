@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 
 export const WEB_APP_ADMIN_ROLES = ["site_admin", "web_app_admin"] as const;
@@ -13,13 +14,13 @@ export type AppRole = typeof WEB_APP_ADMIN_ROLES[number]
 export async function requireUser() {
   const session = await auth();
   if (!session?.user?.email) {
-    throw new Error("Unauthorized");
+    redirect("/login");
   }
   const email = session.user.email;
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    throw new Error("Unauthorized");
+    redirect("/login?error=SessionExpired");
   }
 
   session.user.id = user.id;
