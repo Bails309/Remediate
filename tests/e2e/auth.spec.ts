@@ -4,8 +4,8 @@ test.describe('Authentication', () => {
     test('should load the login page', async ({ page }) => {
         await page.goto('/auth/login');
 
-        // Expect the page to have a login header or specific text
-        await expect(page).toHaveTitle(/Login/);
-        await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+        // Expect the page to have the correct title and heading
+        await expect(page).toHaveTitle(/Remediate/);
+        await expect(page.getByRole('heading', { name: 'Sign in to Remediate' })).toBeVisible();
     });
 });

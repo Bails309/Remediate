@@ -167,6 +167,8 @@ jobs:
         run: npm ci
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: Build Application
         run: npm run build
       - name: Run Playwright tests
