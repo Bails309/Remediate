@@ -19,24 +19,7 @@ export async function requireUser() {
 
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    // Re-provision if database record is missing but session is valid
-    const { provisionUser } = await import("@/lib/auth-provisioning");
-
-    // Create a minimal user object for provisioning
-    const provisionParams: { user: NextAuthUser; account: NextAuthAccount | null; profile?: NextAuthProfile } = {
-      user: {
-        email: session.user.email,
-        name: session.user.name || "User",
-        id: undefined,
-      } as unknown as NextAuthUser,
-      account: {
-        provider: session.user.authSource === "Local" ? "credentials" : "keycloak",
-      } as unknown as NextAuthAccount,
-    };
-
-    await provisionUser(provisionParams);
-    user = await prisma.user.findUnique({ where: { email } });
-    if (!user) throw new Error("Failed to re-provision user");
+    throw new Error("Unauthorized");
   }
 
   session.user.id = user.id;

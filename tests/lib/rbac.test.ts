@@ -39,18 +39,10 @@ describe("requireUser", () => {
     expect(session.user.roles).toEqual(["web_app_user"]);
   });
 
-  it("creates user in DB when missing and assigns admin roles if ADMIN_EMAIL matches", async () => {
-    process.env.ADMIN_EMAIL = "admin@example.com";
-    vi.mocked(auth).mockResolvedValue({ user: { email: "admin@example.com", name: "Admin" } } as any);
+  it("throws Unauthorized when user is missing from DB", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "deleted@example.com", name: "Deleted User" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
 
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce(null) // requireUser check
-      .mockResolvedValueOnce(null) // provisionUser check
-      .mockResolvedValueOnce({ id: "new-id", email: "admin@example.com", name: "Admin", roles: ["site_admin"], authSource: "Local" } as any); // requireUser final check
-
-    const session = await requireUser();
-    expect(prisma.user.upsert).toHaveBeenCalled();
-    expect(session.user.id).toBe("new-id");
-    expect(session.user.roles).toEqual(["site_admin"]);
+    await expect(requireUser()).rejects.toThrow("Unauthorized");
   });
 });

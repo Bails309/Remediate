@@ -55,11 +55,15 @@ export async function PATCH(req: NextRequest) {
             normalizedRoles.push("web_app_user");
         }
 
-        // Prevent removing own site_admin role if you are the only site_admin
-        if (userId === session.user.id && !normalizedRoles.includes("site_admin")) {
+        // Prevent removing site_admin role from the last site_admin
+        if (!normalizedRoles.includes("site_admin")) {
             const adminCount = await prisma.user.count({ where: { roles: { has: "site_admin" } } });
             if (adminCount <= 1) {
-                return NextResponse.json({ error: "Cannot remove last site admin" }, { status: 400 });
+                // Double check if the user being updated IS a site_admin
+                const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
+                if (targetUser?.roles.includes("site_admin")) {
+                    return NextResponse.json({ error: "Cannot remove last site admin" }, { status: 400 });
+                }
             }
         }
 

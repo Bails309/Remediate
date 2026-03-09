@@ -71,7 +71,10 @@ async function promoteDueRetries() {
     return;
   }
   const uploadId = due[0];
-  await redis.multi().zrem(DELAYED_KEY, uploadId).lpush(QUEUE_KEY, uploadId).exec();
+  const removed = await redis.zrem(DELAYED_KEY, uploadId);
+  if (removed === 1) {
+    await redis.lpush(QUEUE_KEY, uploadId);
+  }
 }
 
 export async function dequeueUpload() {
