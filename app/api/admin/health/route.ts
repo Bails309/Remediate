@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { requireAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import fs from "fs";
+import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,9 @@ export async function GET(request: NextRequest) {
             nodeVersion: process.version,
             environment: process.env.NODE_ENV?.toUpperCase() || "DEVELOPMENT",
         },
+        app: {
+            version: await resolveAppVersion(),
+        },
         timestamp: new Date().toISOString(),
     });
 }
@@ -80,4 +85,19 @@ function formatUptime(seconds: number) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     return `${h}h ${m}m`;
+}
+
+async function resolveAppVersion() {
+    // Prefer explicit env var set at build/deploy time
+    if (process.env.APP_VERSION) return process.env.APP_VERSION;
+
+    // Fallback to package.json version if available
+    try {
+        const pkgPath = path.join(process.cwd(), "package.json");
+        const content = await fs.promises.readFile(pkgPath, "utf-8");
+        const pkg = JSON.parse(content);
+        return pkg.version ?? "unknown";
+    } catch {
+        return "unknown";
+    }
 }

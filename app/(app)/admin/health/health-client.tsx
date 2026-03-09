@@ -24,6 +24,7 @@ interface HealthData {
         nodeVersion: string;
         environment: string;
     };
+    app?: { version: string };
     timestamp: string;
 }
 
@@ -128,6 +129,7 @@ export function HealthClient() {
                 <SmallHealthCard label="RSS MEMORY" value={data.process.memory} icon={<Cpu className="h-4 w-4" />} />
                 <SmallHealthCard label="NODE VERSION" value={data.process.nodeVersion} icon={<Terminal className="h-4 w-4" />} />
                 <SmallHealthCard label="ENVIRONMENT" value={data.process.environment} icon={<Activity className="h-4 w-4" />} />
+                <SmallHealthCard label="APP VERSION" value={data.app?.version ?? "unknown"} icon={<FileCode className="h-4 w-4" />} />
             </div>
 
             <div className="text-right text-[10px] uppercase tracking-widest text-foreground/30">
