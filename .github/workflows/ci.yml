@@ -18,10 +18,10 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+    # permissions:
+    #   actions: read
+    #   contents: read
+    #   security-events: write
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -32,12 +32,13 @@ jobs:
         run: npm ci
       - name: Run npm audit
         run: npm audit --audit-level=high || true # Warn but don't fail yet on high vulns
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+      # CodeQL Analysis (Requires GitHub Advanced Security for private repositories)
+      # - name: Initialize CodeQL
+      #   uses: github/codeql-action/init@v3
+      #   with:
+      #     languages: javascript-typescript
+      # - name: Perform CodeQL Analysis
+      #   uses: github/codeql-action/analyze@v3
 
   unit:
     runs-on: ubuntu-latest
