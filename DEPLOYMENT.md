@@ -50,6 +50,45 @@ This document summarizes recommended deployment patterns for Remediate.
 Notes on Redis TLS and external services:
 - To use TLS with Redis set `REDIS_URL` to `rediss://...` and optionally set `REDIS_TLS_REJECT_UNAUTHORIZED=true|false` depending on certificate trust. The app supports `rediss://` and will pass a `tls` option to the Redis client when `rediss://` is used.
 - Provide secrets in ACA using the platform's secret store and reference them as environment variables in your container app definitions.
+
+### Setting `APP_VERSION` in CI and images
+
+For reliable version tracking displayable on `/admin/health`, set an `APP_VERSION` environment variable at build or deploy time. Recommended approaches:
+
+- GitHub Actions + ACR build (inject git SHA as build-arg):
+
+```yaml
+jobs:
+   build:
+      runs-on: ubuntu-latest
+      steps:
+         - uses: actions/checkout@v4
+         - name: Set version
+            run: echo "APP_VERSION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+         - name: Build and push to ACR
+            run: |
+               az acr build --registry ${{ secrets.ACR_NAME }} \
+                  --image remediate:${{ env.APP_VERSION }} \
+                  --build-arg APP_VERSION=${{ env.APP_VERSION }} .
+```
+
+- Docker build + push (CI):
+
+```bash
+docker build --build-arg APP_VERSION=$(git rev-parse --short HEAD) -t myregistry/remediate:$(git rev-parse --short HEAD) .
+docker push myregistry/remediate:$(git rev-parse --short HEAD)
+```
+
+- Azure Container Apps: set an environment variable referencing the image tag or secret. Example using `az containerapp update`:
+
+```bash
+az containerapp update --name my-app --resource-group my-rg \
+   --set-env-vars APP_VERSION="$(git rev-parse --short HEAD)"
+```
+
+Notes:
+- The app prefers `APP_VERSION` env var. If not provided, it falls back to `package.json` version.
+- Consider using the image tag (e.g., `v1.2.3` or commit SHA) as `APP_VERSION` for clearer traceability.
 3. Option A (CI-first): run migrations in CI before updating ACA.
 4. Option B (ACA Job): create a one-off Container Apps Job to run migrations:
    ```bash
