@@ -124,27 +124,26 @@ export function HealthClient() {
                     ]}
                     glowColor="rgba(16, 185, 129, 0.1)"
                 />
-
-                {/* Pentest Backend */}
-                <HealthCard
-                    title="Pentest Backend"
-                    subtitle="External pentest worker service"
-                    icon={<Activity className="h-5 w-5 text-violet-400" />}
-                    status={data.pentestBackend?.status ?? "Not configured"}
-                    metrics={[
-                        { label: "URL", value: data.pentestBackend?.url ?? "-" }
-                    ]}
-                    glowColor="rgba(124, 58, 237, 0.06)"
-                />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-7">
                 <SmallHealthCard label="UPTIME" value={data.process.uptime} icon={<Clock className="h-4 w-4" />} />
                 <SmallHealthCard label="RSS MEMORY" value={data.process.memory} icon={<Cpu className="h-4 w-4" />} />
                 <SmallHealthCard label="NODE VERSION" value={data.process.nodeVersion} icon={<Terminal className="h-4 w-4" />} />
                 <SmallHealthCard label="ENVIRONMENT" value={data.process.environment} icon={<Activity className="h-4 w-4" />} />
                 <SmallHealthCard label="APP VERSION" value={data.app?.version ?? "unknown"} icon={<FileCode className="h-4 w-4" />} />
-                <SmallHealthCard label="WORKER" value={data.worker?.status ?? "unknown"} icon={<Zap className="h-4 w-4" />} />
+                <SmallHealthCard
+                    label="WORKER"
+                    value={data.worker?.status ?? "unknown"}
+                    status={data.worker?.status}
+                    icon={<Zap className="h-4 w-4" />}
+                />
+                <SmallHealthCard
+                    label="PENTEST BACKEND"
+                    value={data.pentestBackend?.status ?? "Not configured"}
+                    status={data.pentestBackend?.status}
+                    icon={<Terminal className="h-4 w-4" />}
+                />
             </div>
 
             <div className="text-right text-[10px] uppercase tracking-widest text-foreground/30">
@@ -201,16 +200,20 @@ interface SmallHealthCardProps {
     label: string;
     value: string;
     icon: React.ReactNode;
+    status?: string;
 }
 
-function SmallHealthCard({ label, value, icon }: SmallHealthCardProps) {
+function SmallHealthCard({ label, value, icon, status }: SmallHealthCardProps) {
+    const isHealthy = status === "Healthy";
+    const hasStatus = status !== undefined;
+
     return (
-        <div className="glass flex items-center gap-4 rounded-[20px] p-4 transition-all hover:bg-foreground/5">
-            <div className="rounded-lg bg-foreground/10 p-2 text-foreground/70">
+        <div className={`glass flex items-center gap-4 rounded-[20px] p-4 transition-all hover:bg-foreground/5 ${hasStatus ? (isHealthy ? 'ring-1 ring-emerald-500/20 bg-emerald-500/5' : 'ring-1 ring-red-500/20 bg-red-500/5') : ''}`}>
+            <div className={`rounded-lg p-2 ${hasStatus ? (isHealthy ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500') : 'bg-foreground/10 text-foreground/70'}`}>
                 {icon}
             </div>
             <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/50">{label}</p>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.15em] ${hasStatus ? (isHealthy ? 'text-emerald-500/60' : 'text-red-500/60') : 'text-foreground/50'}`}>{label}</p>
                 <p className="text-sm font-bold tracking-tight text-foreground">{value}</p>
             </div>
         </div>
