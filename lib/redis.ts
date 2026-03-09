@@ -36,8 +36,7 @@ function createRedisInstance(url: string, options?: RedisOptions) {
 export const redis =
   globalForRedis.redis ??
   createRedisInstance(redisUrl, {
-    maxRetriesPerRequest: null, // Set to null for Cluster compatibility with some commands
-    enableReadyCheck: true,
+    maxRetriesPerRequest: 1,
     ...(isTls && {
       tls: {
         rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
