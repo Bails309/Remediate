@@ -119,5 +119,13 @@
     }
   }
 
-  run();
+  module.exports = {
+    waitForDatabase,
+    checkAndFixMigrations,
+    run
+  };
+
+  if (require.main === module) {
+    run();
+  }
 })();

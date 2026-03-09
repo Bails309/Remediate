@@ -7,6 +7,34 @@ on:
     branches: [ main, master ]
 
 jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build App Image (Runner)
+        run: docker build --target app-runner -t remediate-app:test .
+      - name: Build Worker Image (Runner)
+        run: docker build --target worker-runner -t remediate-worker:test .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run npm audit
+        run: npm audit --audit-level=high || true # Warn but don't fail yet on high vulns
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
   unit:
     runs-on: ubuntu-latest
     services:
@@ -102,3 +130,47 @@ jobs:
         run: npx prisma migrate deploy
       - name: Run integration tests
         run: npx vitest run tests/integration --config vitest.config.ts
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: unit
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: remediate
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -h localhost -p 5432" --health-interval=5s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+      - name: Build Application
+        run: npm run build
+      - name: Run Playwright tests
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
