@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { User as NextAuthUser, Account as NextAuthAccount, Profile as NextAuthProfile } from "next-auth";
+
 
 export const WEB_APP_ADMIN_ROLES = ["site_admin", "web_app_admin"] as const;
 export const PENTEST_ROLES = ["site_admin", "pentest_admin", "pentest_user"] as const;
@@ -17,7 +17,7 @@ export async function requireUser() {
   }
   const email = session.user.email;
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     throw new Error("Unauthorized");
   }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { parseNessusCsv } from "@/lib/csv";
+import { parseNessusCsv, type NessusRow } from "@/lib/csv";
 import { setProgress } from "@/lib/progress";
 import { Risk, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
@@ -55,6 +55,7 @@ function parseValidDate(value?: string | null) {
 
   return null;
 }
+
 function normalizeRisk(risk?: string) {
   const value = (risk ?? "").toLowerCase();
   if (value.includes("critical")) return Risk.Critical;
@@ -90,7 +91,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     const rows = parseNessusCsv(text);
     const now = new Date();
 
-    const filteredRows = rows.filter((row: any) => {
+    const filteredRows = rows.filter((row: NessusRow) => {
       if (normalizeRisk(row.risk) === Risk.None) return false;
 
       if (gracePeriodDays > 0 && row.pluginPublicationDate) {
@@ -156,13 +157,13 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     const createData = [];
 
     let processed = 0;
-    for (const row of filteredRows as any[]) {
+    for (const row of filteredRows) {
       const key = `${row.pluginId}|${row.host}|${row.port}`;
       const active = activeMap.get(key);
       if (active) {
         touchIds.push(active.id);
       } else {
-        const normalizedRisk = normalizeRisk(row.risk);
+        const normalizedRiskValue = normalizeRisk(row.risk);
         createData.push({
           siteId,
           assigneeId: null,
@@ -172,7 +173,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
           pluginId: row.pluginId,
           cve: row.cve,
           cvssScore: row.cvssScore,
-          risk: normalizedRisk,
+          risk: normalizedRiskValue,
           host: row.host,
           protocol: row.protocol,
           port: row.port,
@@ -209,11 +210,9 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
       for (let i = 0; i < createData.length; i += chunkSize) {
         const chunk = createData.slice(i, i + chunkSize);
         // sanitize date fields to avoid passing invalid Date objects to Prisma
-        const safeChunk = chunk.map((item: Record<string, unknown>) => {
+        const safeChunk = chunk.map((item) => {
           let pub = item.pluginPublicationDate;
           let mod = item.pluginModificationDate;
-          if (typeof pub === "string") pub = parseValidDate(pub);
-          if (typeof mod === "string") mod = parseValidDate(mod);
           if (pub instanceof Date && isNaN(pub.getTime())) pub = null;
           if (mod instanceof Date && isNaN(mod.getTime())) mod = null;
           return {
@@ -226,55 +225,55 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
           await prisma.vulnerability.createMany({ data: safeChunk as Prisma.VulnerabilityCreateManyInput[] });
         } catch (err: unknown) {
           if (err instanceof Prisma.PrismaClientKnownRequestError) {
-            // Rethrow critical database errors (like unique constraint violation P2002)
-            // instead of blindly retrying with nulled dates
             if (err.code === "P2002") throw err;
           }
-          console.error("createMany failed, retrying with nulled dates", (err as Error).message);
-          const nulled = safeChunk.map((it: Record<string, unknown>) => ({ ...it, pluginPublicationDate: null, pluginModificationDate: null })) as Prisma.VulnerabilityCreateManyInput[];
+          console.error("createMany failed, retrying with nulled dates", err instanceof Error ? err.message : String(err));
+          const nulled = (safeChunk as Prisma.VulnerabilityCreateManyInput[]).map((it) => ({
+            ...it,
+            pluginPublicationDate: null,
+            pluginModificationDate: null,
+          }));
           await prisma.vulnerability.createMany({ data: nulled });
         }
       }
     }
 
-    // Archive and delete remediated items
     const remediated = await prisma.vulnerability.findMany({
       where: {
         siteId,
-        status: { not: VulnerabilityStatus.Remediated },
         lastSeenAt: { lt: batchTime },
       },
-    }) as any[];
+    });
 
     if (remediated.length > 0) {
-      const historyData = remediated.map(v => ({
-        id: v.id,
-        siteId: v.siteId,
-        assigneeId: v.assigneeId,
+      const historyData = remediated.map((v: Record<string, unknown>) => ({
+        id: v.id as string,
+        siteId: v.siteId as string,
+        assigneeId: v.assigneeId as string | null,
         status: VulnerabilityStatus.Remediated,
-        lastSeenAt: v.lastSeenAt,
-        createdAt: v.createdAt,
-        pluginId: v.pluginId,
-        cve: v.cve,
-        cvssScore: v.cvssScore,
-        risk: v.risk,
-        host: v.host,
-        protocol: v.protocol,
-        port: v.port,
-        name: v.name,
-        synopsis: v.synopsis,
-        description: v.description,
-        solution: v.solution,
-        seeAlso: v.seeAlso,
-        pluginOutput: v.pluginOutput,
-        pluginPublicationDate: v.pluginPublicationDate,
-        pluginModificationDate: v.pluginModificationDate,
+        lastSeenAt: v.lastSeenAt as Date,
+        createdAt: v.createdAt as Date,
+        pluginId: v.pluginId as string,
+        cve: v.cve as string | null,
+        cvssScore: v.cvssScore as number | null,
+        risk: v.risk as Risk,
+        host: v.host as string,
+        protocol: v.protocol as string,
+        port: v.port as string,
+        name: v.name as string,
+        synopsis: v.synopsis as string | null,
+        description: v.description as string | null,
+        solution: v.solution as string | null,
+        seeAlso: v.seeAlso as string | null,
+        pluginOutput: v.pluginOutput as string | null,
+        pluginPublicationDate: v.pluginPublicationDate as Date | null,
+        pluginModificationDate: v.pluginModificationDate as Date | null,
       }));
 
       await prisma.$transaction([
         prisma.vulnerabilityHistory.createMany({ data: historyData }),
         prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map(v => v.id) } },
+          where: { id: { in: remediated.map((v) => v.id) } },
         }),
       ]);
       console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);
