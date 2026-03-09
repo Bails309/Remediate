@@ -13,7 +13,7 @@ export async function GET(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await (prisma.user as any).findUnique({
+    const user = await prisma.user.findUnique({
         where: { email: session.user.email },
         select: { id: true, roles: true }
     });
@@ -22,11 +22,11 @@ export async function GET(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const isAdmin = (user as any).roles.some((role: any) =>
-        WEB_APP_ADMIN_ROLES.includes(role as any)
+    const isAdmin = (user.roles as string[]).some((role) =>
+        WEB_APP_ADMIN_ROLES.includes(role)
     );
 
-    const vulnerability = await (prisma.vulnerability as any).findUnique({
+    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
         where: { id: vulnerabilityId },
         include: {
             collaborators: { select: { id: true } },
@@ -37,21 +37,21 @@ export async function GET(
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
-    const isCollaborator = (vulnerability as any).collaborators.some((c: any) => c.id === user.id);
-    const isAssignee = (vulnerability as any).assigneeId === user.id;
+    const isCollaborator = (vulnerability.collaborators as { id: string }[]).some((c) => c.id === user.id);
+    const isAssignee = vulnerability.assigneeId === user.id;
 
     // Visibility Rules:
     // 1. Admins see all comments.
     // 2. If 'askForHelp' is true, collaborators and assignee see all comments.
     // 3. Otherwise, users only see comments they authored.
 
-    const comments = await (prisma as any).comment.findMany({
+    const comments = await (prisma as unknown as { comment: { findMany: (a: unknown) => Promise<unknown[]> } }).comment.findMany({
         where: {
             vulnerabilityId,
-            OR: isAdmin || ((vulnerability as any).askForHelp && (isCollaborator || isAssignee))
+            OR: isAdmin || (vulnerability?.askForHelp && (isCollaborator || isAssignee))
                 ? undefined
                 : [
-                    { authorId: user.id },
+                    { authorId: user?.id },
                     { isPrivate: false } // Just in case we add non-private comments later
                 ],
         },
@@ -76,7 +76,7 @@ export async function POST(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await (prisma.user as any).findUnique({
+    const user = await (prisma.user as unknown as { findUnique: (a: unknown) => Promise<{ id: string, roles: string[] } | null> }).findUnique({
         where: { email: session.user.email },
         select: { id: true, roles: true }
     });
@@ -91,7 +91,7 @@ export async function POST(
         return NextResponse.json({ error: "Content is required" }, { status: 400 });
     }
 
-    const vulnerability = await (prisma.vulnerability as any).findUnique({
+    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
         where: { id: vulnerabilityId },
         include: { collaborators: { select: { id: true } } }
     });
@@ -100,20 +100,20 @@ export async function POST(
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
-    const isAdmin = (user as any).roles.some((role: any) =>
-        WEB_APP_ADMIN_ROLES.includes(role as any)
+    const isAdmin = (user?.roles as string[] || []).some((role) =>
+        WEB_APP_ADMIN_ROLES.includes(role)
     );
-    const isCollaborator = (vulnerability as any).collaborators.some((c: any) => c.id === user.id);
-    const isAssignee = (vulnerability as any).assigneeId === user.id;
+    const isCollaborator = (vulnerability?.collaborators as { id: string }[] || []).some((c) => c.id === user?.id);
+    const isAssignee = vulnerability?.assigneeId === user?.id;
 
     // Only Admin, Assignee, or Collaborator (if askForHelp is true) can comment
-    const canComment = isAdmin || isAssignee || ((vulnerability as any).askForHelp && isCollaborator);
+    const canComment = isAdmin || isAssignee || (vulnerability?.askForHelp && isCollaborator);
 
     if (!canComment) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const comment = await (prisma as any).comment.create({
+    const comment = await (prisma as unknown as { comment: { create: (a: unknown) => Promise<unknown> } }).comment.create({
         data: {
             content,
             isPrivate,

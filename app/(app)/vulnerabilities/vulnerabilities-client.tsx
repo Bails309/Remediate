@@ -59,6 +59,17 @@ type Props = {
   users: User[];
 };
 
+type Comment = {
+  id: string;
+  content: string;
+  isPrivate: boolean;
+  createdAt: string;
+  author: {
+    name: string | null;
+    email: string | null;
+  };
+};
+
 export function VulnerabilitiesClient({ sites, users, session }: Props & { session?: Session | null }) {
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -75,7 +86,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [foldDuplicates, setFoldDuplicates] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [subItems, setSubItems] = useState<Record<string, Vulnerability[]>>({});
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isUpdatingCollaboration, setIsUpdatingCollaboration] = useState(false);
