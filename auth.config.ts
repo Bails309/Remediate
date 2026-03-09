@@ -1,4 +1,4 @@
-import type { NextAuthConfig, User, Session } from "next-auth";
+import type { User, Session, NextAuthConfig } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 
@@ -11,8 +11,10 @@ export default {
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
+                // Local auth (useful for first-time setup or emergency access)
+                // If enabled, you can sign in using local credentials even in production.
                 const enabled = process.env.LOCAL_AUTH_ENABLED === "true";
-                if (process.env.NODE_ENV === "production" || !enabled) return null;
+                if (!enabled) return null;
 
                 const localUser = process.env.LOCAL_AUTH_USER;
                 const localPass = process.env.LOCAL_AUTH_PASS;

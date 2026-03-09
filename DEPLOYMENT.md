@@ -25,27 +25,26 @@ This document summarizes recommended deployment patterns for Remediate.
    - Recommended Tier: **Standard C1 (1GB)** is generally sufficient. Use **C2 (2.5GB)** or higher if processing exceptionally large datasets or high volumes of concurrent uploads.
 3. Minimum environment variables per image (Azure Container Apps)
 
-- `remediate-app` (web UI / API) - minimum:
-   - `DATABASE_URL` - Postgres connection string (required)
-   - `REDIS_URL` - redis or rediss connection string (required)
-   - `NEXTAUTH_SECRET` - secret for next-auth (required)
-   - `AUTH_SECRET` - application auth secret (required)
-   - `NEXTAUTH_URL` / `AUTH_URL` - app base URL (required)
-   - `ADMIN_EMAIL` - initial admin email (recommended)
-   - `PENTEST_BACKEND_URL` - set if using pentest/scanning features (optional)
+- `remediate-app` (Web UI / API) - **Full Config**:
+   - `DATABASE_URL` (Required)
+   - `REDIS_URL` (Required)
+   - `AUTH_SECRET` (Required - Used for OIDC encryption and JWT signing)
+   - `NEXTAUTH_SECRET` (Required by NextAuth)
+   - `NEXTAUTH_URL` / `AUTH_URL` (Required - Public URL of the app)
+   - `ADMIN_EMAIL` (Recommended)
+   - `LOCAL_AUTH_ENABLED` (Set to `true` for first-time login without SSO)
+   - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS` / `LOCAL_AUTH_EMAIL` (Required if local auth enabled)
+   - `PENTEST_BACKEND_URL` (Optional - Internal URL for backend)
 
-- `remediate-worker` (background jobs) - minimum:
-   - `DATABASE_URL` (required)
-   - `REDIS_URL` (required)
-   - `AUTH_SECRET` (required)
-   - `NEXTAUTH_SECRET` (required)
-   - `ADMIN_EMAIL` (recommended)
+- `remediate-worker` (Background Jobs) - **Minimal Config**:
+   - `DATABASE_URL` (Required)
+   - `REDIS_URL` (Required)
+   - `AUTH_SECRET` (Required - Must match the App node)
 
-- `remediate-pentest-backend` (pentest/scanner) - minimum:
-   - `DATABASE_URL` (required)
-   - `AUTH_SECRET` (required)
-   - `TOOLS_CONFIG_PATH` or mount `/config` with `tools.json` (required)
-   - `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE` (defaults exist but set explicitly in production)
+- `remediate-pentest-backend` (Pentest Toolkit) - **Minimal Config**:
+   - `DATABASE_URL` (Required)
+   - `AUTH_SECRET` (Required - Must match the App node to validate tokens)
+   - `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE` (Optional - Defaults exist)
 
 Notes on Redis TLS and external services:
 - To use TLS with Redis set `REDIS_URL` to `rediss://...` and optionally set `REDIS_TLS_REJECT_UNAUTHORIZED=true|false` depending on certificate trust. The app supports `rediss://` and will pass a `tls` option to the Redis client when `rediss://` is used.

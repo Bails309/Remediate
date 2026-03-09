@@ -61,13 +61,25 @@ docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
   ```
 
 ## Environment Variables
-See .env.example for all required values. Minimum local dev values:
-- DATABASE_URL
-- REDIS_URL
-- NEXTAUTH_URL
-- NEXTAUTH_SECRET
-- AUTH_SECRET
-- ADMIN_EMAIL
+
+### Core (All Nodes)
+- `DATABASE_URL`: Postgres connection string.
+- `AUTH_SECRET`: Shared secret used for encryption and JWT signing. Must be consistent across all nodes.
+
+### App Node (`remediate-app`)
+- `REDIS_URL`: Redis connection string.
+- `NEXTAUTH_URL` / `AUTH_URL`: Public URL of the application.
+- `NEXTAUTH_SECRET`: Random string for session encryption.
+- `ADMIN_EMAIL`: Initial admin account.
+- **Local Auth**:
+  - `LOCAL_AUTH_ENABLED`: Set to `true` to enable credentials-based login.
+  - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS`: Credentials for the local admin.
+
+### Worker Node (`remediate-worker`)
+- `REDIS_URL`: Redis connection string.
+
+### Pentest Node (`remediate-pentest-backend`)
+- `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE`: Optional JWT validation overrides.
 
 Pentest toolkit:
 - PENTEST_BACKEND_URL (defaults to http://pentest-backend:8000 in Docker)

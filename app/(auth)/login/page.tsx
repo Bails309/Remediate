@@ -6,11 +6,10 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
 export default function LoginPage() {
-  const localEnabled = process.env.NEXT_PUBLIC_LOCAL_AUTH_ENABLED === "true";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [ssoEnabled, setSsoEnabled] = useState<boolean | null>(null);
+  const [authConfig, setAuthConfig] = useState<{ ssoEnabled: boolean; localEnabled: boolean } | null>(null);
 
   const signInLocal = async () => {
     setError("");
@@ -34,10 +33,15 @@ export default function LoginPage() {
     fetch("/api/oidc/enabled")
       .then((r) => r.json())
       .then((body) => {
-        if (mounted) setSsoEnabled(Boolean(body?.enabled));
+        if (mounted) {
+          setAuthConfig({
+            ssoEnabled: Boolean(body?.ssoEnabled),
+            localEnabled: Boolean(body?.localEnabled)
+          });
+        }
       })
       .catch(() => {
-        if (mounted) setSsoEnabled(false);
+        if (mounted) setAuthConfig({ ssoEnabled: false, localEnabled: false });
       });
     return () => {
       mounted = false;
@@ -50,19 +54,21 @@ export default function LoginPage() {
         <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--color-accent-2)]">Secure Access</p>
         <h1 className="mt-4 text-3xl font-semibold">Sign in to Remediate</h1>
         <p className="mt-2 text-sm opacity-70">
-          {ssoEnabled === null
+          {authConfig === null
             ? "Loading authentication methods…"
-            : ssoEnabled
-            ? "Use your Keycloak SSO to enter the triage workspace."
-            : "Sign in to the triage workspace using local credentials."}
+            : authConfig.ssoEnabled
+              ? "Use your Keycloak SSO to enter the triage workspace."
+              : authConfig.localEnabled
+                ? "Sign in to the triage workspace using local credentials."
+                : "No authentication methods are enabled. Please check your configuration."}
         </p>
         <div className="mt-8">
-          {ssoEnabled && (
+          {authConfig?.ssoEnabled && (
             <Button onClick={() => signIn("keycloak", { callbackUrl: "/dashboard" })}>Continue with SSO</Button>
           )}
         </div>
 
-        {localEnabled && (
+        {authConfig?.localEnabled && (
           <div className="mt-10 border-t border-[color:var(--color-border)] pt-6 text-left">
             <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--color-accent-2)]">Local Dev</p>
             <div className="mt-4 space-y-3">
