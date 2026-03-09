@@ -2,7 +2,7 @@ import type { User, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 
-export default {
+const authConfig = {
     trustHost: true,
     providers: [
         Credentials({
@@ -65,3 +65,5 @@ export default {
         },
     },
 };
+
+export default authConfig;

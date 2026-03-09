@@ -1,8 +1,9 @@
-import type { User, Account, Profile } from "next-auth";
+import type { User as NextAuthUser, Account, Profile } from "next-auth";
+import type { User as DbUser } from "@prisma/client";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export async function provisionUser({ user, account, profile }: { user: User; account: Account | null; profile?: Profile }) {
+export async function provisionUser({ user, account, profile }: { user: NextAuthUser; account: Account | null; profile?: Profile }) {
     const email = user.email || profile?.email;
     if (!email) return false;
 
@@ -15,20 +16,22 @@ export async function provisionUser({ user, account, profile }: { user: User; ac
     const existingUser = await prisma.user.findUnique({ where: { email } });
     const isPrimaryAdmin = !!(adminEmail && adminEmail.toLowerCase() === email.toLowerCase());
 
-    const defaultRoles = ["web_app_user"];
-    const adminRoles = [
-        "site_admin",
-        "web_app_admin",
-        "pentest_admin",
-        "web_app_user",
-        "pentest_user"
+    const defaultRoles: UserRole[] = [UserRole.web_app_user];
+    const adminRoles: UserRole[] = [
+        UserRole.site_admin,
+        UserRole.web_app_admin,
+        UserRole.pentest_admin,
+        UserRole.web_app_user,
+        UserRole.pentest_user,
     ];
-    const roles = (user as any).roles || (isPrimaryAdmin ? adminRoles : ((existingUser as any)?.roles || defaultRoles));
+
+    const userRolesFromSession = (user as unknown as { roles?: UserRole[] }).roles;
+    const roles: UserRole[] = userRolesFromSession ?? (isPrimaryAdmin ? adminRoles : (existingUser?.roles ?? defaultRoles));
 
     console.log(`[Auth] Provisioning ${authSource} user: ${email} with roles: ${roles.join(", ")}`);
 
     try {
-        await (prisma.user as any).upsert({
+        await prisma.user.upsert({
             where: { email },
             update: {
                 name: user.name || "User",
@@ -48,7 +51,7 @@ export async function provisionUser({ user, account, profile }: { user: User; ac
         // Fallback for extremely old schema if somehow still present in DB
         try {
             console.log("[Auth] Attempting fallback to legacy 'role' field...");
-            await (prisma.user as any).upsert({
+            await prisma.user.upsert({
                 where: { email },
                 update: {
                     name: user.name || "User",
