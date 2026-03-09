@@ -85,7 +85,7 @@
           );
         }
       }
-    } catch (e) {
+    } catch {
       // Table likely doesn't exist yet (fresh DB), skip
       console.log("[Migrate] No migration history found or table missing. Skipping check.");
     }

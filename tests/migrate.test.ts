@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const { checkAndFixMigrations } = require('../scripts/migrate');
+import { checkAndFixMigrations } from '../scripts/migrate';
+import * as fs from 'fs';
 
 // Mock fs and path
 vi.mock('fs', () => ({
@@ -14,8 +15,7 @@ vi.mock('fs', () => ({
 }));
 
 describe('checkAndFixMigrations', () => {
-    let mockPrisma;
-    const fs = require('fs');
+    let mockPrisma: any;
 
     beforeEach(() => {
         vi.resetAllMocks();
@@ -25,9 +25,9 @@ describe('checkAndFixMigrations', () => {
         };
 
         // Default mocks for fs
-        fs.existsSync.mockReturnValue(true);
-        fs.readdirSync.mockReturnValue(['migration1', 'migration2']);
-        fs.statSync.mockReturnValue({ isDirectory: () => true });
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.readdirSync).mockReturnValue(['migration1' as any, 'migration2' as any]);
+        vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as any);
     });
 
     it('should delete stale migration records not on disk', async () => {
@@ -36,7 +36,7 @@ describe('checkAndFixMigrations', () => {
             { migration_name: 'migration1', finished_at: new Date() },
             { migration_name: 'stale_migration', finished_at: new Date() }
         ]);
-        fs.readdirSync.mockReturnValue(['migration1']);
+        vi.mocked(fs.readdirSync).mockReturnValue(['migration1'] as any);
 
         await checkAndFixMigrations(mockPrisma);
 
@@ -50,7 +50,7 @@ describe('checkAndFixMigrations', () => {
         mockPrisma.$queryRawUnsafe.mockResolvedValue([
             { migration_name: 'failed_migration', finished_at: null }
         ]);
-        fs.readdirSync.mockReturnValue(['failed_migration']);
+        vi.mocked(fs.readdirSync).mockReturnValue(['failed_migration'] as any);
 
         await checkAndFixMigrations(mockPrisma);
 

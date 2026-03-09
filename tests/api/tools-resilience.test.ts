@@ -3,7 +3,6 @@ import { GET as listTools } from '../../app/api/tools/list/route';
 import { POST as executeTool } from '../../app/api/tools/execute/route';
 import { GET as getConfig, PUT as updateConfig } from '../../app/api/tools/config/route';
 import { requirePentestUser, requirePentestAdmin } from '@/lib/rbac';
-import { getPentestBackendUrl, signPentestToken } from '@/lib/pentest';
 
 // Mock dependencies
 vi.mock('@/lib/rbac', () => ({
