@@ -14,6 +14,7 @@ import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
 import { UploadStatus } from "@prisma/client";
 import { startReportScheduler } from "../lib/report-scheduler";
+import { redis } from "../lib/redis";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_SECONDS = 15;
@@ -99,6 +100,16 @@ async function processJob(uploadId: string) {
 async function run() {
   console.log("Worker started");
   startReportScheduler();
+  // heartbeat key for health checks: updated periodically so the app can detect worker liveness
+  const HEARTBEAT_KEY = "worker:heartbeat";
+  const HEARTBEAT_INTERVAL_MS = 10_000;
+  setInterval(async () => {
+    try {
+      await redis.set(HEARTBEAT_KEY, Date.now().toString());
+    } catch (err) {
+      console.error("Failed to set worker heartbeat", err);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
   while (true) {
     const uploadId = await dequeueUpload();
     if (!uploadId) {

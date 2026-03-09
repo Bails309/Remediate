@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import fs from "fs";
 import path from "path";
+import { URL } from "url";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,39 @@ export async function GET(request: NextRequest) {
         redisStatus = "Unhealthy";
     }
 
+    // Worker heartbeat check (writes to Redis by worker)
+    let workerStatus = "Unknown";
+    try {
+        const hb = await redis.get("worker:heartbeat");
+        if (!hb) {
+            workerStatus = "No heartbeat";
+        } else {
+            const ageMs = Date.now() - Number(hb);
+            // consider healthy if heartbeat within last 30s
+            workerStatus = ageMs <= 30_000 ? "Healthy" : `Stale (${Math.round(ageMs / 1000)}s)`;
+        }
+    } catch {
+        workerStatus = "Unhealthy";
+    }
+
+    // Pentest backend health check (if configured)
+    const pentestUrl = process.env.PENTEST_BACKEND_URL;
+    let pentestStatus = "Not configured";
+    if (pentestUrl) {
+        try {
+            // normalize URL
+            const checkUrl = new URL(pentestUrl);
+            checkUrl.pathname = "/health";
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(checkUrl.toString(), { signal: controller.signal });
+            clearTimeout(timeout);
+            pentestStatus = res.ok ? "Healthy" : `Unhealthy (${res.status})`;
+        } catch (err) {
+            pentestStatus = "Unhealthy";
+        }
+    }
+
     // Schema sync check - for now just check if we can query migrations
     let schemaStatus = "Healthy";
     try {
@@ -63,6 +97,13 @@ export async function GET(request: NextRequest) {
             status: redisStatus,
             latency: `${redisLatency}ms`,
             memory: redisMemory,
+        },
+        worker: {
+            status: workerStatus,
+        },
+        pentestBackend: {
+            status: pentestStatus,
+            url: process.env.PENTEST_BACKEND_URL ?? null,
         },
         schema: {
             status: schemaStatus,

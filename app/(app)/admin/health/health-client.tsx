@@ -17,6 +17,8 @@ import {
 interface HealthData {
     database: { status: string; latency: string; type: string };
     redis: { status: string; latency: string; memory: string };
+    worker: { status: string };
+    pentestBackend: { status: string; url: string | null };
     schema: { status: string; version: string };
     process: {
         uptime: string;
@@ -122,6 +124,18 @@ export function HealthClient() {
                     ]}
                     glowColor="rgba(16, 185, 129, 0.1)"
                 />
+
+                {/* Pentest Backend */}
+                <HealthCard
+                    title="Pentest Backend"
+                    subtitle="External pentest worker service"
+                    icon={<Activity className="h-5 w-5 text-violet-400" />}
+                    status={data.pentestBackend?.status ?? "Not configured"}
+                    metrics={[
+                        { label: "URL", value: data.pentestBackend?.url ?? "-" }
+                    ]}
+                    glowColor="rgba(124, 58, 237, 0.06)"
+                />
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
@@ -130,6 +144,7 @@ export function HealthClient() {
                 <SmallHealthCard label="NODE VERSION" value={data.process.nodeVersion} icon={<Terminal className="h-4 w-4" />} />
                 <SmallHealthCard label="ENVIRONMENT" value={data.process.environment} icon={<Activity className="h-4 w-4" />} />
                 <SmallHealthCard label="APP VERSION" value={data.app?.version ?? "unknown"} icon={<FileCode className="h-4 w-4" />} />
+                <SmallHealthCard label="WORKER" value={data.worker?.status ?? "unknown"} icon={<Zap className="h-4 w-4" />} />
             </div>
 
             <div className="text-right text-[10px] uppercase tracking-widest text-foreground/30">
