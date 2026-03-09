@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/redis", () => ({
   redis: {
     set: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
+    ttl: vi.fn().mockResolvedValue(60),
   },
 }));
 

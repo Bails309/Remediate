@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/rbac", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { site: { findUnique: vi.fn() }, uploadHistory: { create: vi.fn(), update: vi.fn() } } }));
-vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn().mockResolvedValue("OK"), del: vi.fn(), incr: vi.fn().mockResolvedValue(1), expire: vi.fn(), ttl: vi.fn().mockResolvedValue(60) } }));
+vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn().mockResolvedValue("OK"), del: vi.fn(), incr: vi.fn().mockResolvedValue(1), expire: vi.fn(), eval: vi.fn().mockResolvedValue(1), ttl: vi.fn().mockResolvedValue(60) } }));
 vi.mock("@/lib/csv", () => ({ validateNessusCsv: vi.fn() }));
 vi.mock("@/lib/queue", () => ({ enqueueUpload: vi.fn(), getLockKey: vi.fn((id: string) => `upload:lock:${id}`) }));
 vi.mock("@/lib/progress", () => ({ setProgress: vi.fn() }));

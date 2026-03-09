@@ -14,6 +14,8 @@ vi.mock("@/lib/redis", () => ({
     zrangebyscore: vi.fn(),
     multi: vi.fn(() => ({ zrem: vi.fn(), lpush: vi.fn(), exec: vi.fn() })),
     brpop: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
+    ttl: vi.fn().mockResolvedValue(60),
   },
 }));
 
