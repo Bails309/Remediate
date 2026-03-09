@@ -42,6 +42,7 @@ type Vulnerability = {
   status: string;
   lastSeenAt: string;
   assignee?: { id: string; name: string } | null;
+  assigneeId?: string | null;
   synopsis?: string | null;
   description?: string | null;
   solution?: string | null;
@@ -49,6 +50,8 @@ type Vulnerability = {
   groupCount?: number;
   groupIds?: string;
   groupCves?: string;
+  askForHelp: boolean;
+  collaborators: { id: string; name: string }[];
 };
 
 type Props = {
@@ -72,6 +75,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [foldDuplicates, setFoldDuplicates] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [subItems, setSubItems] = useState<Record<string, Vulnerability[]>>({});
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isUpdatingCollaboration, setIsUpdatingCollaboration] = useState(false);
 
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
@@ -93,6 +100,21 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     setData(payload.items ?? []);
     setTotal(payload.total ?? 0);
   }, [siteId, status, risk, query, assigneeId, foldDuplicates, page, pageSize]);
+
+  const fetchComments = async (id: string) => {
+    const res = await fetch(`/api/vulnerabilities/${id}/comments`);
+    if (res.ok) {
+      setComments(await res.json());
+    }
+  };
+
+  useEffect(() => {
+    if (detail?.id) {
+      fetchComments(detail.id);
+    } else {
+      setComments([]);
+    }
+  }, [detail?.id]);
 
   useEffect(() => {
     const handle = requestAnimationFrame(() => {
@@ -221,6 +243,71 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       setSelected(prev => prev.filter(id => !ids.includes(id)));
     } else {
       setSelected(prev => [...new Set([...prev, ...ids])]);
+    }
+  };
+
+  const addComment = async () => {
+    if (!detail || !commentText.trim()) return;
+    setIsSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ content: commentText }),
+      });
+      if (res.ok) {
+        setCommentText("");
+        await fetchComments(detail.id);
+      } else {
+        toast.error("Failed to add comment");
+      }
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const toggleAskForHelp = async () => {
+    if (!detail) return;
+    setIsUpdatingCollaboration(true);
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ askForHelp: !detail.askForHelp }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDetail(updated);
+        // Refresh main list to update state there too
+        void fetchData();
+      } else {
+        toast.error("Failed to update collaboration");
+      }
+    } finally {
+      setIsUpdatingCollaboration(false);
+    }
+  };
+
+  const updateCollaborators = async (userId: string, isRemoving: boolean) => {
+    if (!detail) return;
+    const currentIds = detail.collaborators.map(c => c.id);
+    const newIds = isRemoving
+      ? currentIds.filter(id => id !== userId)
+      : [...currentIds, userId];
+
+    setIsUpdatingCollaboration(true);
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ collaboratorIds: newIds }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDetail(updated);
+        void fetchData();
+      } else {
+        toast.error("Failed to update collaborators");
+      }
+    } finally {
+      setIsUpdatingCollaboration(false);
     }
   };
 
@@ -362,6 +449,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               value=""
               onChange={(val) => assignTo(val)}
               placeholder="Assign to user"
+              direction="up"
               options={[
                 ...users.map((user) => ({ label: user.name, value: user.id }))
               ]}
@@ -375,6 +463,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 updateStatus(val);
               }}
               placeholder="Change status"
+              direction="up"
               options={[
                 { label: "Open", value: "Open" },
                 { label: "False Positive", value: "FalsePositive" },
@@ -480,36 +569,53 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                     </Button>
                   </td>
                 </tr>,
-                ...(isExpanded ? (groupMembers.length > 0 ? groupMembers.map((member) => (
-                  <tr key={member.id} className="border-b border-[color:var(--color-border)] last:border-none opacity-80 bg-white/5">
-                    <td className="p-4 pl-12">
-                      <input type="checkbox" checked={selected.includes(member.id)} onChange={() => toggleSelect(member.id)} />
-                    </td>
-                    <td className="p-4">
-                      <p className="text-sm">{member.name}</p>
-                    </td>
-                    <td className="p-4">
-                      <p className="text-xs font-mono">{member.cve ?? "No CVE"}</p>
-                    </td>
-                    <td className="p-4">
-                      <div className="scale-75 origin-left">
-                        <Badge tone={riskToneMap[member.risk] ?? "neutral"}>{member.risk}</Badge>
+                ...(isExpanded ? (groupMembers.length > 0 ? [
+                  <tr key={`${entry.key}-expanded`}>
+                    <td colSpan={8} className="p-0">
+                      <div className="bg-white/95 backdrop-blur-xl border border-slate-200 shadow-inner rounded-b-lg px-8 py-6 dark:bg-gray-900/90 dark:border-gray-700/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        {groupMembers.map((member) => (
+                          <div key={member.id} className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 last:border-none pb-4 last:pb-0">
+                            <div className="flex items-center gap-6 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={selected.includes(member.id)}
+                                onChange={() => toggleSelect(member.id)}
+                                className="mt-1"
+                              />
+                              <div className="min-w-[200px]">
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Issue</p>
+                                <p className="text-sm text-slate-900 dark:text-gray-100 font-medium">{member.name}</p>
+                              </div>
+                              <div className="min-w-[150px]">
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">CVE</p>
+                                <p className="text-sm font-mono text-slate-900 dark:text-gray-100">{member.cve ?? "None"}</p>
+                              </div>
+                              <div className="min-w-[100px]">
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Risk</p>
+                                <div className="mt-1 scale-90 origin-left">
+                                  <Badge tone={riskToneMap[member.risk] ?? "neutral"}>{member.risk}</Badge>
+                                </div>
+                              </div>
+                              <div className="min-w-[120px]">
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Status</p>
+                                <div className="mt-1">{renderStatusBadge(member.status)}</div>
+                              </div>
+                              <div className="min-w-[120px]">
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Assignee</p>
+                                <p className="text-sm text-slate-900 dark:text-gray-100">{member.assignee?.name ?? "Unassigned"}</p>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => setDetail(member)}>
+                              View Output
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     </td>
-                    <td className="p-4 text-xs">{renderStatusBadge(member.status)}</td>
-                    <td className="p-4 text-xs">{member.assignee?.name ?? "-"}</td>
-                    <td className="p-4">
-                      <ClientDate date={member.lastSeenAt} className="text-[10px] opacity-60" />
-                    </td>
-                    <td className="p-4">
-                      <Button variant="ghost" onClick={() => setDetail(member)}>
-                        View
-                      </Button>
-                    </td>
                   </tr>
-                )) : [
+                ] : [
                   <tr key={`${entry.key}-loading`}>
-                    <td colSpan={8} className="p-4 pl-12 text-xs opacity-50">Loading group members...</td>
+                    <td colSpan={8} className="p-4 pl-12 text-xs opacity-50 italic">Loading group members...</td>
                   </tr>
                 ]) : [])
               ];
@@ -523,21 +629,99 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         onClose={() => setDetail(null)}
         title={detail?.name ?? "Vulnerability"}
       >
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] opacity-60">Synopsis</p>
-          <p className="mt-2">{detail?.synopsis ?? "No synopsis provided."}</p>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Synopsis</p>
+            <p className="mt-2 text-slate-900 dark:text-gray-100">{detail?.synopsis ?? "No synopsis provided."}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</p>
+            <p className="mt-2 text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.description ?? "No description available."}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Solution</p>
+            <p className="mt-2 text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.solution ?? "No solution provided."}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Plugin Output</p>
+            <div className="mt-2 bg-slate-50/50 dark:bg-gray-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-gray-800/50 overflow-x-auto">
+              <pre className="text-[11px] font-mono text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.pluginOutput ?? "No plugin output."}</pre>
+            </div>
+          </div>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] opacity-60">Description</p>
-          <p className="mt-2">{detail?.description ?? "No description available."}</p>
+
+        <div className="pt-6 border-t border-[color:var(--color-border)] space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Collaboration</h3>
+            <Button
+              size="sm"
+              variant={detail?.askForHelp ? "outline" : "primary"}
+              onClick={toggleAskForHelp}
+              disabled={isUpdatingCollaboration}
+            >
+              {detail?.askForHelp ? "Disable Help" : "Ask for Help"}
+            </Button>
+          </div>
+
+          {detail?.askForHelp && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Collaborators</p>
+                <div className="flex flex-wrap gap-2">
+                  {users.filter(u => u.id !== detail.assigneeId).map(user => {
+                    const isCollaborator = detail.collaborators.some(c => c.id === user.id);
+                    return (
+                      <Badge
+                        key={user.id}
+                        tone={isCollaborator ? "low" : "neutral"}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => updateCollaborators(user.id, isCollaborator)}
+                      >
+                        {user.name} {isCollaborator ? "✓" : "+"}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] opacity-60">Solution</p>
-          <p className="mt-2">{detail?.solution ?? "No solution provided."}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] opacity-60">Plugin Output</p>
-          <p className="mt-2 whitespace-pre-wrap">{detail?.pluginOutput ?? "No plugin output."}</p>
+
+        <div className="pt-6 border-t border-slate-200 dark:border-gray-800 space-y-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Comments</h3>
+
+          <div className="space-y-4">
+            {comments.map((comment) => (
+              <div key={comment.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                <div className="flex justify-between items-center text-xs opacity-60">
+                  <span className="font-semibold">{comment.author.name}</span>
+                  <ClientDate date={comment.createdAt} />
+                </div>
+                <p className="text-sm">{comment.content}</p>
+              </div>
+            ))}
+            {comments.length === 0 && (
+              <p className="text-sm opacity-50 italic">No comments yet.</p>
+            )}
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <textarea
+              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[100px]"
+              placeholder="Add a private comment..."
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+            />
+            <div className="flex justify-end">
+              <Button
+                onClick={addComment}
+                disabled={isSubmittingComment || !commentText.trim()}
+                loading={isSubmittingComment}
+              >
+                Post Comment
+              </Button>
+            </div>
+          </div>
         </div>
       </SideSheet>
     </div >

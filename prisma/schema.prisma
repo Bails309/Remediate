@@ -45,6 +45,8 @@ model User {
   roles         UserRole[]       @default([web_app_user])
   authSource    String           @default("Local")
   vulnerabilities Vulnerability[] @relation("Assignee")
+  collaboratingVulnerabilities Vulnerability[] @relation("Collaborators")
+  comments      Comment[]
   vulnerabilityHistory VulnerabilityHistory[]
   uploads       UploadHistory[]  @relation("UploadedBy")
   pentestExecutions PentestExecution[]
@@ -83,6 +85,10 @@ model Vulnerability {
   pluginOutput             String?
   pluginPublicationDate    DateTime?
   pluginModificationDate   DateTime?
+  
+  askForHelp               Boolean              @default(false)
+  collaborators            User[]               @relation("Collaborators")
+  comments                 Comment[]
 
   site                     Site                 @relation(fields: [siteId], references: [id])
   assignee                 User?                @relation("Assignee", fields: [assigneeId], references: [id])
@@ -195,4 +201,18 @@ model VulnerabilityHistory {
   @@index([lastSeenAt])
   @@index([archivedAt])
   @@index([siteId, risk])
+}
+
+model Comment {
+  id              String        @id @default(uuid()) @db.Uuid
+  content         String
+  vulnerabilityId String        @db.Uuid
+  authorId        String        @db.Uuid
+  isPrivate       Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+  author          User          @relation(fields: [authorId], references: [id])
+
+  @@index([vulnerabilityId, createdAt(sort: Desc)])
 }

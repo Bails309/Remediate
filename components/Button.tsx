@@ -3,15 +3,17 @@ import type { ButtonHTMLAttributes } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "ghost" | "outline";
+  size?: "default" | "sm";
   loading?: boolean;
 };
 
-export function Button({ className, variant = "primary", loading, children, ...props }: Props) {
+export function Button({ className, variant = "primary", size = "default", loading, children, ...props }: Props) {
   return (
     <button
       disabled={loading || props.disabled}
       className={cn(
-        "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition gap-2",
+        "inline-flex items-center justify-center rounded-full transition gap-2",
+        size === "default" ? "px-4 py-2 text-sm font-semibold" : "px-3 py-1 text-xs font-medium",
         "disabled:cursor-not-allowed disabled:opacity-60",
         variant === "primary" && "bg-[color:var(--color-accent)] text-white hover:opacity-90",
         variant === "outline" &&

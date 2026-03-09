@@ -18,8 +18,8 @@ export function SideSheet({ open, onClose, title, children }: Props) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
         className={cn(
-          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-[color:var(--color-card)] p-6 shadow-2xl",
-          "border-l border-[color:var(--color-border)]"
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-white/95 backdrop-blur-xl p-6 shadow-2xl dark:bg-gray-900/95",
+          "border-l border-slate-200 dark:border-gray-800"
         )}
       >
         <div className="flex items-center justify-between">

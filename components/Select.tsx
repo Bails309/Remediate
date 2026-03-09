@@ -16,6 +16,7 @@ type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange
   options?: SelectOption[];
   value?: string;
   placeholder?: string;
+  direction?: "up" | "down";
   onChange?: (value: string) => void;
 };
 
@@ -26,6 +27,7 @@ export function Select({
   onChange,
   disabled,
   placeholder = "Select...",
+  direction = "down",
   ...props
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -77,8 +79,11 @@ export function Select({
       </button>
 
       {isOpen && (
-        <div className="!absolute z-50 mt-2 w-full min-w-max overflow-hidden rounded-md border border-slate-200 bg-white text-slate-900 shadow-xl max-h-60 overflow-y-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-          <ul className="py-1">
+        <div className={cn(
+          "absolute z-[60] w-full min-w-max overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xl transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100",
+          direction === "up" ? "bottom-full mb-2 origin-bottom" : "top-full mt-2 origin-top"
+        )}>
+          <ul className="max-h-60 overflow-y-auto overscroll-contain py-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-gray-700">
             {options.map((opt) => (
               <li key={opt.value}>
                 <button
