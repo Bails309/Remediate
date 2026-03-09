@@ -78,6 +78,15 @@ External DB/Redis support:
 - Set DATABASE_URL and REDIS_URL to your external services.
 - The app does not depend on container-local storage for either service.
 
+### Redis Requirements
+- **Modules**: None required.
+- **Eviction Policy**: `noeviction` is strongly recommended. Redis is used for job queueing and temporary payload storage; enabling eviction may lead to silent job loss if memory limits are reached.
+- **Protocol Support**: Supports `redis://` (standard) and `rediss://` (TLS). TLS certificate validation can be toggled via `REDIS_TLS_REJECT_UNAUTHORIZED`.
+- **Recommended Sizing**:
+  - **Small/Standard**: 1GB - 2GB (e.g., Azure Cache for Redis C0/C1). Suitable for most use cases with moderate upload sizes and concurrency.
+  - **Large/Enterprise**: 4GB+ (e.g., Azure Cache for Redis C2+). Recommended if you frequently process very large Nessus CSVs (>100MB) or have high concurrent upload activity.
+  - **Note**: Memory usage is driven by CSV payloads which are stored in Redis for up to 2 hours during processing.
+
 Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service names.
 
 ## Upload Processing

@@ -21,6 +21,8 @@ This document summarizes recommended deployment patterns for Remediate.
    az acr build --registry <ACR_NAME> --image remediate:$(git rev-parse --short HEAD) .
    ```
 2. Deploy to ACA and set secrets (`DATABASE_URL`, `REDIS_URL`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, etc.).
+   - For Azure Cache for Redis, ensure the **eviction policy** is set to `noeviction` to prevent loss of queued jobs.
+   - Recommended Tier: **Standard C1 (1GB)** is generally sufficient. Use **C2 (2.5GB)** or higher if processing exceptionally large datasets or high volumes of concurrent uploads.
 3. Option A (CI-first): run migrations in CI before updating ACA.
 4. Option B (ACA Job): create a one-off Container Apps Job to run migrations:
    ```bash
