@@ -60,5 +60,7 @@ export const redis =
   })();
 
 if (process.env.NODE_ENV !== "production") {
-  globalForRedis.redis = redis;
+  const _url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
+  globalForRedis.redisMap = globalForRedis.redisMap ?? {};
+  globalForRedis.redisMap[_url] = redis;
 }
