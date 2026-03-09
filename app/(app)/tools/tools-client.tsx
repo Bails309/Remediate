@@ -390,7 +390,7 @@ export function ToolsClient({ session }: { session: Session }) {
               </div>
               <span className="ml-4 text-[11px] font-bold uppercase tracking-[0.2em] text-white/30">Console Output</span>
             </div>
-            <div className="min-h-[500px] w-full px-6 py-6 font-mono text-sm text-teal-400 overflow-x-auto">
+            <div className="min-h-[500px] w-full px-6 py-6 font-mono text-sm text-teal-400 overflow-x-auto custom-scrollbar">
               {running ? (
                 <div className="flex flex-col items-center justify-center min-h-[400px] text-center text-teal-400/30 italic animate-pulse">
                   <TerminalSquare size={48} className="mb-6 opacity-10" />
