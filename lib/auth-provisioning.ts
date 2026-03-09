@@ -1,5 +1,4 @@
 import type { User as NextAuthUser, Account, Profile } from "next-auth";
-import type { User as DbUser } from "@prisma/client";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -52,9 +51,11 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
         try {
             console.log("[Auth] Attempting fallback to legacy 'role' field...");
             // Legacy schema fallback may have a singular `role` field which is not
-            // present in the current Prisma schema/type definitions. Cast to
-            // `any` here to perform the fallback without TypeScript errors.
-            await (prisma as any).user.upsert({
+            // present in the current Prisma schema/type definitions. Create a
+            // narrow, typed view of the `user` model to avoid using `any`.
+            type LegacyUserModel = { upsert: (args: unknown) => Promise<unknown> };
+            const legacyUser = (prisma as unknown as { user: LegacyUserModel }).user;
+            await legacyUser.upsert({
                 where: { email },
                 update: {
                     name: user.name || "User",

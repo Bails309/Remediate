@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 
 FROM node:lts-slim AS deps
-ARG APP_VERSION=1.1.1
+ARG APP_VERSION=1.1.2
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 FROM node:lts-slim AS dev
-ARG APP_VERSION=1.1.1
+ARG APP_VERSION=1.1.2
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json ./
@@ -19,7 +19,7 @@ RUN npx prisma generate
 CMD ["sh", "-c", "npm run migrate && npm run dev"]
 
 FROM node:lts-slim AS builder
-ARG APP_VERSION=1.1.1
+ARG APP_VERSION=1.1.2
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY --from=deps /app/node_modules ./node_modules
@@ -29,7 +29,7 @@ RUN npx prisma generate
 RUN npm run build
 
 FROM node:lts-slim AS base-runner
-ARG APP_VERSION=1.1.1
+ARG APP_VERSION=1.1.2
 ENV APP_VERSION=${APP_VERSION}
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
