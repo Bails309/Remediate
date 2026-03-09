@@ -18,6 +18,7 @@ const result = NextAuth(async () => {
 
     return {
         ...authConfig,
+        trustHost: true,
         session: { strategy: "jwt" },
         providers: [
             ...authConfig.providers,
@@ -26,8 +27,17 @@ const result = NextAuth(async () => {
         callbacks: {
             ...authConfig.callbacks,
             async signIn(params: { user: User; account: Account | null; profile?: Profile }) {
-                const { provisionUser } = await import("@/lib/auth-provisioning");
-                return provisionUser(params);
+                try {
+                    const { provisionUser } = await import("@/lib/auth-provisioning");
+                    const success = await provisionUser(params);
+                    if (!success) {
+                        console.error("[Auth] User provisioning failed");
+                    }
+                    return success;
+                } catch (e) {
+                    console.error("[Auth] Critical error in signIn callback:", e);
+                    return false;
+                }
             },
             async jwt({ token, user }: { token: JWT; user?: User }) {
                 // This only runs on sign in when the user object is available

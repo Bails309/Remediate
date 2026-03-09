@@ -14,7 +14,6 @@ import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
 import { UploadStatus } from "@prisma/client";
 import { startReportScheduler } from "../lib/report-scheduler";
-import { redis } from "../lib/redis";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_SECONDS = 15;

@@ -1,12 +1,12 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions", "relationJoins"]
+  binaryTargets   = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pg_trgm]
 }
 
 enum UserRole {
@@ -98,9 +98,6 @@ model Vulnerability {
   @@index([risk])
   @@index([siteId, status, risk])
   @@index([risk, lastSeenAt(sort: Desc)])
-  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
-  @@index([host(ops: raw("gin_trgm_ops"))], type: Gin)
-  @@index([pluginId(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model OidcConfig {

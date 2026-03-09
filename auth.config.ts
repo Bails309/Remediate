@@ -1,8 +1,9 @@
-import type { User, Session, NextAuthConfig } from "next-auth";
+import type { User, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 
 export default {
+    trustHost: true,
     providers: [
         Credentials({
             name: "Local",
@@ -18,11 +19,19 @@ export default {
 
                 const localUser = process.env.LOCAL_AUTH_USER;
                 const localPass = process.env.LOCAL_AUTH_PASS;
-                const localEmail = process.env.LOCAL_AUTH_EMAIL || localUser;
-                const localName = process.env.LOCAL_AUTH_NAME || "Local Admin";
+
+                if (!localUser || !localPass) {
+                    console.error("[Auth] LOCAL_AUTH_ENABLED is true but USER/PASS are not set");
+                    return null;
+                }
 
                 if (!credentials?.username || !credentials.password) return null;
+
                 if (credentials.username === localUser && credentials.password === localPass) {
+                    const localEmail = process.env.LOCAL_AUTH_EMAIL || localUser;
+                    const localName = process.env.LOCAL_AUTH_NAME || "Local Admin";
+
+                    console.log(`[Auth] Successful local login for: ${credentials.username}`);
                     return {
                         id: localEmail as string,
                         name: localName,
@@ -30,6 +39,8 @@ export default {
                         roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
                     } as User;
                 }
+
+                console.warn(`[Auth] Failed local login attempt for: ${credentials.username}`);
                 return null;
             }
         })
@@ -53,4 +64,4 @@ export default {
             return session;
         },
     },
-} satisfies NextAuthConfig;
+};

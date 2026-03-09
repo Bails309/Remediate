@@ -16,6 +16,12 @@ export async function POST(req: Request) {
     body: JSON.stringify(body),
   });
 
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`[Backend Errror] Status: ${res.status}, Body: ${errorText.substring(0, 200)}`);
+    return NextResponse.json({ error: "Backend service unavailable" }, { status: res.status });
+  }
+
   const payload = await res.json();
   return NextResponse.json(payload, { status: res.status });
 }

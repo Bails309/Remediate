@@ -8,13 +8,24 @@ const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const isTls = redisUrl.startsWith("rediss://");
 
 type RedisLike = {
-  new (url: string, options?: RedisOptions): Redis;
+  new(url: string, options?: RedisOptions): Redis;
   (url: string, options?: RedisOptions): Redis;
 };
 
 const RedisCtor = Redis as unknown as RedisLike;
 
+const isCluster = process.env.REDIS_CLUSTER_MODE === "true";
+
 function createRedisInstance(url: string, options?: RedisOptions) {
+  if (isCluster) {
+    // For Cluster mode, we pass the URL as the seed node
+    return new Redis.Cluster([url], {
+      redisOptions: options,
+      clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
+      dnsLookup: (address, callback) => callback(null, address), // Use provided address
+    }) as unknown as Redis;
+  }
+
   try {
     return new RedisCtor(url, options);
   } catch {
@@ -25,7 +36,8 @@ function createRedisInstance(url: string, options?: RedisOptions) {
 export const redis =
   globalForRedis.redis ??
   createRedisInstance(redisUrl, {
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: null, // Set to null for Cluster compatibility with some commands
+    enableReadyCheck: true,
     ...(isTls && {
       tls: {
         rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
