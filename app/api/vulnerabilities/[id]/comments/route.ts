@@ -23,7 +23,7 @@ export async function GET(
     }
 
     const isAdmin = (user.roles as string[]).some((role) =>
-        WEB_APP_ADMIN_ROLES.includes(role)
+        (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
     const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
@@ -101,7 +101,7 @@ export async function POST(
     }
 
     const isAdmin = (user?.roles as string[] || []).some((role) =>
-        WEB_APP_ADMIN_ROLES.includes(role)
+        (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
     const isCollaborator = (vulnerability?.collaborators as { id: string }[] || []).some((c) => c.id === user?.id);
     const isAssignee = vulnerability?.assigneeId === user?.id;

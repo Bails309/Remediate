@@ -25,7 +25,7 @@ export async function PATCH(
     }
 
     const isAdmin = (user?.roles as string[] || []).some((role) =>
-        WEB_APP_ADMIN_ROLES.includes(role)
+        (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
     const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ assigneeId: string | null, collaborators: { id: string }[] } | null> }).findUnique({

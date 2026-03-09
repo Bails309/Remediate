@@ -1,5 +1,13 @@
-# Remediate
-Direct, Serious, Zero Fluff
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/logo-dark.jpg">
+    <source media="(prefers-color-scheme: light)" srcset="public/logo-light.jpg">
+    <img alt="Remediate Logo" src="public/logo-light.jpg" width="200">
+  </picture>
+  
+  # Remediate
+  ### Direct, Serious, Zero Fluff
+</div>
 
 ## Overview
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
