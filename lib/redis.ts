@@ -1,7 +1,10 @@
 import Redis, { RedisOptions } from "ioredis";
 
 const globalForRedis = globalThis as unknown as {
-  redis?: Redis;
+  // map of url -> Redis instance so tests can create different instances
+  // when `process.env.REDIS_URL` changes without being affected by a
+  // previously cached client.
+  redisMap?: Record<string, Redis>;
 };
 
 // Note: compute the URL/`isTls` at creation time to respect changes to
@@ -35,11 +38,16 @@ function createRedisInstance(url: string, options?: RedisOptions) {
 }
 
 export const redis =
-  globalForRedis.redis ??
   (() => {
     const url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
     const isTls = url.startsWith("rediss://");
-    return createRedisInstance(url, {
+
+    // Ensure a per-URL cache on globalThis so tests that reload modules and
+    // change `process.env.REDIS_URL` get their own client instance.
+    globalForRedis.redisMap = globalForRedis.redisMap ?? {};
+    if (globalForRedis.redisMap[url]) return globalForRedis.redisMap[url];
+
+    const inst = createRedisInstance(url, {
       maxRetriesPerRequest: 1,
       ...(isTls && {
         tls: {
@@ -47,6 +55,8 @@ export const redis =
         },
       }),
     });
+    globalForRedis.redisMap[url] = inst;
+    return inst;
   })();
 
 if (process.env.NODE_ENV !== "production") {
