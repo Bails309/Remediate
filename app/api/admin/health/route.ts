@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
             const res = await fetch(checkUrl.toString(), { signal: controller.signal });
             clearTimeout(timeout);
             pentestStatus = res.ok ? "Healthy" : `Unhealthy (${res.status})`;
-        } catch (err) {
+        } catch (_err) {
             pentestStatus = "Unhealthy";
         }
     }

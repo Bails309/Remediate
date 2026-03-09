@@ -4,8 +4,9 @@ const globalForRedis = globalThis as unknown as {
   redis?: Redis;
 };
 
-const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
-const isTls = redisUrl.startsWith("rediss://");
+// Note: compute the URL/`isTls` at creation time to respect changes to
+// `process.env.REDIS_URL` during tests (modules may be reloaded by vitest).
+const DEFAULT_REDIS_URL = "redis://localhost:6379";
 
 type RedisLike = {
   new(url: string, options?: RedisOptions): Redis;
@@ -35,14 +36,18 @@ function createRedisInstance(url: string, options?: RedisOptions) {
 
 export const redis =
   globalForRedis.redis ??
-  createRedisInstance(redisUrl, {
-    maxRetriesPerRequest: 1,
-    ...(isTls && {
-      tls: {
-        rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
-      },
-    }),
-  });
+  (() => {
+    const url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
+    const isTls = url.startsWith("rediss://");
+    return createRedisInstance(url, {
+      maxRetriesPerRequest: 1,
+      ...(isTls && {
+        tls: {
+          rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+        },
+      }),
+    });
+  })();
 
 if (process.env.NODE_ENV !== "production") {
   globalForRedis.redis = redis;

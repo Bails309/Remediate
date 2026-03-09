@@ -24,7 +24,7 @@ describe("Redis client initialization", () => {
 
     it("should initialize without TLS options for redis:// URL", async () => {
         process.env.REDIS_URL = "redis://localhost:6379";
-        const { redis } = await import("@/lib/redis");
+        const { redis: _redis } = await import("@/lib/redis");
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("redis://localhost:6379", {
@@ -34,7 +34,7 @@ describe("Redis client initialization", () => {
 
     it("should initialize with default TLS options for rediss:// URL", async () => {
         process.env.REDIS_URL = "rediss://external-redis:6379";
-        const { redis } = await import("@/lib/redis");
+        const { redis: _redis } = await import("@/lib/redis");
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {
@@ -48,7 +48,7 @@ describe("Redis client initialization", () => {
     it("should allow disabling rejectUnauthorized for rediss:// URL", async () => {
         process.env.REDIS_URL = "rediss://external-redis:6379";
         process.env.REDIS_TLS_REJECT_UNAUTHORIZED = "false";
-        const { redis } = await import("@/lib/redis");
+        const { redis: _redis } = await import("@/lib/redis");
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {

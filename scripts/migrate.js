@@ -73,13 +73,12 @@
 
       // 4. Special Case: Force re-run of rollup if columns are missing
       // This handles the case where the rollup was applied BEFORE the repair logic was added.
-      const rollupName = "20260309164800_init_rollup";
-      const hasRollup = dbMigrations.find(m => m.migration_name.includes("init_rollup"));
+      const hasRollup = dbMigrations.find((m) => m.migration_name.includes("init_rollup"));
       if (hasRollup) {
         try {
           // Check if a representative new column exists
           await prisma.$queryRawUnsafe('SELECT "authSource" FROM "User" LIMIT 1');
-        } catch (e) {
+        } catch {
           console.log(`[Migrate] Rollup exists but schema is incomplete (authSource missing). Forcing repair...`);
           await prisma.$executeRawUnsafe(
             `DELETE FROM _prisma_migrations WHERE migration_name LIKE '%init_rollup%'`
