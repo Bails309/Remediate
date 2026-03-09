@@ -41,26 +41,33 @@ export const redis =
   (() => {
     const url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
     const isTls = url.startsWith("rediss://");
+    const tlsReject = isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
 
-    // Ensure a per-URL cache on globalThis so tests that reload modules and
-    // change `process.env.REDIS_URL` get their own client instance.
+    // Ensure a per-URL+tls cache on globalThis so tests that reload modules and
+    // change `process.env.REDIS_URL` or `REDIS_TLS_REJECT_UNAUTHORIZED` get
+    // their own client instance and don't accidentally reuse an instance
+    // created with different TLS options.
     globalForRedis.redisMap = globalForRedis.redisMap ?? {};
-    if (globalForRedis.redisMap[url]) return globalForRedis.redisMap[url];
+    const cacheKey = isTls ? `${url}|tls:${String(tlsReject)}` : url;
+    if (globalForRedis.redisMap[cacheKey]) return globalForRedis.redisMap[cacheKey];
 
     const inst = createRedisInstance(url, {
       maxRetriesPerRequest: 1,
       ...(isTls && {
         tls: {
-          rejectUnauthorized: process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+          rejectUnauthorized: tlsReject,
         },
       }),
     });
-    globalForRedis.redisMap[url] = inst;
+    globalForRedis.redisMap[cacheKey] = inst;
     return inst;
   })();
 
 if (process.env.NODE_ENV !== "production") {
   const _url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
+  const _isTls = _url.startsWith("rediss://");
+  const _tlsReject = _isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
+  const devKey = _isTls ? `${_url}|tls:${String(_tlsReject)}` : _url;
   globalForRedis.redisMap = globalForRedis.redisMap ?? {};
-  globalForRedis.redisMap[_url] = redis;
+  globalForRedis.redisMap[devKey] = redis;
 }
