@@ -51,7 +51,10 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
         // Fallback for extremely old schema if somehow still present in DB
         try {
             console.log("[Auth] Attempting fallback to legacy 'role' field...");
-            await prisma.user.upsert({
+            // Legacy schema fallback may have a singular `role` field which is not
+            // present in the current Prisma schema/type definitions. Cast to
+            // `any` here to perform the fallback without TypeScript errors.
+            await (prisma as any).user.upsert({
                 where: { email },
                 update: {
                     name: user.name || "User",
