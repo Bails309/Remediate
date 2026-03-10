@@ -13,9 +13,9 @@ export async function GET() {
     });
 
     return NextResponse.json({
-        provider: config.provider,
-        azureConnectionStringMasked: config.azureConnectionStringEnc ? "********" : "",
-        azureContainerName: config.azureContainerName,
+        provider: config?.provider || "REDIS",
+        azureConnectionStringMasked: config?.azureConnectionStringEnc ? "********" : "",
+        azureContainerName: config?.azureContainerName || "uploads",
     });
 }
 

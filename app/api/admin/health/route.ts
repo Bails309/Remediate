@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     if (storageProvider === "AZURE") {
         try {
-            if (!config?.azureConnectionStringEnc) {
+            if (!config || !config.azureConnectionStringEnc) {
                 storageStatus = "Unhealthy";
                 storageDetails = "Missing connection string";
             } else {
