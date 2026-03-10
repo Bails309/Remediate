@@ -32,7 +32,9 @@ vi.mock("@/lib/storage", () => ({
 
 vi.mock("@/lib/redis", () => ({
   redis: {
-    set: vi.fn().mockResolvedValue("OK"),
+    set: vi.fn(),
+    get: vi.fn(),
+    expire: vi.fn(),
     eval: vi.fn().mockResolvedValue(1),
   },
 }));
@@ -41,6 +43,7 @@ import { processNessusUpload } from "@/lib/ingest";
 import { parseNessusCsv } from "@/lib/csv";
 import { prisma } from "@/lib/prisma";
 import { setProgress } from "@/lib/progress";
+import { redis } from "@/lib/redis";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -48,6 +51,7 @@ beforeEach(() => {
 
 describe("processNessusUpload", () => {
   it("filters out Risk.None rows and writes uploadHistory and progress", async () => {
+    vi.mocked(redis.set).mockResolvedValue("OK");
     // two rows: one None and one High
     vi.mocked(parseNessusCsv).mockReturnValue([
       { pluginId: "p1", host: "h1", port: "80", risk: "None" },
@@ -67,5 +71,38 @@ describe("processNessusUpload", () => {
     expect(setProgress).toHaveBeenCalled();
     expect(prisma.uploadHistory.update).toHaveBeenCalledWith({ where: { id: "upload-1" }, data: { status: expect.anything(), rowCount: 1 } });
     expect(prisma.vulnerability.createMany).toHaveBeenCalled();
+  });
+
+  it("succeeds if lock is already held by the same uploadId (re-entrant)", async () => {
+    const uploadId = "upload-reentrant";
+    const siteId = "site-1";
+
+    // Simulate lock already held by this uploadId
+    vi.mocked(redis.set).mockResolvedValue(null); // NX fails
+    vi.mocked(redis.get).mockResolvedValue(uploadId); // But it's our lock
+
+    vi.mocked(parseNessusCsv).mockReturnValue([] as any);
+    vi.mocked((prisma as any).importConfig.findUnique).mockResolvedValue({ pluginGracePeriodDays: 0 } as any);
+    vi.mocked(prisma.vulnerability.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.uploadHistory.update).mockResolvedValue({ id: uploadId } as any);
+    vi.mocked(prisma.$transaction).mockResolvedValue([[]]);
+
+    await processNessusUpload({ uploadId, siteId, storageKey: "nessus-upload-1.csv" });
+
+    // Should refresh TTL and proceed
+    expect(redis.expire).toHaveBeenCalled();
+    expect(prisma.uploadHistory.update).toHaveBeenCalled();
+  });
+
+  it("fails if lock is held by a different uploadId", async () => {
+    const uploadId = "upload-new";
+    const siteId = "site-1";
+
+    // Simulate lock held by someone else
+    vi.mocked(redis.set).mockResolvedValue(null);
+    vi.mocked(redis.get).mockResolvedValue("different-upload");
+
+    await expect(processNessusUpload({ uploadId, siteId, storageKey: "nessus-upload-1.csv" }))
+      .rejects.toThrow("Lock already held for this site");
   });
 });
