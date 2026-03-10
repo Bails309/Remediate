@@ -1,17 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock BullMQ before importing the queue module
-const mockAdd = vi.fn();
-const mockGetJob = vi.fn();
-const mockGetJobs = vi.fn();
+const { mockAdd, mockGetJob, mockGetJobs } = vi.hoisted(() => ({
+  mockAdd: vi.fn(),
+  mockGetJob: vi.fn(),
+  mockGetJobs: vi.fn(),
+}));
 
 vi.mock("bullmq", () => ({
-  Queue: vi.fn(() => ({
-    add: mockAdd,
-    getJob: mockGetJob,
-    getJobs: mockGetJobs,
-    name: "{upload-queue}",
-  })),
+  Queue: vi.fn(function () {
+    return {
+      add: mockAdd,
+      getJob: mockGetJob,
+      getJobs: mockGetJobs,
+      name: "{upload-queue}",
+    };
+  }),
   Worker: vi.fn(),
 }));
 
