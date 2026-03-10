@@ -15,6 +15,10 @@ export function StorageSettingsClient() {
 
     const [provider, setProvider] = useState<"AZURE" | "REDIS">("REDIS");
     const [azureConnectionString, setAzureConnectionString] = useState("");
+    const [azureAuthMethod, setAzureAuthMethod] = useState<"CONNECTION_STRING" | "ACCOUNT_KEY" | "SAS_TOKEN">("CONNECTION_STRING");
+    const [azureAccountName, setAzureAccountName] = useState("");
+    const [azureAccountKey, setAzureAccountKey] = useState("");
+    const [azureSasToken, setAzureSasToken] = useState("");
     const [azureContainerName, setAzureContainerName] = useState("uploads");
 
     useEffect(() => {
@@ -24,7 +28,11 @@ export function StorageSettingsClient() {
                 if (res.ok) {
                     const data = await res.json();
                     setProvider(data.provider || "REDIS");
+                    setAzureAuthMethod(data.azureAuthMethod || "CONNECTION_STRING");
                     setAzureConnectionString(data.azureConnectionStringMasked || "");
+                    setAzureAccountName(data.azureAccountName || "");
+                    setAzureAccountKey(data.azureAccountKeyMasked || "");
+                    setAzureSasToken(data.azureSasTokenMasked || "");
                     setAzureContainerName(data.azureContainerName || "uploads");
                 }
             } catch (err) {
@@ -39,15 +47,25 @@ export function StorageSettingsClient() {
     const testConnection = async () => {
         if (provider !== "AZURE") return;
         setTesting(true);
-        try {
-            const res = await fetch("/api/admin/storage/test", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    connectionString: azureConnectionString,
-                    containerName: azureContainerName
-                }),
-            });
+            try {
+                const body: any = { containerName: azureContainerName };
+                if (azureAuthMethod === "CONNECTION_STRING") {
+                    body.connectionString = azureConnectionString;
+                } else if (azureAuthMethod === "ACCOUNT_KEY") {
+                    body.azureAuthMethod = "ACCOUNT_KEY";
+                    body.accountName = azureAccountName;
+                    body.accountKey = azureAccountKey;
+                } else if (azureAuthMethod === "SAS_TOKEN") {
+                    body.azureAuthMethod = "SAS_TOKEN";
+                    body.accountName = azureAccountName;
+                    body.sasToken = azureSasToken;
+                }
+
+                const res = await fetch("/api/admin/storage/test", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
 
             const data = await res.json();
             if (res.ok) {
@@ -67,14 +85,26 @@ export function StorageSettingsClient() {
         setIsSaving(true);
 
         try {
+            const payload: any = {
+                provider,
+                azureAuthMethod,
+                azureContainerName,
+            };
+
+            if (azureAuthMethod === "CONNECTION_STRING") {
+                payload.azureConnectionString = azureConnectionString;
+            } else if (azureAuthMethod === "ACCOUNT_KEY") {
+                payload.azureAccountName = azureAccountName;
+                payload.azureAccountKey = azureAccountKey;
+            } else if (azureAuthMethod === "SAS_TOKEN") {
+                payload.azureAccountName = azureAccountName;
+                payload.azureSasToken = azureSasToken;
+            }
+
             const res = await fetch("/api/admin/storage", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    provider,
-                    azureConnectionString,
-                    azureContainerName
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) throw new Error("Failed to save configuration");
@@ -155,18 +185,74 @@ export function StorageSettingsClient() {
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
-                                    Azure Connection String
+                                    Azure Authentication Method
                                 </label>
-                                <Input
-                                    type="password"
-                                    value={azureConnectionString}
-                                    onChange={(e) => setAzureConnectionString(e.target.value)}
-                                    placeholder="DefaultEndpointsProtocol=https;..."
-                                />
-                                <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
-                                    <ShieldCheck size={14} />
-                                    This string will be encrypted before storage.
+                                <div className="flex gap-2 mb-4">
+                                    <button type="button" onClick={() => setAzureAuthMethod("CONNECTION_STRING")}
+                                        className={cn("px-3 py-2 rounded-md border", azureAuthMethod === "CONNECTION_STRING" ? "bg-[color:var(--color-accent)] text-white" : "bg-white dark:bg-gray-900")}
+                                    >Connection String</button>
+                                    <button type="button" onClick={() => setAzureAuthMethod("ACCOUNT_KEY")}
+                                        className={cn("px-3 py-2 rounded-md border", azureAuthMethod === "ACCOUNT_KEY" ? "bg-[color:var(--color-accent)] text-white" : "bg-white dark:bg-gray-900")}
+                                    >Account Key</button>
+                                    <button type="button" onClick={() => setAzureAuthMethod("SAS_TOKEN")}
+                                        className={cn("px-3 py-2 rounded-md border", azureAuthMethod === "SAS_TOKEN" ? "bg-[color:var(--color-accent)] text-white" : "bg-white dark:bg-gray-900")}
+                                    >SAS Token</button>
                                 </div>
+
+                                {azureAuthMethod === "CONNECTION_STRING" && (
+                                    <>
+                                        <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+                                            Azure Connection String
+                                        </label>
+                                        <Input
+                                            type="password"
+                                            value={azureConnectionString}
+                                            onChange={(e) => setAzureConnectionString(e.target.value)}
+                                            placeholder="DefaultEndpointsProtocol=https;..."
+                                        />
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
+                                            <ShieldCheck size={14} />
+                                            This string will be encrypted before storage.
+                                        </div>
+                                    </>
+                                )}
+
+                                {azureAuthMethod === "ACCOUNT_KEY" && (
+                                    <>
+                                        <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+                                            Account Name
+                                        </label>
+                                        <Input value={azureAccountName} onChange={(e) => setAzureAccountName(e.target.value)} placeholder="mystorageaccount" />
+
+                                        <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2 mt-3">
+                                            Account Key
+                                        </label>
+                                        <Input type="password" value={azureAccountKey} onChange={(e) => setAzureAccountKey(e.target.value)} placeholder="account key" />
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
+                                            <ShieldCheck size={14} />
+                                            Account key will be encrypted before storage.
+                                        </div>
+                                    </>
+                                )}
+
+                                {azureAuthMethod === "SAS_TOKEN" && (
+                                    <>
+                                        <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+                                            Account Name
+                                        </label>
+                                        <Input value={azureAccountName} onChange={(e) => setAzureAccountName(e.target.value)} placeholder="mystorageaccount" />
+
+                                        <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2 mt-3">
+                                            SAS Token
+                                        </label>
+                                        <Input type="password" value={azureSasToken} onChange={(e) => setAzureSasToken(e.target.value)} placeholder="?sv=...&ss=..." />
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
+                                            <ShieldCheck size={14} />
+                                            SAS token will be encrypted before storage.
+                                        </div>
+                                    </>
+                                )}
+
                             </div>
 
                             <div>
@@ -186,7 +272,11 @@ export function StorageSettingsClient() {
                                     variant="outline"
                                     onClick={testConnection}
                                     loading={testing}
-                                    disabled={!azureConnectionString || azureConnectionString === "********"}
+                                    disabled={
+                                        (azureAuthMethod === "CONNECTION_STRING" && (!azureConnectionString || azureConnectionString === "********")) ||
+                                        (azureAuthMethod === "ACCOUNT_KEY" && (!azureAccountName || !azureAccountKey || azureAccountKey === "********")) ||
+                                        (azureAuthMethod === "SAS_TOKEN" && (!azureAccountName || !azureSasToken || azureSasToken === "********"))
+                                    }
                                 >
                                     Test Azure Connection
                                 </Button>

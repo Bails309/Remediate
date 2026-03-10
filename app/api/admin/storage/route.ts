@@ -14,7 +14,11 @@ export async function GET() {
 
     return NextResponse.json({
         provider: config?.provider || "REDIS",
+        azureAuthMethod: config?.azureAuthMethod || "CONNECTION_STRING",
         azureConnectionStringMasked: config?.azureConnectionStringEnc ? "********" : "",
+        azureAccountName: config?.azureAccountName || "",
+        azureAccountKeyMasked: config?.azureAccountKeyEnc ? "********" : "",
+        azureSasTokenMasked: config?.azureSasTokenEnc ? "********" : "",
         azureContainerName: config?.azureContainerName || "uploads",
     });
 }
@@ -29,15 +33,26 @@ export async function POST(request: NextRequest) {
 
     try {
         const data = await request.json();
-        const { provider, azureConnectionString, azureContainerName } = data;
+        const { provider, azureConnectionString, azureContainerName, azureAuthMethod, azureAccountName, azureAccountKey, azureSasToken } = data;
 
         const existing = await prisma.storageConfig.findUnique({
             where: { id: "singleton" },
         });
 
         let encryptedConnString = existing?.azureConnectionStringEnc;
+        let encryptedAccountKey = existing?.azureAccountKeyEnc;
+        let encryptedSasToken = existing?.azureSasTokenEnc;
+
         if (azureConnectionString && azureConnectionString !== "********") {
             encryptedConnString = encrypt(azureConnectionString);
+        }
+
+        if (azureAccountKey && azureAccountKey !== "********") {
+            encryptedAccountKey = encrypt(azureAccountKey);
+        }
+
+        if (azureSasToken && azureSasToken !== "********") {
+            encryptedSasToken = encrypt(azureSasToken);
         }
 
         const config = await prisma.storageConfig.upsert({
@@ -45,12 +60,20 @@ export async function POST(request: NextRequest) {
             create: {
                 id: "singleton",
                 provider,
+                azureAuthMethod: azureAuthMethod || "CONNECTION_STRING",
                 azureConnectionStringEnc: encryptedConnString,
+                azureAccountName: azureAccountName || existing?.azureAccountName,
+                azureAccountKeyEnc: encryptedAccountKey,
+                azureSasTokenEnc: encryptedSasToken,
                 azureContainerName,
             },
             update: {
                 provider,
+                azureAuthMethod: azureAuthMethod || existing?.azureAuthMethod,
                 azureConnectionStringEnc: encryptedConnString,
+                azureAccountName: azureAccountName || existing?.azureAccountName,
+                azureAccountKeyEnc: encryptedAccountKey,
+                azureSasTokenEnc: encryptedSasToken,
                 azureContainerName,
             },
         });

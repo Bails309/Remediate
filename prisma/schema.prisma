@@ -143,17 +143,27 @@ model UploadHistory {
   @@index([siteId, uploadDate])
 }
 
+enum AzureAuthMethod {
+  CONNECTION_STRING
+  ACCOUNT_KEY
+  SAS_TOKEN
+}
+
 enum StorageProvider {
   AZURE
   REDIS
 }
 
 model StorageConfig {
-  id                        String          @id @default("singleton")
-  provider                  StorageProvider @default(REDIS)
+  id                        String           @id @default("singleton")
+  provider                  StorageProvider  @default(REDIS)
+  azureAuthMethod           AzureAuthMethod  @default(CONNECTION_STRING)
   azureConnectionStringEnc  String?
-  azureContainerName        String?         @default("uploads")
-  updatedAt                 DateTime        @updatedAt
+  azureAccountName          String?
+  azureAccountKeyEnc        String?
+  azureSasTokenEnc          String?
+  azureContainerName        String?          @default("uploads")
+  updatedAt                 DateTime         @updatedAt
 }
 
 model ImportConfig {

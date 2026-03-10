@@ -11,9 +11,8 @@ export interface StorageProvider {
 class AzureBlobProvider implements StorageProvider {
     private client: ContainerClient;
 
-    constructor(connectionString: string, containerName: string) {
-        const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-        this.client = blobServiceClient.getContainerClient(containerName);
+    constructor(client: ContainerClient) {
+        this.client = client;
     }
 
     async save(key: string, content: string): Promise<void> {
@@ -70,16 +69,34 @@ export async function getStorageProvider(): Promise<StorageProvider> {
     });
 
     // Azure Provider
-    if (config?.provider === "AZURE" && config.azureConnectionStringEnc) {
+    if (config?.provider === "AZURE") {
         try {
-            const connectionString = decrypt(config.azureConnectionStringEnc);
-            return new AzureBlobProvider(connectionString, config.azureContainerName || "uploads");
+            const containerName = config.azureContainerName || "uploads";
+            let blobServiceClient: BlobServiceClient | null = null;
+
+            if (config.azureAuthMethod === "CONNECTION_STRING" && config.azureConnectionStringEnc) {
+                const connectionString = decrypt(config.azureConnectionStringEnc);
+                blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+            } else if (config.azureAuthMethod === "ACCOUNT_KEY" && config.azureAccountName && config.azureAccountKeyEnc) {
+                const { StorageSharedKeyCredential } = await import("@azure/storage-blob");
+                const accountKey = decrypt(config.azureAccountKeyEnc);
+                const credential = new StorageSharedKeyCredential(config.azureAccountName, accountKey);
+                blobServiceClient = new BlobServiceClient(`https://${config.azureAccountName}.blob.core.windows.net`, credential);
+            } else if (config.azureAuthMethod === "SAS_TOKEN" && config.azureAccountName && config.azureSasTokenEnc) {
+                const sasToken = decrypt(config.azureSasTokenEnc);
+                const url = `https://${config.azureAccountName}.blob.core.windows.net?${sasToken.startsWith("?") ? sasToken.substring(1) : sasToken}`;
+                blobServiceClient = new BlobServiceClient(url);
+            }
+
+            if (blobServiceClient) {
+                const containerClient = blobServiceClient.getContainerClient(containerName);
+                return new AzureBlobProvider(containerClient);
+            }
         } catch (e) {
-            console.error("Failed to decrypt Azure connection string, falling back to Redis storage", e);
+            console.error("Failed to initialize Azure storage provider, falling back to Redis storage", e);
         }
     }
 
     // Explicit Redis Provider or Default
-    // We treat anything else as REDIS since LOCAL is removed and Redis is mandatory
     return new RedisStorageProvider();
 }
