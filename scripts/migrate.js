@@ -112,7 +112,9 @@
         }
       }
     } catch (error) {
-      console.error("[Migrate] Migration failed", error);
+      console.error("[Migrate] Migration script encountered an error:", error.message);
+      if (error.stdout) console.log("[Migrate] Stdout:", error.stdout.toString());
+      if (error.stderr) console.error("[Migrate] Stderr:", error.stderr.toString());
       process.exitCode = 1;
     } finally {
       await prisma.$disconnect();
