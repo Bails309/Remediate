@@ -55,28 +55,54 @@ export async function POST(request: NextRequest) {
             encryptedSasToken = encrypt(azureSasToken);
         }
 
-        const config = await prisma.storageConfig.upsert({
-            where: { id: "singleton" },
-            create: {
-                id: "singleton",
-                provider,
-                azureAuthMethod: azureAuthMethod || "CONNECTION_STRING",
-                azureConnectionStringEnc: encryptedConnString,
-                azureAccountName: azureAccountName || existing?.azureAccountName,
-                azureAccountKeyEnc: encryptedAccountKey,
-                azureSasTokenEnc: encryptedSasToken,
-                azureContainerName,
-            },
-            update: {
-                provider,
-                azureAuthMethod: azureAuthMethod || existing?.azureAuthMethod,
-                azureConnectionStringEnc: encryptedConnString,
-                azureAccountName: azureAccountName || existing?.azureAccountName,
-                azureAccountKeyEnc: encryptedAccountKey,
-                azureSasTokenEnc: encryptedSasToken,
-                azureContainerName,
-            },
-        });
+        let config;
+        try {
+            config = await prisma.storageConfig.upsert({
+                where: { id: "singleton" },
+                create: {
+                    id: "singleton",
+                    provider,
+                    azureAuthMethod: azureAuthMethod || "CONNECTION_STRING",
+                    azureConnectionStringEnc: encryptedConnString,
+                    azureAccountName: azureAccountName || existing?.azureAccountName,
+                    azureAccountKeyEnc: encryptedAccountKey,
+                    azureSasTokenEnc: encryptedSasToken,
+                    azureContainerName,
+                },
+                update: {
+                    provider,
+                    azureAuthMethod: azureAuthMethod || existing?.azureAuthMethod,
+                    azureConnectionStringEnc: encryptedConnString,
+                    azureAccountName: azureAccountName || existing?.azureAccountName,
+                    azureAccountKeyEnc: encryptedAccountKey,
+                    azureSasTokenEnc: encryptedSasToken,
+                    azureContainerName,
+                },
+            });
+        } catch (err: any) {
+            // Prisma client may not have been regenerated/migrated to include azureAuthMethod.
+            // If so, retry without the field to remain backward compatible.
+            const msg = err && err.message ? String(err.message) : "";
+            if (msg.includes("Unknown argument `azureAuthMethod`") || msg.includes("Unknown arg `azureAuthMethod`")) {
+                // Fallback for older Prisma client/schema: only update fields that definitely exist.
+                config = await prisma.storageConfig.upsert({
+                    where: { id: "singleton" },
+                    create: {
+                        id: "singleton",
+                        provider,
+                        azureConnectionStringEnc: encryptedConnString,
+                        azureContainerName,
+                    },
+                    update: {
+                        provider,
+                        azureConnectionStringEnc: encryptedConnString,
+                        azureContainerName,
+                    },
+                });
+            } else {
+                throw err;
+            }
+        }
 
         return NextResponse.json({
             provider: config.provider,
