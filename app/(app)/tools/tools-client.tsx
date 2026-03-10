@@ -59,6 +59,7 @@ const TOOL_ICONS: Record<string, any> = {
   katana: Compass,
   gau: History,
   arjun: Target,
+  curl: Globe,
 };
 
 type ExecutionLog = {
@@ -553,7 +554,10 @@ export function ToolsClient({ session }: { session: Session }) {
                         onClick={() => {
                           setSelectedVariationId(v.id);
                           if (v.overrides) {
-                            setInputs((prev) => ({ ...prev, ...v.overrides }));
+                            setInputs((prev) => ({
+                              ...prev,
+                              ...v.overrides
+                            }));
                           }
                         }}
                         className={cn(
@@ -588,7 +592,9 @@ export function ToolsClient({ session }: { session: Session }) {
                 <div className="mt-8 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {selectedTool.inputs.map((input: ToolInput) => {
                     const variation = selectedTool.variations?.find(v => v.id === selectedVariationId);
-                    const isOverridden = variation?.overrides && input.name in variation.overrides && inputs[input.name] === variation.overrides[input.name];
+                    const isOverridden = !!(variation?.overrides &&
+                      input.name in variation.overrides &&
+                      String(inputs[input.name]).trim() === String(variation.overrides[input.name]).trim());
 
                     return (
                       <div key={input.name} className="space-y-2">

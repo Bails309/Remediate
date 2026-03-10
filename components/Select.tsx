@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/components/cn";
 
@@ -44,7 +44,25 @@ export function Select({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedOption = options.find((opt) => opt.value === value) || options.find((opt) => opt.value === props.defaultValue);
+  const selectedOption = useMemo(() => {
+    const searchVal = String(value || "").trim();
+    const defaultVal = String(props.defaultValue || "").trim();
+
+    if (!searchVal && !defaultVal) return null;
+
+    // Try exact match first
+    let found = options.find(opt => String(opt.value).trim() === (searchVal || defaultVal));
+
+    // Fallback to case-insensitive match
+    if (!found) {
+      found = options.find(opt =>
+        String(opt.value).trim().toLowerCase() === (searchVal || defaultVal).toLowerCase()
+      );
+    }
+
+    return found;
+  }, [options, value, props.defaultValue]);
+
   const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
   return (
