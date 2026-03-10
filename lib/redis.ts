@@ -22,12 +22,33 @@ const isCluster = process.env.REDIS_CLUSTER_MODE === "true";
 
 function createRedisInstance(url: string, options?: RedisOptions) {
   if (isCluster) {
-    // For Cluster mode, we pass the URL as the seed node
-    return new Redis.Cluster([url], {
-      redisOptions: options,
-      clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
-      dnsLookup: (address, callback) => callback(null, address), // Use provided address
-    }) as unknown as Redis;
+    // For Cluster mode, parse the URL to extract a safe seed node {host, port}
+    try {
+      const parsed = new URL(url);
+      const isRediss = parsed.protocol === "rediss:";
+      const seedNodes = [{
+        host: parsed.hostname,
+        port: Number(parsed.port) || (isRediss ? 6380 : 6379),
+      }];
+
+      return new Redis.Cluster(seedNodes, {
+        redisOptions: {
+          ...options,
+          password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+        },
+        clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
+        // Ensure TLS is enabled for all discovered shards in clustered mode
+        ...(isRediss && {
+          dnsLookup: (address: string, callback: any) => callback(null, address),
+        }),
+      }) as unknown as Redis;
+    } catch (err) {
+      console.error("[Redis] Failed to parse Redis URL for Cluster seed. Falling back to simple array.", err);
+      return new Redis.Cluster([url], {
+        redisOptions: options,
+        clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
+      }) as unknown as Redis;
+    }
   }
 
   try {
@@ -39,20 +60,26 @@ function createRedisInstance(url: string, options?: RedisOptions) {
 
 export const redis =
   (() => {
-    const url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
+    const rawUrl = process.env.REDIS_URL;
+
+    if (!rawUrl) {
+      console.error(`[Redis] CRITICAL: REDIS_URL is MISSING or EMPTY. Falling back to localhost.`);
+    }
+
+    const url = rawUrl || DEFAULT_REDIS_URL;
     const isTls = url.startsWith("rediss://");
     const tlsReject = isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
 
-    // Ensure a per-URL+tls cache on globalThis so tests that reload modules and
-    // change `process.env.REDIS_URL` or `REDIS_TLS_REJECT_UNAUTHORIZED` get
-    // their own client instance and don't accidentally reuse an instance
-    // created with different TLS options.
+    // Ensure a per-URL+tls cache on globalThis
     globalForRedis.redisMap = globalForRedis.redisMap ?? {};
     const cacheKey = isTls ? `${url}|tls:${String(tlsReject)}` : url;
     if (globalForRedis.redisMap[cacheKey]) return globalForRedis.redisMap[cacheKey];
 
+    const logUrl = url.replace(/:([^:@]+)@/, ":****@");
+    console.error(`[Redis] Connecting (Mode: ${isCluster ? "Cluster" : "Standard"}, URL: ${logUrl}, TLS: ${isTls}, RejectUnauthorized: ${tlsReject})`);
+
     const inst = createRedisInstance(url, {
-      maxRetriesPerRequest: process.env.REDIS_MAX_RETRIES === "null" ? null : 1,
+      maxRetriesPerRequest: null, // Required for BullMQ
       ...(isTls && {
         tls: {
           rejectUnauthorized: tlsReject,

@@ -3,7 +3,7 @@ import { setProgress } from "../lib/progress";
 import { uploadQueue, getLockKey } from "../lib/queue";
 import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
-import { UploadStatus } from "@prisma/client";
+// Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
 import { Worker, Job } from "bullmq";
 
@@ -24,7 +24,7 @@ async function processJob(job: Job<any>) {
     if (job.attemptsMade >= (job.opts.attempts || 1) - 1) {
       await prisma.uploadHistory.update({
         where: { id: uploadId },
-        data: { status: UploadStatus.Failed },
+        data: { status: "Failed" as any },
       });
       await setProgress(uploadId, { step: "Failed", progress: 100 });
     }
@@ -65,11 +65,8 @@ async function run() {
     }
   }, HEARTBEAT_INTERVAL_MS);
 
-  const worker = new Worker("upload-queue", processJob, {
-    connection: {
-      ...redis.options,
-      maxRetriesPerRequest: null,
-    },
+  const worker = new Worker(uploadQueue.name, processJob, {
+    connection: redis as any,
     concurrency: 2,
   });
 
@@ -77,7 +74,7 @@ async function run() {
     console.log(`Job ${job.id} completed!`);
   });
 
-  worker.on('failed', (job: Job | undefined, err: Error) => {
+  worker.on('failed', (job: Job<any> | undefined, err: Error) => {
     console.error(`Job ${job?.id} failed with ${err.message}`);
   });
 

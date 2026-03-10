@@ -1,13 +1,10 @@
 import { Queue, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 
-const QUEUE_NAME = "upload-queue";
+const QUEUE_NAME = "{upload-queue}";
 
 export const uploadQueue = new Queue(QUEUE_NAME, {
-  connection: {
-    ...redis.options,
-    maxRetriesPerRequest: null,
-  },
+  connection: redis as any,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
