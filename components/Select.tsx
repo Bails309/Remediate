@@ -94,8 +94,10 @@ export function Select({
           isOpen && "border-emerald-500/40 ring-4 ring-emerald-500/10 shadow-lg",
           className
         )}
-        onMouseDown={() => !disabled && setIsOpen(true)}
-        onClick={() => !disabled && setIsOpen((s) => !s)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) setIsOpen((s) => !s);
+        }}
       >
         <span className="truncate font-medium">{displayLabel}</span>
         <ChevronDown className={cn("h-4 w-4 text-slate-400 dark:text-slate-500 transition-all duration-300", isOpen && "rotate-180 text-emerald-500")} />
