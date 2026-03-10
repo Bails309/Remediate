@@ -144,16 +144,15 @@ model UploadHistory {
 }
 
 enum StorageProvider {
-  LOCAL
   AZURE
+  REDIS
 }
 
 model StorageConfig {
   id                        String          @id @default("singleton")
-  provider                  StorageProvider @default(LOCAL)
+  provider                  StorageProvider @default(REDIS)
   azureConnectionStringEnc  String?
   azureContainerName        String?         @default("uploads")
-  localStoragePath          String?         @default("/tmp/uploads")
   updatedAt                 DateTime        @updatedAt
 }
 

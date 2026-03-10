@@ -11,7 +11,8 @@ import {
     Activity,
     RefreshCw,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Cloud
 } from "lucide-react";
 
 interface HealthData {
@@ -25,6 +26,11 @@ interface HealthData {
         memory: string;
         nodeVersion: string;
         environment: string;
+    };
+    storage: {
+        provider: "REDIS" | "AZURE";
+        status: string;
+        details: string;
     };
     app?: { version: string };
     timestamp: string;
@@ -122,7 +128,6 @@ export function HealthClient() {
                     glowColor="rgba(59, 130, 246, 0.1)"
                 />
 
-                {/* Redis */}
                 <HealthCard
                     title="Redis Cache"
                     subtitle="Distributed In-memory Store"
@@ -130,10 +135,26 @@ export function HealthClient() {
                     status={data.redis.status}
                     metrics={[
                         { label: "Latency", value: data.redis.latency },
-                        { label: "Memory Usage", value: data.redis.memory }
+                        { label: "Memory Usage", value: data.redis.memory },
+                        ...(data.storage.provider === "REDIS" ? [{ label: "Storage Integration", value: data.storage.status }] : [])
                     ]}
                     glowColor="rgba(234, 179, 8, 0.1)"
                 />
+
+                {/* Azure Blob Storage (if active) */}
+                {data.storage.provider === "AZURE" && (
+                    <HealthCard
+                        title="Azure Blob Storage"
+                        subtitle="Enterprise Persistence"
+                        icon={<Cloud className="h-5 w-5 text-blue-400" />}
+                        status={data.storage.status}
+                        metrics={[
+                            { label: "Storage Status", value: data.storage.status },
+                            { label: "Details", value: data.storage.details }
+                        ]}
+                        glowColor="rgba(59, 130, 246, 0.1)"
+                    />
+                )}
 
                 {/* Schema */}
                 <HealthCard

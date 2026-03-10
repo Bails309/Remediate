@@ -87,6 +87,41 @@ export async function GET(request: NextRequest) {
         schemaStatus = "Out of sync";
     }
 
+    // Storage Provider Health
+    const config = await prisma.storageConfig.findUnique({
+        where: { id: "singleton" },
+    });
+
+    const storageProvider = config?.provider || "REDIS";
+    let storageStatus = "Healthy";
+    let storageDetails = "Operational";
+
+    if (storageProvider === "AZURE") {
+        try {
+            if (!config?.azureConnectionStringEnc) {
+                storageStatus = "Unhealthy";
+                storageDetails = "Missing connection string";
+            } else {
+                const { decrypt } = await import("@/lib/crypto");
+                const { BlobServiceClient } = await import("@azure/storage-blob");
+                const connectionString = decrypt(config.azureConnectionStringEnc);
+                const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+                const containerClient = blobServiceClient.getContainerClient(config.azureContainerName || "uploads");
+                // Minimal check: list blobs (first page only)
+                const iterator = containerClient.listBlobsFlat().byPage({ maxPageSize: 1 });
+                await iterator.next();
+                storageDetails = `Container: ${config.azureContainerName || "uploads"}`;
+            }
+        } catch (e: any) {
+            storageStatus = "Unhealthy";
+            storageDetails = e.message || "Azure connection failed";
+        }
+    } else {
+        // For Redis, storage health is healthy if Redis itself is healthy
+        storageStatus = redisStatus;
+        storageDetails = "Shared Redis storage active";
+    }
+
     return NextResponse.json({
         database: {
             status: dbStatus,
@@ -97,6 +132,11 @@ export async function GET(request: NextRequest) {
             status: redisStatus,
             latency: `${redisLatency}ms`,
             memory: redisMemory,
+        },
+        storage: {
+            provider: storageProvider,
+            status: storageStatus,
+            details: storageDetails,
         },
         worker: {
             status: workerStatus,

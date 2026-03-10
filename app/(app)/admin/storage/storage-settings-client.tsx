@@ -13,10 +13,9 @@ export function StorageSettingsClient() {
     const [isSaving, setIsSaving] = useState(false);
     const [testing, setTesting] = useState(false);
 
-    const [provider, setProvider] = useState<"LOCAL" | "AZURE">("LOCAL");
+    const [provider, setProvider] = useState<"AZURE" | "REDIS">("REDIS");
     const [azureConnectionString, setAzureConnectionString] = useState("");
     const [azureContainerName, setAzureContainerName] = useState("uploads");
-    const [localStoragePath, setLocalStoragePath] = useState("/tmp/uploads");
 
     useEffect(() => {
         async function fetchConfig() {
@@ -24,10 +23,9 @@ export function StorageSettingsClient() {
                 const res = await fetch("/api/admin/storage");
                 if (res.ok) {
                     const data = await res.json();
-                    setProvider(data.provider);
+                    setProvider(data.provider || "REDIS");
                     setAzureConnectionString(data.azureConnectionStringMasked || "");
                     setAzureContainerName(data.azureContainerName || "uploads");
-                    setLocalStoragePath(data.localStoragePath || "/tmp/uploads");
                 }
             } catch (err) {
                 console.error("Failed to load config", err);
@@ -75,8 +73,7 @@ export function StorageSettingsClient() {
                 body: JSON.stringify({
                     provider,
                     azureConnectionString,
-                    azureContainerName,
-                    localStoragePath
+                    azureContainerName
                 }),
             });
 
@@ -99,28 +96,28 @@ export function StorageSettingsClient() {
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Storage Settings</h1>
                 <p className="text-muted-foreground mt-2">
-                    Manage where uploaded scan files are stored. Switch between local disk and Azure Blob Storage.
+                    Manage where uploaded scan files are stored. Switch between Shared Redis or Azure Blob Storage.
                 </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <button
-                    onClick={() => setProvider("LOCAL")}
+                    onClick={() => setProvider("REDIS")}
                     className={cn(
                         "flex flex-col items-start p-6 rounded-3xl border-2 transition-all text-left",
-                        provider === "LOCAL"
+                        provider === "REDIS"
                             ? "border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/5"
                             : "border-slate-200 dark:border-gray-800 hover:border-slate-300 dark:hover:border-gray-700 bg-white dark:bg-gray-900/50"
                     )}
                 >
                     <div className={cn(
                         "p-3 rounded-2xl mb-4",
-                        provider === "LOCAL" ? "bg-[color:var(--color-accent)] text-white" : "bg-slate-100 dark:bg-gray-800"
+                        provider === "REDIS" ? "bg-[color:var(--color-accent)] text-white" : "bg-slate-100 dark:bg-gray-800"
                     )}>
-                        <HardDrive size={24} />
+                        <ShieldCheck size={24} />
                     </div>
-                    <span className="font-bold text-lg mb-1">Local Filesystem</span>
-                    <p className="text-sm opacity-70">Recommended for development and simple deployments.</p>
+                    <span className="font-bold text-lg mb-1">Shared Redis</span>
+                    <p className="text-sm opacity-70">Ideal for containerized environments to share data between App and Worker.</p>
                 </button>
 
                 <button
@@ -139,25 +136,18 @@ export function StorageSettingsClient() {
                         <Cloud size={24} />
                     </div>
                     <span className="font-bold text-lg mb-1">Azure Blob Storage</span>
-                    <p className="text-sm opacity-70">Enterprise grade storage for high-availability production environments.</p>
+                    <p className="text-sm opacity-70">Enterprise grade persistent storage for high-availability production.</p>
                 </button>
             </div>
 
             <Card className="glass glass-edge rounded-3xl p-8">
                 <form onSubmit={handleSave} className="space-y-8">
-                    {provider === "LOCAL" ? (
+                    {provider === "REDIS" ? (
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
-                                    Local Storage Path
-                                </label>
-                                <Input
-                                    value={localStoragePath}
-                                    onChange={(e) => setLocalStoragePath(e.target.value)}
-                                    placeholder="/tmp/uploads"
-                                />
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                    The absolute path on the server where files will be saved. Ensure the application has write permissions.
+                            <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20">
+                                <p className="text-sm text-blue-500 font-medium">
+                                    Shared Redis storage uses your existing Redis infrastructure to store scan files temporarily.
+                                    Files are automatically cleared after 2 hours.
                                 </p>
                             </div>
                         </div>

@@ -12,19 +12,10 @@ export async function GET() {
         where: { id: "singleton" },
     });
 
-    if (!config) {
-        return NextResponse.json({
-            provider: "LOCAL",
-            azureContainerName: "uploads",
-            localStoragePath: "/tmp/uploads",
-        });
-    }
-
     return NextResponse.json({
         provider: config.provider,
         azureConnectionStringMasked: config.azureConnectionStringEnc ? "********" : "",
         azureContainerName: config.azureContainerName,
-        localStoragePath: config.localStoragePath,
     });
 }
 
@@ -38,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const data = await request.json();
-        const { provider, azureConnectionString, azureContainerName, localStoragePath } = data;
+        const { provider, azureConnectionString, azureContainerName } = data;
 
         const existing = await prisma.storageConfig.findUnique({
             where: { id: "singleton" },
@@ -56,20 +47,17 @@ export async function POST(request: NextRequest) {
                 provider,
                 azureConnectionStringEnc: encryptedConnString,
                 azureContainerName,
-                localStoragePath,
             },
             update: {
                 provider,
                 azureConnectionStringEnc: encryptedConnString,
                 azureContainerName,
-                localStoragePath,
             },
         });
 
         return NextResponse.json({
             provider: config.provider,
             azureContainerName: config.azureContainerName,
-            localStoragePath: config.localStoragePath,
         });
     } catch (error) {
         console.error("Failed to save storage config", error);

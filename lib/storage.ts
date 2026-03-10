@@ -1,5 +1,3 @@
-import * as fs from "fs/promises";
-import * as path from "path";
 import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
 import { prisma } from "./prisma";
 import { decrypt } from "./crypto";
@@ -8,31 +6,6 @@ export interface StorageProvider {
     save(key: string, content: string): Promise<void>;
     read(key: string): Promise<string>;
     delete(key: string): Promise<void>;
-}
-
-class LocalFileProvider implements StorageProvider {
-    constructor(private storagePath: string) { }
-
-    private getPath(key: string) {
-        return path.join(this.storagePath, key);
-    }
-
-    async save(key: string, content: string): Promise<void> {
-        await fs.mkdir(this.storagePath, { recursive: true });
-        await fs.writeFile(this.getPath(key), content, "utf8");
-    }
-
-    async read(key: string): Promise<string> {
-        return fs.readFile(this.getPath(key), "utf8");
-    }
-
-    async delete(key: string): Promise<void> {
-        try {
-            await fs.unlink(this.getPath(key));
-        } catch (e) {
-            console.warn(`Failed to delete local file ${key}:`, e);
-        }
-    }
 }
 
 class AzureBlobProvider implements StorageProvider {
@@ -67,19 +40,46 @@ class AzureBlobProvider implements StorageProvider {
     }
 }
 
+class RedisStorageProvider implements StorageProvider {
+    // TTL of 2 hours for ephemeral storage
+    private static readonly TTL_SECONDS = 7200;
+
+    async save(key: string, content: string): Promise<void> {
+        const { redis } = await import("./redis");
+        await redis.set(key, content, "EX", RedisStorageProvider.TTL_SECONDS);
+    }
+
+    async read(key: string): Promise<string> {
+        const { redis } = await import("./redis");
+        const content = await redis.get(key);
+        if (content === null) {
+            throw new Error(`File not found in Redis: ${key}`);
+        }
+        return content;
+    }
+
+    async delete(key: string): Promise<void> {
+        const { redis } = await import("./redis");
+        await redis.del(key);
+    }
+}
+
 export async function getStorageProvider(): Promise<StorageProvider> {
     const config = await prisma.storageConfig.findUnique({
         where: { id: "singleton" },
     });
 
+    // Azure Provider
     if (config?.provider === "AZURE" && config.azureConnectionStringEnc) {
         try {
             const connectionString = decrypt(config.azureConnectionStringEnc);
             return new AzureBlobProvider(connectionString, config.azureContainerName || "uploads");
         } catch (e) {
-            console.error("Failed to decrypt Azure connection string, falling back to local storage", e);
+            console.error("Failed to decrypt Azure connection string, falling back to Redis storage", e);
         }
     }
 
-    return new LocalFileProvider(config?.localStoragePath || process.env.STORAGE_PATH || "/tmp/uploads");
+    // Explicit Redis Provider or Default
+    // We treat anything else as REDIS since LOCAL is removed and Redis is mandatory
+    return new RedisStorageProvider();
 }
