@@ -112,9 +112,9 @@ export async function GET(request: NextRequest) {
                 await iterator.next();
                 storageDetails = `Container: ${config.azureContainerName || "uploads"}`;
             }
-        } catch (e: any) {
+        } catch (e) {
             storageStatus = "Unhealthy";
-            storageDetails = e.message || "Azure connection failed";
+            storageDetails = (e as Error).message || "Azure connection failed";
         }
     } else {
         // For Redis, storage health is healthy if Redis itself is healthy

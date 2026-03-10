@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, HardDrive, Cloud, ShieldCheck } from "lucide-react";
+import { Save, Cloud, ShieldCheck } from "lucide-react";
 import { cn } from "@/components/cn";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
