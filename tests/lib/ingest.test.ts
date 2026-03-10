@@ -15,9 +15,25 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
       createMany: vi.fn(),
+      deleteMany: vi.fn(),
     },
+    vulnerabilityHistory: { createMany: vi.fn() },
     uploadHistory: { update: vi.fn() },
     $transaction: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/storage", () => ({
+  getStorageProvider: vi.fn().mockResolvedValue({
+    read: vi.fn().mockResolvedValue("csv"),
+    delete: vi.fn().mockResolvedValue(true),
+  }),
+}));
+
+vi.mock("@/lib/redis", () => ({
+  redis: {
+    set: vi.fn().mockResolvedValue("OK"),
+    eval: vi.fn().mockResolvedValue(1),
   },
 }));
 
@@ -45,7 +61,7 @@ describe("processNessusUpload", () => {
     vi.mocked(prisma.uploadHistory.update).mockResolvedValue({ id: "upload-1" } as any);
     vi.mocked(prisma.$transaction).mockResolvedValue([[]]);
 
-    await processNessusUpload({ uploadId: "upload-1", siteId: "site-1", text: "csv" });
+    await processNessusUpload({ uploadId: "upload-1", siteId: "site-1", storageKey: "nessus-upload-1.csv" });
 
     // setProgress called multiple times; final call should be Completed
     expect(setProgress).toHaveBeenCalled();

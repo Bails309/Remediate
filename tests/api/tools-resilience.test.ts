@@ -39,7 +39,7 @@ describe('Tools API Resilience', () => {
             const body = await response.json();
 
             expect(response.status).toBe(502);
-            expect(body.error).toBe('Backend service unavailable');
+            expect(body.error).toBe('Backend Error (502): Backend service unavailable');
             expect(spy).toHaveBeenCalledWith(expect.stringContaining('[Backend Error] Status: 502'));
             spy.mockRestore();
         });

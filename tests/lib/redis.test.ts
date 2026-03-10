@@ -27,7 +27,7 @@ describe("Redis client initialization", () => {
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("redis://localhost:6379", {
-            maxRetriesPerRequest: 1,
+            maxRetriesPerRequest: null,
         });
     });
 
@@ -37,7 +37,7 @@ describe("Redis client initialization", () => {
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {
-            maxRetriesPerRequest: 1,
+            maxRetriesPerRequest: null,
             tls: {
                 rejectUnauthorized: true,
             },
@@ -51,7 +51,7 @@ describe("Redis client initialization", () => {
         const RedisMock = (await import("ioredis")).default;
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {
-            maxRetriesPerRequest: 1,
+            maxRetriesPerRequest: null,
             tls: {
                 rejectUnauthorized: false,
             },
