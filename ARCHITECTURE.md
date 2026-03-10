@@ -1,30 +1,35 @@
 # Architecture Overview
 
-High-level components:
+A high-level view of Remediate components and interactions.
 
-- `app` (Next.js): user-facing web UI and API routes. Runs on port 3000.
-- `worker`: background job processor that consumes upload payloads from Redis.
-- `PostgreSQL` (Prisma): primary relational datastore for sites, vulnerabilities, history, uploads.
-- `Redis`: short-lived payload storage and queue coordination.
+![Architecture diagram](docs/images/architecture-diagram.svg)
 
-Data flow (simplified):
+## Core Components
+- **`app` (Next.js)**: User-facing web UI and API routes. Exposes endpoints for admin management and vulnerability ingestion. Runs on port 3000.
+- **`worker` (BullMQ)**: Background job processor that consumes upload payloads from Redis and handles periodic maintenance (VACUUM, retention).
+- **`pentest-backend` (Node/Express)**: Isolated toolkit service that executes curated pentest binaries (Nmap, Nuclei, etc.). Accessed via signed JWTs from the main app.
+- **PostgreSQL (Prisma)**: Primary relational datastore for sites, vulnerabilities, scan history, and tool execution logs.
+- **Redis**: Short-lived payload storage, queue coordination via BullMQ, and worker heartbeats.
 
-1. User uploads Nessus CSV via the UI/API.
-2. API saves the file payload to Redis and enqueues a job.
-3. `worker` dequeues, processes the payload, writes current rows to `Vulnerability` and historical rows to `VulnerabilityHistory` as needed.
-4. `app` queries aggregates (directly or via `VulnerabilityView`) to render analytics.
+## Data Flow
+1. **Ingestion**: User uploads Nessus CSV. The API saves the payload to Redis (2-hour TTL) and enqueues a BullMQ job.
+2. **Processing**: The `worker` dequeues the job, parses the CSV, filters results based on grace periods, and diffs against existing vulnerabilities.
+3. **Persistence**: Current findings are written to the `Vulnerability` table, and remediated items are archived to `VulnerabilityHistory`.
+4. **Analytics**: The UI queries aggregates (directly or via views) to render dashboard metrics.
 
-Scalability and resiliency:
-- Stateless `app` and `worker` images can be scaled horizontally; `worker` concurrency is limited by Redis queue and DB load.
-- Use advisory-lock protected migrations to avoid races during scale-out.
-- Use managed Postgres and Redis (Azure Database for PostgreSQL, Azure Redis Cache) for production reliability.
+## Scalability & Resiliency
+- Stateless `app` and `worker` images support horizontal scaling.
+- Advisory-lock protected migrations (`scripts/migrate.js`) prevent race conditions during cluster startup.
+- Use managed Postgres and Redis (e.g., Azure Database for PostgreSQL, Azure Redis Cache) for production reliability.
+- **Redis Cluster Support**: Uses Redis Hash Tags (`{bull}`) to ensure cross-slot compatibility in clustered environments.
 
-Observability:
-- Application logs (container stdout) for startup/migration output and worker job traces.
-- Integrate a centralized log/metric system (Azure Monitor / Log Analytics) in production.
+## Security
+- **RBAC**: Enforced at the API level for sensitive admin and pentest tool routes.
+- **Inter-service Auth**: Communication with the pentest backend is secured with short-lived, signed JWTs using `AUTH_SECRET`.
+- **Encryption**: OIDC and SMTP configuration secrets are stored encrypted in Postgres.
 
-Key files and locations:
-- UI and routes: `app/`
-- Background logic: `scripts/worker.ts`, `lib/ingest.ts`, `lib/queue.ts`
-- DB schema: `prisma/schema.prisma`
-- Analytics helpers: `lib/report-analytics.ts`
+## Key File Locations
+- **UI & API Routes**: `app/`
+- **Background Logic**: `lib/ingest.ts`, `lib/queue.ts`, `scripts/worker.ts`
+- **DB Schema**: `prisma/schema.prisma`
+- **Pentest Service**: `pentest-backend/`
