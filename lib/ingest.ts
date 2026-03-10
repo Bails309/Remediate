@@ -45,10 +45,19 @@ type Params = {
 export async function processNessusUpload({ uploadId, siteId, storageKey }: Params) {
   const lockKey = getLockKey(siteId);
   const lockValue = uploadId;
-  const locked = await redis.set(lockKey, lockValue, "EX", 300, "NX"); // 5 min lock
+
+  // Try to acquire the lock. 
+  // NX = Only set if not exists. 
+  // If it fails, check if we already own it (re-entrant for retries).
+  const locked = await redis.set(lockKey, lockValue, "EX", 1800, "NX");
 
   if (!locked) {
-    throw new Error("Lock already held for this site");
+    const currentLock = await redis.get(lockKey);
+    if (currentLock !== lockValue) {
+      throw new Error("Lock already held for this site");
+    }
+    // Refresh TTL if we already own it
+    await redis.expire(lockKey, 1800);
   }
 
   try {

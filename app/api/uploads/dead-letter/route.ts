@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   }
 
   const lockKey = getLockKey(upload.siteId);
-  const lock = await redis.set(lockKey, "admin", "EX", LOCK_TTL_SECONDS, "NX");
+  const lock = await redis.set(lockKey, body.uploadId, "EX", LOCK_TTL_SECONDS, "NX");
   if (!lock) {
     return NextResponse.json({ error: "Upload already in progress for this site" }, { status: 409 });
   }
@@ -110,7 +110,7 @@ export async function PUT() {
     }
 
     const lockKey = getLockKey(upload.siteId);
-    const lock = await redis.set(lockKey, "admin", "EX", LOCK_TTL_SECONDS, "NX");
+    const lock = await redis.set(lockKey, id, "EX", LOCK_TTL_SECONDS, "NX");
     if (!lock) {
       skipped += 1;
       continue;

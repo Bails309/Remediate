@@ -18,7 +18,7 @@ export const uploadQueue = new Queue(QUEUE_NAME, {
 });
 
 export function getLockKey(siteId: string) {
-  return `upload:lock:${siteId}`;
+  return `{site:${siteId}}:upload-lock`;
 }
 
 export async function enqueueUpload(uploadId: string, storageKey: string) {

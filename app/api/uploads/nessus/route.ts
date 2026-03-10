@@ -38,14 +38,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Site not found" }, { status: 404 });
   }
 
+  const uploadId = crypto.randomUUID();
   const lockKey = getLockKey(siteId);
-  const lock = await redis.set(lockKey, session.user?.email ?? "user", "EX", LOCK_TTL_SECONDS, "NX");
+  const lock = await redis.set(lockKey, uploadId, "EX", LOCK_TTL_SECONDS, "NX");
   if (!lock) {
     return NextResponse.json({ error: "Upload already in progress for this site" }, { status: 409 });
   }
 
   const upload = await prisma.uploadHistory.create({
     data: {
+      id: uploadId,
       siteId,
       uploadedBy: session.user?.id as string,
       status: UploadStatus.Processing,
