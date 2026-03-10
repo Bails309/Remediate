@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart, LogOut, Activity, Users, ChevronDown, ChevronRight, Briefcase, Wrench } from "lucide-react";
+import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart, LogOut, Activity, Users, ChevronDown, ChevronRight, Briefcase, Wrench, Database } from "lucide-react";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
@@ -20,6 +20,7 @@ const adminNavItems = [
   { href: "/uploads", label: "Uploads", icon: Upload },
   { href: "/sites", label: "Sites", icon: Shield },
   { href: "/admin/oidc", label: "Auth Settings", icon: Settings },
+  { href: "/admin/storage", label: "Storage Settings", icon: Database },
   { href: "/admin/import", label: "Import Settings", icon: Settings },
   { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox },
   { href: "/admin/reports", label: "Reports", icon: Mail },

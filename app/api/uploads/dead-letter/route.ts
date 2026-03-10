@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server"; // RECOMPILE
 import { requireAdmin } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import {
@@ -17,6 +17,15 @@ import type { NextRequest } from "next/server";
 
 const LOCK_TTL_SECONDS = 60 * 30;
 
+// Type inference for Prisma relations
+async function getUploadsWithRelations() {
+  return await prisma.uploadHistory.findMany({
+    include: { site: true, uploader: true },
+  });
+}
+type UploadWithRelations = Awaited<ReturnType<typeof getUploadsWithRelations>>[0];
+type RawUpload = Awaited<ReturnType<typeof prisma.uploadHistory.findMany>>[0];
+
 export async function GET() {
   await requireAdmin();
   const ids = await listDeadLetters(50);
@@ -26,9 +35,9 @@ export async function GET() {
     include: { site: true, uploader: true },
   });
 
-  const map = new Map(uploads.map((upload) => [upload.id, upload]));
+  const map = new Map<string, UploadWithRelations>(uploads.map((upload: UploadWithRelations) => [upload.id, upload]));
   const items = await Promise.all(
-    ids.map(async (id) => {
+    ids.map(async (id: string) => {
       const upload = map.get(id);
       const retryCount = await getRetryCount(id);
       return {
@@ -84,7 +93,7 @@ export async function PUT() {
   }
 
   const uploads = await prisma.uploadHistory.findMany({ where: { id: { in: ids } } });
-  const uploadMap = new Map(uploads.map((upload) => [upload.id, upload]));
+  const uploadMap = new Map<string, RawUpload>(uploads.map((upload: RawUpload) => [upload.id, upload]));
 
   let requeued = 0;
   let skipped = 0;
@@ -131,7 +140,7 @@ export async function DELETE(request: NextRequest) {
   const uploads = await prisma.uploadHistory.findMany({
     where: { id: { in: ids } },
   });
-  const uploadMap = new Map(uploads.map((upload) => [upload.id, upload]));
+  const uploadMap = new Map<string, RawUpload>(uploads.map((upload: RawUpload) => [upload.id, upload]));
 
   const purgeIds: string[] = [];
   for (const id of ids) {

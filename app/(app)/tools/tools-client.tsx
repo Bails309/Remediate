@@ -125,9 +125,13 @@ export function ToolsClient({ session }: { session: Session }) {
       try {
         const res = await fetch("/api/tools/list");
         const payload = await res.json();
+        if (!res.ok) {
+          setError(payload.error || "Failed to load tools");
+          return;
+        }
         setTools(payload.tools || []);
       } catch {
-        setError("Failed to load tools");
+        setError("Failed to load tools due to a network error");
       } finally {
         setLoadingTools(false);
       }

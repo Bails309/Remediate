@@ -39,16 +39,21 @@ const result = NextAuth(async () => {
                     return false;
                 }
             },
-            async jwt({ token, user }: { token: JWT; user?: User }) {
-                // This only runs on sign in when the user object is available
-                if (user) {
-                    const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
-                    if (dbUser) {
-                        /* eslint-disable @typescript-eslint/no-explicit-any */
-                        token.roles = (dbUser as any).roles as string[];
-                        token.userId = dbUser.id;
-                        token.authSource = (dbUser as any).authSource;
-                        /* eslint-enable @typescript-eslint/no-explicit-any */
+            async jwt({ token, user, trigger }: { token: JWT; user?: User; trigger?: string }) {
+                const now = Math.floor(Date.now() / 1000);
+                const ONE_HOUR = 3600;
+
+                // Initial sign-in or forced refresh
+                if (user || trigger === "update" || !token.lastRefreshed || (now - (token.lastRefreshed as number) > ONE_HOUR)) {
+                    const email = user?.email || token.email;
+                    if (email) {
+                        const dbUser = await prisma.user.findUnique({ where: { email } });
+                        if (dbUser) {
+                            token.roles = (dbUser as any).roles as string[];
+                            token.userId = dbUser.id;
+                            token.authSource = (dbUser as any).authSource;
+                            token.lastRefreshed = now;
+                        }
                     }
                 }
                 return token;

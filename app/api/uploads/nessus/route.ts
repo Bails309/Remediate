@@ -67,8 +67,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Missing required headers: ${validation.missing?.join(", ")}` }, { status: 400 });
   }
 
+  const { getStorageProvider } = await import("@/lib/storage");
+  const storage = await getStorageProvider();
+  const storageKey = `nessus-${upload.id}.csv`;
+  await storage.save(storageKey, text);
+
   await setProgress(upload.id, { step: "Queued", progress: 5 });
-  await enqueueUpload(upload.id, text);
+  await enqueueUpload(upload.id, storageKey);
 
   return NextResponse.json({ uploadId: upload.id });
 }

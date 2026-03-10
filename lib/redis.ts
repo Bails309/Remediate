@@ -52,7 +52,7 @@ export const redis =
     if (globalForRedis.redisMap[cacheKey]) return globalForRedis.redisMap[cacheKey];
 
     const inst = createRedisInstance(url, {
-      maxRetriesPerRequest: 1,
+      maxRetriesPerRequest: process.env.REDIS_MAX_RETRIES === "null" ? null : 1,
       ...(isTls && {
         tls: {
           rejectUnauthorized: tlsReject,

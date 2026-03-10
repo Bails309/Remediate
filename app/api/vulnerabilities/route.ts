@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
   const gPort = searchParams.get("gPort") ?? undefined;
   const gPluginId = searchParams.get("gPluginId") ?? undefined;
 
-  const page = Number(searchParams.get("page") ?? "1");
-  const pageSize = Number(searchParams.get("pageSize") ?? "25");
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
+  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get("pageSize") ?? "25") || 25));
 
   if (ids || (gName && gHost && gPort && gPluginId)) {
     const items = await prisma.vulnerability.findMany({
@@ -106,11 +106,11 @@ export async function GET(request: NextRequest) {
         ORDER BY name, host, port, "pluginId", risk ASC, "lastSeenAt" DESC
       ) as grouped
       ORDER BY risk ASC, "lastSeenAt" DESC
-      LIMIT ${pageSize} OFFSET ${skip}
-    `, ...values);
+      LIMIT $${valIdx++} OFFSET $${valIdx++}
+    `, ...values, pageSize, skip);
 
     // Hydrate the items with assignee info (since group by loses relations)
-    const hydratedItems = await Promise.all(items.map(async (item) => {
+    const hydratedItems = await Promise.all(items.map(async (item: Record<string, any>) => {
       if (item.assigneeId) {
         const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId as string } });
         return { ...item, assignee };

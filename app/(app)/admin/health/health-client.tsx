@@ -33,16 +33,27 @@ interface HealthData {
 export function HealthClient() {
     const [data, setData] = useState<HealthData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [nextRefresh, setNextRefresh] = useState(60);
 
     const fetchHealth = async () => {
         try {
             const res = await fetch("/api/admin/health");
+            if (!res.ok) {
+                if (res.status === 401) {
+                    setError("Unauthorized. Please sign in as an admin.");
+                } else {
+                    setError(`Failed to fetch health (Status: ${res.status})`);
+                }
+                return;
+            }
             const json = await res.json();
             setData(json);
+            setError(null);
             setNextRefresh(60);
         } catch (err) {
             console.error("Failed to fetch health", err);
+            setError("Connection error. Is the server running?");
         } finally {
             setLoading(false);
         }
@@ -66,6 +77,18 @@ export function HealthClient() {
         return (
             <div className="flex h-[400px] items-center justify-center">
                 <RefreshCw className="h-8 w-8 animate-spin opacity-20" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex h-[400px] flex-col items-center justify-center gap-4">
+                <AlertCircle className="h-12 w-12 text-red-500 opacity-50" />
+                <div className="text-center">
+                    <h2 className="text-xl font-bold">Health Monitor Unavailable</h2>
+                    <p className="text-sm opacity-60">{error}</p>
+                </div>
             </div>
         );
     }

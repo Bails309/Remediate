@@ -138,9 +138,23 @@ model UploadHistory {
   rowCount   Int?
 
   site       Site     @relation(fields: [siteId], references: [id])
-  uploader   User     @relation("UploadedBy", fields: [uploadedBy], references: [id])
+  uploader   User     @relation("UploadedBy", fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@index([siteId, uploadDate])
+}
+
+enum StorageProvider {
+  LOCAL
+  AZURE
+}
+
+model StorageConfig {
+  id                        String          @id @default("singleton")
+  provider                  StorageProvider @default(LOCAL)
+  azureConnectionStringEnc  String?
+  azureContainerName        String?         @default("uploads")
+  localStoragePath          String?         @default("/tmp/uploads")
+  updatedAt                 DateTime        @updatedAt
 }
 
 model ImportConfig {
@@ -162,7 +176,7 @@ model PentestExecution {
   finishedAt  DateTime?
   durationMs  Int?
 
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, startedAt(sort: Desc)])
   @@index([toolId, startedAt(sort: Desc)])

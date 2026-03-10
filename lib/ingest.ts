@@ -4,54 +4,25 @@ import { setProgress } from "@/lib/progress";
 import { Risk, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
 import { getLockKey } from "@/lib/queue";
+import { isValid, parse } from "date-fns";
+import { getStorageProvider } from "./storage";
 
 function parseValidDate(value?: string | null) {
   if (!value) return null;
   const s = value.toString().trim();
 
-  // Try native parsing first (covers ISO and many textual formats)
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) return d;
-
   // Try common numeric date formats like dd/MM/yyyy or d/M/yyyy (prefer UK-style)
-  const numeric = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (numeric) {
-    const day = Number(numeric[1]);
-    const month = Number(numeric[2]);
-    let year = Number(numeric[3]);
-    const hour = Number(numeric[4] ?? 0);
-    const minute = Number(numeric[5] ?? 0);
-    const second = Number(numeric[6] ?? 0);
-
-    if (year < 100) {
-      year += year >= 70 ? 1900 : 2000; // two-digit year heuristic
-    }
-
-    // Interpret as dd/MM/yyyy (UK) first
-    const candidateUK = new Date(year, month - 1, day, hour, minute, second);
-    if (!isNaN(candidateUK.getTime())) return candidateUK;
-
-    // Fallback to MM/DD/YYYY
-    const candidateUS = new Date(year, day - 1, month, hour, minute, second);
-    if (!isNaN(candidateUS.getTime())) return candidateUS;
-  }
-
-  // Try patterns like '14 Jun 2024' etc.
-  const textual = s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if (textual) {
-    const day = Number(textual[1]);
-    const monthName = textual[2];
-    let year = Number(textual[3]);
-    const hour = Number(textual[4] ?? 0);
-    const minute = Number(textual[5] ?? 0);
-    const second = Number(textual[6] ?? 0);
-    const monthIdx = new Date(`${monthName} 1, 2000`).getMonth();
-    if (!isNaN(monthIdx)) {
-      if (year < 100) year += year >= 70 ? 1900 : 2000;
-      const candidate = new Date(year, monthIdx, day, hour, minute, second);
-      if (!isNaN(candidate.getTime())) return candidate;
+  const formats = ["dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd", "MMM d, yyyy", "MMMM d, yyyy"];
+  for (const fmt of formats) {
+    const parsed = parse(s, fmt, new Date());
+    if (isValid(parsed)) {
+      return parsed;
     }
   }
+
+  // Fallback to native for ISO/other formats, but check validity strictly
+  const d = new Date(s);
+  if (!isNaN(d.getTime()) && s.includes(d.getFullYear().toString())) return d;
 
   return null;
 }
@@ -68,10 +39,10 @@ function normalizeRisk(risk?: string) {
 type Params = {
   uploadId: string;
   siteId: string;
-  text: string;
+  storageKey: string;
 };
 
-export async function processNessusUpload({ uploadId, siteId, text }: Params) {
+export async function processNessusUpload({ uploadId, siteId, storageKey }: Params) {
   const lockKey = getLockKey(siteId);
   const lockValue = uploadId;
   const locked = await redis.set(lockKey, lockValue, "EX", 300, "NX"); // 5 min lock
@@ -81,6 +52,9 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
   }
 
   try {
+    const storage = await getStorageProvider();
+    const text = await storage.read(storageKey);
+
     await setProgress(uploadId, { step: "Extracting data", progress: 10 });
 
     const config = await prisma.importConfig.findUnique({
@@ -223,7 +197,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
         });
         try {
           await prisma.vulnerability.createMany({ data: safeChunk as Prisma.VulnerabilityCreateManyInput[] });
-        } catch (err: unknown) {
+        } catch (err: any) {
           if (err instanceof Prisma.PrismaClientKnownRequestError) {
             if (err.code === "P2002") throw err;
           }
@@ -246,7 +220,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     });
 
     if (remediated.length > 0) {
-      const historyData = remediated.map((v: Record<string, unknown>) => ({
+      const historyData = remediated.map((v: any) => ({
         id: v.id as string,
         siteId: v.siteId as string,
         assigneeId: v.assigneeId as string | null,
@@ -273,7 +247,7 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
       await prisma.$transaction([
         prisma.vulnerabilityHistory.createMany({ data: historyData }),
         prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map((v) => v.id) } },
+          where: { id: { in: remediated.map((v: any) => v.id) } },
         }),
       ]);
       console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);
@@ -285,10 +259,18 @@ export async function processNessusUpload({ uploadId, siteId, text }: Params) {
     });
 
     await setProgress(uploadId, { step: "Completed", progress: 100, total: filteredRows.length });
+
+    // Cleanup storage after successful processing
+    await storage.delete(storageKey);
   } finally {
-    const currentVal = await redis.get(lockKey);
-    if (currentVal === lockValue) {
-      await redis.del(lockKey);
-    }
+    // Atomic lock release: only delete if the value matches our uploadId
+    const script = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    await (redis as any).eval(script, 1, lockKey, lockValue);
   }
 }

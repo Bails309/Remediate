@@ -4,14 +4,14 @@ FROM node:lts-slim AS deps
 ARG APP_VERSION=1.1.2
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
 
 FROM node:lts-slim AS dev
 ARG APP_VERSION=1.1.2
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 RUN npm install --include=dev --legacy-peer-deps
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
