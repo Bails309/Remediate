@@ -10,7 +10,7 @@ interface AuthRequest extends NextRequest {
     auth: Session | null;
 }
 
-export default auth((req: AuthRequest) => {
+const proxyHandler = auth((req: AuthRequest) => {
     const { nextUrl } = req;
     const isLoggedIn = !!req.auth;
 
@@ -38,6 +38,10 @@ export default auth((req: AuthRequest) => {
 
     return NextResponse.next();
 });
+
+export function proxy(...args: Parameters<typeof proxyHandler>) {
+    return proxyHandler(...args);
+}
 
 export const config = {
     matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],

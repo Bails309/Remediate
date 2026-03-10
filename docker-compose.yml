@@ -98,7 +98,6 @@ services:
       PENTEST_JWT_AUDIENCE: pentest-backend
     volumes:
       - ./pentest-backend/config:/config
-      - ./pentest-backend/wordlists:/wordlists:ro
     dns:
       - 8.8.8.8
       - 1.1.1.1
