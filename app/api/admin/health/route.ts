@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
             } = await import("@azure/storage-blob");
 
             const containerName = config?.azureContainerName || "uploads";
-            let blobServiceClient: any = null;
+            let blobServiceClient: unknown = null;
 
             if (config?.azureAuthMethod === "CONNECTION_STRING") {
                 if (!config.azureConnectionStringEnc) {
@@ -140,8 +140,9 @@ export async function GET(request: NextRequest) {
             }
 
             if (blobServiceClient) {
-                const containerClient = blobServiceClient.getContainerClient(containerName);
+                const containerClient = (blobServiceClient as { getContainerClient(name: string): { listBlobsFlat(): { byPage(opts: { maxPageSize: number }): AsyncIterableIterator<unknown> } } }).getContainerClient(containerName);
                 const iterator = containerClient.listBlobsFlat().byPage({ maxPageSize: 1 });
+                // consume one page to verify connectivity
                 await iterator.next();
                 storageDetails = `Container: ${containerName}`;
             }

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
             }
             console.info("[Storage Test] Testing Azure account key fingerprint:", fingerprintSecret(accountKey));
             const credential = new StorageSharedKeyCredential(accountName, accountKey);
-            blobServiceClient = new BlobServiceClient(`https://${accountName}.blob.core.windows.net`, credential as any);
+            blobServiceClient = new BlobServiceClient(`https://${accountName}.blob.core.windows.net`, credential);
         } else if (azureAuthMethod === "SAS_TOKEN") {
             if (!accountName || !sasToken || sasToken === "********") {
                 return NextResponse.json({ error: "Invalid account name or SAS token" }, { status: 400 });

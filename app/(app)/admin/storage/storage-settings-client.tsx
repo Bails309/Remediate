@@ -49,11 +49,20 @@ export function StorageSettingsClient() {
         fetchConfig();
     }, []);
 
+    type AzureTestBody = {
+        containerName: string;
+        connectionString?: string;
+        azureAuthMethod?: "ACCOUNT_KEY" | "SAS_TOKEN" | "CONNECTION_STRING";
+        accountName?: string;
+        accountKey?: string;
+        sasToken?: string;
+    };
+
     const testConnection = async () => {
         if (provider !== "AZURE") return;
         setTesting(true);
             try {
-                const body: any = { containerName: azureContainerName };
+                const body: AzureTestBody = { containerName: azureContainerName };
                 if (azureAuthMethod === "CONNECTION_STRING") {
                     body.connectionString = azureConnectionString;
                 } else if (azureAuthMethod === "ACCOUNT_KEY") {
@@ -89,12 +98,20 @@ export function StorageSettingsClient() {
         e.preventDefault();
         setIsSaving(true);
 
-        try {
-            const payload: any = {
-                provider,
-                azureAuthMethod,
-                azureContainerName,
-            };
+            try {
+                const payload: {
+                    provider: string;
+                    azureAuthMethod: string;
+                    azureContainerName: string;
+                    azureConnectionString?: string;
+                    azureAccountName?: string;
+                    azureAccountKey?: string;
+                    azureSasToken?: string;
+                } = {
+                    provider,
+                    azureAuthMethod,
+                    azureContainerName,
+                };
 
             if (azureAuthMethod === "CONNECTION_STRING") {
                 payload.azureConnectionString = azureConnectionString;

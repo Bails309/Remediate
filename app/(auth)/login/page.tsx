@@ -59,7 +59,6 @@ export default function LoginPage() {
         const attempt = async () => {
           // If authConfig is null, wait briefly for the enabled check to complete
           for (let i = 0; i < 10 && authConfig === null; i++) {
-            // eslint-disable-next-line no-await-in-loop
             await new Promise((r) => setTimeout(r, 150));
           }
           if (authConfig?.ssoEnabled) {
@@ -68,7 +67,7 @@ export default function LoginPage() {
         };
         attempt();
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [authConfig]);

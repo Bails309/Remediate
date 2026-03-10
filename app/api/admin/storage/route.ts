@@ -98,10 +98,10 @@ export async function POST(request: NextRequest) {
                     azureContainerName,
                 },
             });
-        } catch (err: any) {
+        } catch (err: unknown) {
             // Prisma client may not have been regenerated/migrated to include azureAuthMethod.
             // If so, retry without the field to remain backward compatible.
-            const msg = err && err.message ? String(err.message) : "";
+            const msg = err instanceof Error ? err.message : String(err ?? "");
             if (msg.includes("Unknown argument `azureAuthMethod`") || msg.includes("Unknown arg `azureAuthMethod`")) {
                 // Fallback for older Prisma client/schema: only update fields that definitely exist.
                 config = await prisma.storageConfig.upsert({

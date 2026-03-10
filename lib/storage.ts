@@ -132,10 +132,11 @@ export async function getStorageProvider(): Promise<StorageProvider> {
                 const containerClient = blobServiceClient.getContainerClient(containerName);
                 return new AzureBlobProvider(containerClient);
             }
-        } catch (e: any) {
-            // Surface any HTTP auth hints from Azure SDK errors
+        } catch (e: unknown) {
+            // Surface HTTP auth hints from Azure SDK errors where available
             try {
-                const hdrs = e?.response?.headers || e?.details?.response?.headers;
+                const maybe = e as { response?: { headers?: Record<string, string> }; details?: { response?: { headers?: Record<string, string> } } };
+                const hdrs = maybe.response?.headers || maybe.details?.response?.headers;
                 if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
                     console.error('Azure storage auth failure, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
                 }
@@ -156,15 +157,16 @@ export async function getStorageProvider(): Promise<StorageProvider> {
     return new RedisStorageProvider();
 }
 
-// Augment Azure provider operations with richer error logging
-// so that transient auth issues can be diagnosed with response headers.
-const enhanceAzureErrors = (fn: (...args: any[]) => Promise<any>) => {
-    return async function (this: any, ...args: any[]) {
+// Augment Azure provider operations with richer error logging so that transient
+// auth issues can be diagnosed with response headers.
+const enhanceAzureErrors = (fn: (...args: unknown[]) => Promise<unknown>) => {
+    return async function (this: unknown, ...args: unknown[]) {
         try {
-            return await fn.apply(this, args);
-        } catch (e: any) {
+            return await (fn as (...a: unknown[]) => Promise<unknown>)(...args);
+        } catch (e: unknown) {
             try {
-                const hdrs = e?.response?.headers || e?.details?.response?.headers;
+                const maybe = e as { response?: { headers?: Record<string, string> }; details?: { response?: { headers?: Record<string, string> } } };
+                const hdrs = maybe.response?.headers || maybe.details?.response?.headers;
                 if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
                     console.error('Azure storage operation failed, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
                 }
@@ -175,6 +177,6 @@ const enhanceAzureErrors = (fn: (...args: any[]) => Promise<any>) => {
 };
 
 // Wrap AzureBlobProvider methods to log headers on failure while preserving `this`
-AzureBlobProvider.prototype.save = enhanceAzureErrors(AzureBlobProvider.prototype.save as any) as any;
-AzureBlobProvider.prototype.read = enhanceAzureErrors(AzureBlobProvider.prototype.read as any) as any;
-AzureBlobProvider.prototype.delete = enhanceAzureErrors(AzureBlobProvider.prototype.delete as any) as any;
+AzureBlobProvider.prototype.save = enhanceAzureErrors(AzureBlobProvider.prototype.save as unknown as (...args: unknown[]) => Promise<unknown>) as unknown as typeof AzureBlobProvider.prototype.save;
+AzureBlobProvider.prototype.read = enhanceAzureErrors(AzureBlobProvider.prototype.read as unknown as (...args: unknown[]) => Promise<unknown>) as unknown as typeof AzureBlobProvider.prototype.read;
+AzureBlobProvider.prototype.delete = enhanceAzureErrors(AzureBlobProvider.prototype.delete as unknown as (...args: unknown[]) => Promise<unknown>) as unknown as typeof AzureBlobProvider.prototype.delete;

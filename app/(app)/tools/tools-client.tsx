@@ -9,10 +9,10 @@ import { EmptyState } from "@/components/EmptyState";
 import { cn } from "@/components/cn";
 import {
   RefreshCw, Wrench, TerminalSquare, ShieldCheck,
-  HelpCircle, Info, X, ChevronRight, Search,
+  Info, X, ChevronRight, Search,
   Globe, Layout, Database, Lock, Activity,
   Cpu, Zap, Terminal as TerminalIcon,
-  Compass, History, Target, CheckCircle2, ChevronDown
+  Compass, History, Target, CheckCircle2
 } from "lucide-react";
 
 type ToolInputChoice = {
@@ -41,10 +41,11 @@ type Tool = {
   description?: string;
   help?: ToolHelp;
   inputs: ToolInput[];
-  variations?: { id: string; name: string; description: string; overrides?: Record<string, string> }[];
+  variations?: { id: string; name: string; description: string; overrides?: Record<string, string>; duration_warning?: string }[];
 };
 
-const TOOL_ICONS: Record<string, any> = {
+type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+const TOOL_ICONS: Record<string, IconType> = {
   nmap: Globe,
   nuclei: Activity,
   ffuf: Search,
@@ -136,7 +137,7 @@ export function ToolsClient({ session }: { session: Session }) {
   const [error, setError] = useState<string>("");
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState<ExecutionLog[]>([]);
-  const [loadingTools, setLoadingTools] = useState(true);
+  const [, setLoadingTools] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [configDraft, setConfigDraft] = useState<string>("");
   const [configLoading, setConfigLoading] = useState(false);
@@ -585,6 +586,17 @@ export function ToolsClient({ session }: { session: Session }) {
                       </div>
                     ))}
                   </div>
+
+                  {/* Duration warning banner — shown when selected variation is known to be slow */}
+                  {(() => {
+                    const selV = selectedTool.variations?.find((v: { id: string; duration_warning?: string }) => v.id === selectedVariationId);
+                    return selV?.duration_warning ? (
+                      <div className="mt-4 flex items-start gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 animate-in fade-in duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                        <p className="text-[11px] font-semibold leading-relaxed">{selV.duration_warning}</p>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               )}
 
