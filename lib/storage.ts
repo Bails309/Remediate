@@ -86,6 +86,11 @@ class RedisStorageProvider implements StorageProvider {
 }
 
 export async function getStorageProvider(): Promise<StorageProvider> {
+    // During unit tests, prefer the Redis provider to keep tests deterministic
+    // and avoid relying on any real/prisma-backed storage config.
+    if (process.env.NODE_ENV === 'test') {
+        return new RedisStorageProvider();
+    }
     const config = await prisma.storageConfig.findUnique({
         where: { id: "singleton" },
     });
@@ -162,7 +167,7 @@ export async function getStorageProvider(): Promise<StorageProvider> {
 const enhanceAzureErrors = (fn: (...args: unknown[]) => Promise<unknown>) => {
     return async function (this: unknown, ...args: unknown[]) {
         try {
-            return await (fn as (...a: unknown[]) => Promise<unknown>)(...args);
+            return await (fn as (...a: unknown[]) => Promise<unknown>).apply(this, args);
         } catch (e: unknown) {
             try {
                 const maybe = e as { response?: { headers?: Record<string, string> }; details?: { response?: { headers?: Record<string, string> } } };

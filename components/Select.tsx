@@ -94,55 +94,55 @@ export function Select({
           isOpen && "border-emerald-500/40 ring-4 ring-emerald-500/10 shadow-lg",
           className
         )}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onMouseDown={() => !disabled && setIsOpen(true)}
+        onClick={() => !disabled && setIsOpen((s) => !s)}
       >
         <span className="truncate font-medium">{displayLabel}</span>
         <ChevronDown className={cn("h-4 w-4 text-slate-400 dark:text-slate-500 transition-all duration-300", isOpen && "rotate-180 text-emerald-500")} />
       </button>
 
-      {isOpen && (
-        <div className={cn(
+      <div
+        style={{ display: isOpen ? undefined : "none" }}
+        className={cn(
           "absolute z-[100] w-full min-w-max overflow-hidden rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl text-slate-900 shadow-2xl animate-in fade-in zoom-in-95 duration-200",
           "dark:border-white/10 dark:bg-[#0A0F1C]/95 dark:text-gray-100",
           direction === "up" ? "bottom-full mb-3 origin-bottom" : "top-full mt-3 origin-top"
-        )}>
-          <ul className="max-h-64 overflow-y-auto overscroll-contain p-1.5 custom-scrollbar">
-            {options.map((opt) => (
-              <li key={opt.value}>
-                <button
-                  type="button"
-                  disabled={opt.disabled}
-                  className={cn(
-                    "w-full px-4 py-3 text-left text-sm transition-all duration-200 rounded-xl",
-                    opt.disabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-slate-100 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 group",
-                    value === opt.value
-                      ? "bg-slate-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
-                      : "text-slate-600 dark:text-slate-400"
-                  )}
-                  onClick={() => {
-                    if (!opt.disabled) {
-                      onChange?.(opt.value);
-                      setIsOpen(false);
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{opt.label}</span>
-                    {value === opt.value && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                    )}
-                  </div>
-                </button>
-              </li>
-            ))}
-            {options.length === 0 && (
-              <li className="px-5 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">No options available</li>
-            )}
-          </ul>
-        </div>
-      )}
+        )}
+      >
+        <ul className="max-h-64 overflow-y-auto overscroll-contain p-1.5 custom-scrollbar">
+          {options.map((opt) => (
+            <li key={opt.value}>
+              <button
+                type="button"
+                disabled={opt.disabled}
+                className={cn(
+                  "w-full px-4 py-3 text-left text-sm transition-all duration-200 rounded-xl flex items-center justify-between",
+                  opt.disabled
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:bg-slate-100 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 group",
+                  value === opt.value
+                    ? "bg-slate-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
+                    : "text-slate-600 dark:text-slate-400"
+                )}
+                onClick={() => {
+                  if (!opt.disabled) {
+                    onChange?.(opt.value);
+                    setIsOpen(false);
+                  }
+                }}
+              >
+                {opt.label}
+                {value === opt.value && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                )}
+              </button>
+            </li>
+          ))}
+          {options.length === 0 && (
+            <li className="px-5 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">No options available</li>
+          )}
+        </ul>
+      </div>
     </div>
   );
 }

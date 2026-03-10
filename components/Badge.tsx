@@ -5,9 +5,10 @@ type Props = {
   tone?: "critical" | "high" | "medium" | "low" | "neutral";
   className?: string;
   onClick?: () => void;
+  title?: string;
 };
 
-export function Badge({ children, tone = "neutral", className, onClick }: Props) {
+export function Badge({ children, tone = "neutral", className, onClick, title }: Props) {
   const toneClass =
     tone === "critical"
       ? "bg-[#3a0f0f] text-[#ffb4a4]"
@@ -22,6 +23,7 @@ export function Badge({ children, tone = "neutral", className, onClick }: Props)
   return (
     <span
       onClick={onClick}
+      title={title}
       className={cn(
         "rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide",
         onClick && "cursor-pointer transition-opacity hover:opacity-80 active:opacity-70",

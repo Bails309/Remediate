@@ -90,4 +90,6 @@ const result = NextAuth(async () => {
     } as NextAuthConfig;
 });
 
+console.log("[Auth] result keys:", Object.keys(result));
 export const { handlers, signIn, signOut, auth } = result;
+console.log("[Auth] handlers exported:", !!handlers);

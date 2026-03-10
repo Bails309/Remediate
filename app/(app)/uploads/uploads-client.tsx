@@ -65,8 +65,10 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     const refreshHistory = async () => {
       const history = await fetch("/api/uploads/history", { cache: "no-store" });
       if (history.ok) {
-        const latest = (await history.json()) as Upload[];
-        setUploads(latest);
+        const latest = (await history.json()) as unknown;
+        if (Array.isArray(latest)) {
+          setUploads(latest);
+        }
       }
     };
 
@@ -145,8 +147,10 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     setTimeout(async () => {
       const history = await fetch("/api/uploads/history");
       if (history.ok) {
-        const latest = (await history.json()) as Upload[];
-        setUploads(latest);
+        const latest = (await history.json()) as unknown;
+        if (Array.isArray(latest)) {
+          setUploads(latest);
+        }
       }
     }, 2500);
   };
