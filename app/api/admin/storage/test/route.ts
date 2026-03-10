@@ -27,11 +27,12 @@ export async function POST(request: NextRequest) {
         await iterator.next();
 
         return NextResponse.json({ success: true, message: "Successfully connected to Azure Blob Storage" });
-    } catch (error: any) {
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
         console.error("Azure connection test failed", error);
         return NextResponse.json({
             error: "Connection failed",
-            details: error.message || "Unknown error"
+            details: message
         }, { status: 500 });
     }
 }

@@ -36,9 +36,9 @@ export async function GET() {
 
     const payload = await res.json();
     return NextResponse.json(payload, { status: res.status });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown connectivity error";
     console.error(`[Tools List API Exception]:`, error);
-    const message = error.message || "Unknown connectivity error";
     return NextResponse.json(
       { error: `Connectivity Error: ${message}` },
       { status: 502 }

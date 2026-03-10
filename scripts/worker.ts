@@ -1,13 +1,13 @@
 import { prisma } from "../lib/prisma";
 import { setProgress } from "../lib/progress";
-import { uploadQueue, getLockKey } from "../lib/queue";
+import { uploadQueue } from "../lib/queue";
 import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
 // Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
 import { Worker, Job } from "bullmq";
 
-async function processJob(job: Job<any>) {
+async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
   const { uploadId, storageKey } = job.data;
 
   const upload = await prisma.uploadHistory.findUnique({ where: { id: uploadId } });
@@ -24,7 +24,7 @@ async function processJob(job: Job<any>) {
     if (job.attemptsMade >= (job.opts.attempts || 1) - 1) {
       await prisma.uploadHistory.update({
         where: { id: uploadId },
-        data: { status: "Failed" as any },
+        data: { status: "Failed" as const },
       });
       await setProgress(uploadId, { step: "Failed", progress: 100 });
     }
@@ -66,6 +66,7 @@ async function run() {
   }, HEARTBEAT_INTERVAL_MS);
 
   const worker = new Worker(uploadQueue.name, processJob, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     connection: redis as any,
     concurrency: 2,
   });
@@ -74,7 +75,7 @@ async function run() {
     console.log(`Job ${job.id} completed!`);
   });
 
-  worker.on('failed', (job: Job<any> | undefined, err: Error) => {
+  worker.on('failed', (job: Job<{ uploadId: string; storageKey: string }> | undefined, err: Error) => {
     console.error(`Job ${job?.id} failed with ${err.message}`);
   });
 

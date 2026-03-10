@@ -39,7 +39,7 @@ function createRedisInstance(url: string, options?: RedisOptions) {
         clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
         // Ensure TLS is enabled for all discovered shards in clustered mode
         ...(isRediss && {
-          dnsLookup: (address: string, callback: any) => callback(null, address),
+          dnsLookup: (address: string, callback: (err: Error | null, address: string) => void) => callback(null, address),
         }),
       }) as unknown as Redis;
     } catch (err) {

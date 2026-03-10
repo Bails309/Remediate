@@ -18,12 +18,11 @@ import type { NextRequest } from "next/server";
 const LOCK_TTL_SECONDS = 60 * 30;
 
 // Type inference for Prisma relations
-async function getUploadsWithRelations() {
-  return await prisma.uploadHistory.findMany({
-    include: { site: true, uploader: true },
-  });
-}
-type UploadWithRelations = Awaited<ReturnType<typeof getUploadsWithRelations>>[0];
+// Type inference for Prisma relations
+type UploadWithRelations = Awaited<ReturnType<typeof prisma.uploadHistory.findMany>>[0] & {
+  site: Awaited<ReturnType<typeof prisma.site.findUnique>>;
+  uploader: Awaited<ReturnType<typeof prisma.user.findUnique>>;
+};
 type RawUpload = Awaited<ReturnType<typeof prisma.uploadHistory.findMany>>[0];
 
 export async function GET() {

@@ -197,7 +197,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
         });
         try {
           await prisma.vulnerability.createMany({ data: safeChunk as Prisma.VulnerabilityCreateManyInput[] });
-        } catch (err: any) {
+        } catch (err) {
           if (err instanceof Prisma.PrismaClientKnownRequestError) {
             if (err.code === "P2002") throw err;
           }
@@ -220,7 +220,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     });
 
     if (remediated.length > 0) {
-      const historyData = remediated.map((v: any) => ({
+      const historyData = remediated.map((v) => ({
         id: v.id as string,
         siteId: v.siteId as string,
         assigneeId: v.assigneeId as string | null,
@@ -247,7 +247,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       await prisma.$transaction([
         prisma.vulnerabilityHistory.createMany({ data: historyData }),
         prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map((v: any) => v.id) } },
+          where: { id: { in: remediated.map((v) => v.id) } },
         }),
       ]);
       console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);
@@ -271,6 +271,6 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
         return 0
       end
     `;
-    await (redis as any).eval(script, 1, lockKey, lockValue);
+    await (redis as { eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown> }).eval(script, 1, lockKey, lockValue);
   }
 }

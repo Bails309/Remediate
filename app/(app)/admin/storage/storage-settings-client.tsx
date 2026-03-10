@@ -29,8 +29,8 @@ export function StorageSettingsClient() {
                     setAzureContainerName(data.azureContainerName || "uploads");
                     setLocalStoragePath(data.localStoragePath || "/tmp/uploads");
                 }
-            } catch (e) {
-                console.error("Failed to load config", e);
+            } catch (err) {
+                console.error("Failed to load config", err);
             } finally {
                 setLoading(false);
             }
@@ -57,7 +57,7 @@ export function StorageSettingsClient() {
             } else {
                 toast.error(data.error + (data.details ? `: ${data.details}` : ""));
             }
-        } catch (e) {
+        } catch {
             toast.error("Failed to test connection");
         } finally {
             setTesting(false);
@@ -83,8 +83,8 @@ export function StorageSettingsClient() {
             if (!res.ok) throw new Error("Failed to save configuration");
 
             toast.success("Storage settings saved successfully");
-        } catch (e: any) {
-            toast.error(e.message);
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : "An unexpected error occurred");
         } finally {
             setIsSaving(false);
         }

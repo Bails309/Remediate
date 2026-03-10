@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     `, ...values, pageSize, skip);
 
     // Hydrate the items with assignee info (since group by loses relations)
-    const hydratedItems = await Promise.all(items.map(async (item: Record<string, any>) => {
+    const hydratedItems = await Promise.all(items.map(async (item: Record<string, unknown>) => {
       if (item.assigneeId) {
         const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId as string } });
         return { ...item, assignee };

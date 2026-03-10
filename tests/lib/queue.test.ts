@@ -1,48 +1,50 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock BullMQ before importing the queue module
+const mockAdd = vi.fn();
+const mockGetJob = vi.fn();
+const mockGetJobs = vi.fn();
+
+vi.mock("bullmq", () => ({
+  Queue: vi.fn(() => ({
+    add: mockAdd,
+    getJob: mockGetJob,
+    getJobs: mockGetJobs,
+    name: "{upload-queue}",
+  })),
+  Worker: vi.fn(),
+}));
+
 vi.mock("@/lib/redis", () => ({
   redis: {
     set: vi.fn(),
-    lpush: vi.fn(),
-    zadd: vi.fn(),
-    incr: vi.fn(),
-    del: vi.fn(),
-    lrange: vi.fn(),
-    lrem: vi.fn(),
-    pipeline: vi.fn(() => ({ exec: vi.fn().mockResolvedValue([]) })),
     get: vi.fn(),
-    zrangebyscore: vi.fn(),
-    multi: vi.fn(() => ({ zrem: vi.fn(), lpush: vi.fn(), exec: vi.fn() })),
-    brpop: vi.fn(),
     eval: vi.fn().mockResolvedValue(1),
-    ttl: vi.fn().mockResolvedValue(60),
   },
 }));
 
 import * as queue from "@/lib/queue";
-import { redis } from "@/lib/redis";
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("queue operations", () => {
-  it("enqueueUpload stores payload and pushes to list", async () => {
-    await queue.enqueueUpload("u1", "payload");
-    expect(redis.set).toHaveBeenCalledWith(queue.getPayloadKey("u1"), "payload", "EX", expect.any(Number));
-    expect(redis.lpush).toHaveBeenCalled();
+  it("enqueueUpload adds job to uploadQueue", async () => {
+    await queue.enqueueUpload("u1", "payload-key");
+    expect(mockAdd).toHaveBeenCalledWith("u1", { uploadId: "u1", storageKey: "payload-key" }, { jobId: "u1" });
   });
 
-  it("getPayload returns redis.get", async () => {
-    vi.mocked(redis.get).mockResolvedValue("payload");
+  it("getPayload returns storageKey from job data", async () => {
+    mockGetJob.mockResolvedValue({ data: { storageKey: "key-123" } });
     const val = await queue.getPayload("u1");
-    expect(val).toBe("payload");
+    expect(val).toBe("key-123");
   });
 
-  it("dequeueUpload returns id when brpop returns tuple", async () => {
-    vi.mocked(redis.zrangebyscore).mockResolvedValue([]);
-    vi.mocked(redis.brpop).mockResolvedValue(["upload:queue", "u1"]);
-    const id = await queue.dequeueUpload();
-    expect(id).toBe("u1");
+  it("listDeadLetters returns job IDs from failed queue", async () => {
+    mockGetJobs.mockResolvedValue([{ id: "j1" }, { id: "j2" }]);
+    const ids = await queue.listDeadLetters(10);
+    expect(mockGetJobs).toHaveBeenCalledWith(["failed"], 0, 9, false);
+    expect(ids).toEqual(["j1", "j2"]);
   });
 });

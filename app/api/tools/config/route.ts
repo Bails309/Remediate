@@ -14,9 +14,10 @@ export async function GET() {
 
     const payload = await res.json();
     return NextResponse.json(payload, { status: res.status });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Internal server error";
     console.error(`[Tools Config GET API Exception]:`, error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -37,8 +38,9 @@ export async function PUT(req: Request) {
 
     const payload = await res.json();
     return NextResponse.json(payload, { status: res.status });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Internal server error";
     console.error(`[Tools Config PUT API Exception]:`, error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

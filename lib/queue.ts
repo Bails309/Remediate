@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 const QUEUE_NAME = "{upload-queue}";
 
 export const uploadQueue = new Queue(QUEUE_NAME, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connection: redis as any,
   defaultJobOptions: {
     attempts: 3,
