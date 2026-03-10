@@ -19,8 +19,20 @@ export async function POST(req: Request) {
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(`[Backend Errror] Status: ${res.status}, Body: ${errorText.substring(0, 200)}`);
-      return NextResponse.json({ error: "Backend service unavailable" }, { status: res.status });
+      console.error(`[Backend Error] Status: ${res.status}, Body: ${errorText.substring(0, 200)}`);
+
+      let errorMsg = "Backend service unavailable";
+      try {
+        const parsed = JSON.parse(errorText);
+        errorMsg = parsed.error || errorMsg;
+      } catch {
+        // Fallback
+      }
+
+      return NextResponse.json(
+        { error: `Backend Error (${res.status}): ${errorMsg}` },
+        { status: res.status }
+      );
     }
 
     const payload = await res.json();
@@ -30,7 +42,10 @@ export async function POST(req: Request) {
     if (message === "Unauthorized" || message === "Forbidden" || message.includes("Redirected")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.error("[Execution API Error]:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[Execution API Exception]:", error);
+    return NextResponse.json(
+      { error: `Connectivity Error: ${message}` },
+      { status: 502 }
+    );
   }
 }
