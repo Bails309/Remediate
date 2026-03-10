@@ -98,19 +98,52 @@ export async function GET(request: NextRequest) {
 
     if (storageProvider === "AZURE") {
         try {
-            if (!config || !config.azureConnectionStringEnc) {
-                storageStatus = "Unhealthy";
-                storageDetails = "Missing connection string";
+            const { decrypt } = await import("@/lib/crypto");
+            const {
+                BlobServiceClient,
+                StorageSharedKeyCredential,
+            } = await import("@azure/storage-blob");
+
+            const containerName = config?.azureContainerName || "uploads";
+            let blobServiceClient: any = null;
+
+            if (config?.azureAuthMethod === "CONNECTION_STRING") {
+                if (!config.azureConnectionStringEnc) {
+                    storageStatus = "Unhealthy";
+                    storageDetails = "Missing connection string";
+                } else {
+                    const connectionString = decrypt(config.azureConnectionStringEnc);
+                    blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+                }
+            } else if (config?.azureAuthMethod === "ACCOUNT_KEY") {
+                if (!config.azureAccountName || !config.azureAccountKeyEnc) {
+                    storageStatus = "Unhealthy";
+                    storageDetails = "Missing account name or account key";
+                } else {
+                    const accountKey = decrypt(config.azureAccountKeyEnc);
+                    const credential = new StorageSharedKeyCredential(config.azureAccountName, accountKey);
+                    blobServiceClient = new BlobServiceClient(`https://${config.azureAccountName}.blob.core.windows.net`, credential);
+                }
+            } else if (config?.azureAuthMethod === "SAS_TOKEN") {
+                if (!config.azureAccountName || !config.azureSasTokenEnc) {
+                    storageStatus = "Unhealthy";
+                    storageDetails = "Missing account name or SAS token";
+                } else {
+                    const sas = decrypt(config.azureSasTokenEnc);
+                    const raw = sas.startsWith("?") ? sas.substring(1) : sas;
+                    const url = `https://${config.azureAccountName}.blob.core.windows.net?${raw}`;
+                    blobServiceClient = new BlobServiceClient(url);
+                }
             } else {
-                const { decrypt } = await import("@/lib/crypto");
-                const { BlobServiceClient } = await import("@azure/storage-blob");
-                const connectionString = decrypt(config.azureConnectionStringEnc);
-                const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-                const containerClient = blobServiceClient.getContainerClient(config.azureContainerName || "uploads");
-                // Minimal check: list blobs (first page only)
+                storageStatus = "Unhealthy";
+                storageDetails = "Unknown Azure auth method";
+            }
+
+            if (blobServiceClient) {
+                const containerClient = blobServiceClient.getContainerClient(containerName);
                 const iterator = containerClient.listBlobsFlat().byPage({ maxPageSize: 1 });
                 await iterator.next();
-                storageDetails = `Container: ${config.azureContainerName || "uploads"}`;
+                storageDetails = `Container: ${containerName}`;
             }
         } catch (e) {
             storageStatus = "Unhealthy";
@@ -169,16 +202,16 @@ function formatUptime(seconds: number) {
 }
 
 async function resolveAppVersion() {
-    // Prefer explicit env var set at build/deploy time
-    if (process.env.APP_VERSION) return process.env.APP_VERSION;
-
-    // Fallback to package.json version if available
+    // Prefer package.json version if available for local dev accuracy
     try {
         const pkgPath = path.join(process.cwd(), "package.json");
         const content = await fs.promises.readFile(pkgPath, "utf-8");
         const pkg = JSON.parse(content);
-        return pkg.version ?? "unknown";
+        if (pkg.version) return pkg.version;
     } catch {
-        return "unknown";
+        // Fallback to env var
     }
+
+    if (process.env.APP_VERSION) return process.env.APP_VERSION;
+    return "unknown";
 }

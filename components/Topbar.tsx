@@ -1,11 +1,21 @@
+"use client";
+
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { usePathname } from "next/navigation";
 
 export function Topbar() {
+  const pathname = usePathname();
+  const isTools = pathname?.startsWith("/tools");
+
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-accent-2)]">Nessus</p>
-        <h1 className="text-3xl font-semibold">Security Remediation Command</h1>
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500 mb-0.5">
+          {isTools ? "CyberDefend" : "Nessus"}
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
+          {isTools ? "Security Command" : "Security Remediation Command"}
+        </h1>
       </div>
       <div className="flex items-center gap-4">
         <ThemeToggle />

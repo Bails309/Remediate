@@ -36,6 +36,12 @@ This document summarizes recommended deployment patterns for Remediate.
    - `LOCAL_AUTH_ENABLED` (Set to `true` for first-time login without SSO)
    - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS` / `LOCAL_AUTH_EMAIL` (Required if local auth enabled)
    - `PENTEST_BACKEND_URL` (Optional - Internal URL for backend)
+   - **Azure Storage Config** (If enabled):
+      - `AZURE_STORAGE_CONNECTION_STRING`
+      - `AZURE_STORAGE_ACCOUNT_NAME`
+      - `AZURE_STORAGE_ACCOUNT_KEY`
+      - `AZURE_STORAGE_SAS_TOKEN`
+      - `AZURE_STORAGE_CONTAINER_NAME`
 
 - `remediate-worker` (Background Jobs) - **Minimal Config**:
    - `DATABASE_URL` (Required)

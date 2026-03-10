@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/rbac";
-import { encrypt } from "@/lib/crypto";
+import { decrypt, encrypt, fingerprintSecret } from "@/lib/crypto";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
@@ -12,13 +12,30 @@ export async function GET() {
         where: { id: "singleton" },
     });
 
+    let azureAccountKeyFingerprint = "";
+    let azureSasTokenFingerprint = "";
+
+    try {
+        if (config?.azureAccountKeyEnc) {
+            azureAccountKeyFingerprint = fingerprintSecret(decrypt(config.azureAccountKeyEnc));
+        }
+        if (config?.azureSasTokenEnc) {
+            const sasToken = decrypt(config.azureSasTokenEnc);
+            azureSasTokenFingerprint = fingerprintSecret(sasToken.startsWith("?") ? sasToken.slice(1) : sasToken);
+        }
+    } catch (error) {
+        console.error("[Storage Config] Failed to compute stored credential fingerprint", error);
+    }
+
     return NextResponse.json({
         provider: config?.provider || "REDIS",
         azureAuthMethod: config?.azureAuthMethod || "CONNECTION_STRING",
         azureConnectionStringMasked: config?.azureConnectionStringEnc ? "********" : "",
         azureAccountName: config?.azureAccountName || "",
         azureAccountKeyMasked: config?.azureAccountKeyEnc ? "********" : "",
+        azureAccountKeyFingerprint,
         azureSasTokenMasked: config?.azureSasTokenEnc ? "********" : "",
+        azureSasTokenFingerprint,
         azureContainerName: config?.azureContainerName || "uploads",
     });
 }
@@ -48,10 +65,12 @@ export async function POST(request: NextRequest) {
         }
 
         if (azureAccountKey && azureAccountKey !== "********") {
+            console.info("[Storage Config] Saving Azure account key fingerprint:", fingerprintSecret(azureAccountKey));
             encryptedAccountKey = encrypt(azureAccountKey);
         }
 
         if (azureSasToken && azureSasToken !== "********") {
+            console.info("[Storage Config] Saving Azure SAS fingerprint:", fingerprintSecret(azureSasToken));
             encryptedSasToken = encrypt(azureSasToken);
         }
 
@@ -107,6 +126,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             provider: config.provider,
             azureContainerName: config.azureContainerName,
+            azureAccountKeyFingerprint: encryptedAccountKey && azureAccountKey && azureAccountKey !== "********"
+                ? fingerprintSecret(azureAccountKey)
+                : undefined,
+            azureSasTokenFingerprint: encryptedSasToken && azureSasToken && azureSasToken !== "********"
+                ? fingerprintSecret(azureSasToken.startsWith("?") ? azureSasToken.slice(1) : azureSasToken)
+                : undefined,
         });
     } catch (error) {
         console.error("Failed to save storage config", error);

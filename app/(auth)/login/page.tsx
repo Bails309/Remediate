@@ -48,6 +48,31 @@ export default function LoginPage() {
     };
   }, []);
 
+  // Auto-start SSO when the login page is opened with ?sso=keycloak (useful for portal tiles)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sso = params.get("sso");
+      const callback = params.get("callbackUrl") || "/dashboard";
+      if (sso === "keycloak") {
+        // Wait until we know whether SSO is enabled
+        const attempt = async () => {
+          // If authConfig is null, wait briefly for the enabled check to complete
+          for (let i = 0; i < 10 && authConfig === null; i++) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((r) => setTimeout(r, 150));
+          }
+          if (authConfig?.ssoEnabled) {
+            signIn("keycloak", { callbackUrl: callback });
+          }
+        };
+        attempt();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [authConfig]);
+
   return (
     <div className="grid min-h-screen place-items-center p-6">
       <div className="glass grid-texture w-full max-w-lg rounded-[32px] p-10 text-center">
@@ -64,7 +89,7 @@ export default function LoginPage() {
         </p>
         <div className="mt-8">
           {authConfig?.ssoEnabled && (
-            <Button onClick={() => signIn("keycloak", { callbackUrl: "/dashboard" })}>Continue with SSO</Button>
+            <Button onClick={() => signIn("keycloak", { callbackUrl: "/dashboard" })} title="Redirects to Keycloak to sign in via SSO. If you used a portal tile, use the login?sso=keycloak entrypoint to auto-start SSO.">Continue with SSO</Button>
           )}
         </div>
 
@@ -76,15 +101,17 @@ export default function LoginPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 placeholder="Username"
+                title="Local sign-in is intended for development or emergency access only."
               />
               <Input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Password"
                 type="password"
+                title="Local sign-in is intended for development or emergency access only."
               />
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button onClick={signInLocal}>Sign in locally</Button>
+              <Button onClick={signInLocal} title="Sign in using local credentials (dev only)">Sign in locally</Button>
             </div>
           </div>
         )}

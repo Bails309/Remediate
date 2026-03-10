@@ -90,7 +90,7 @@ model Vulnerability {
   collaborators            User[]               @relation("Collaborators")
   comments                 Comment[]
 
-  site                     Site                 @relation(fields: [siteId], references: [id])
+  site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation("Assignee", fields: [assigneeId], references: [id])
 
   @@index([siteId, pluginId, host, port])
@@ -137,7 +137,7 @@ model UploadHistory {
   fileName   String?
   rowCount   Int?
 
-  site       Site     @relation(fields: [siteId], references: [id])
+  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
   uploader   User     @relation("UploadedBy", fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@index([siteId, uploadDate])
@@ -215,7 +215,7 @@ model VulnerabilityHistory {
   pluginPublicationDate    DateTime?
   pluginModificationDate   DateTime?
 
-  site                     Site                 @relation(fields: [siteId], references: [id])
+  site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation(fields: [assigneeId], references: [id])
 
   @@index([lastSeenAt])

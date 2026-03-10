@@ -28,6 +28,7 @@ export function Select({
   disabled,
   placeholder = "Select...",
   direction = "down",
+  title,
   ...props
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -65,36 +66,42 @@ export function Select({
       <button
         type="button"
         disabled={disabled}
+        title={title}
         className={cn(
-          "flex h-12 w-full items-center justify-between rounded-full px-5 text-sm outline-none transition",
-          "bg-slate-50 border border-slate-200 text-slate-900 dark:bg-gray-900/50 dark:border-gray-600 dark:text-gray-100",
-          "focus:border-transparent focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400",
+          "flex h-12 w-full items-center justify-between rounded-2xl px-5 text-sm outline-none transition-all duration-300",
+          "bg-white/50 border border-slate-200 text-slate-900",
+          "dark:bg-white/5 dark:border-white/10 dark:text-gray-100 dark:shadow-[0_4px_12px_rgba(0,0,0,0.1)]",
+          "focus:border-emerald-500/40 focus:ring-4 focus:ring-emerald-500/10",
           disabled && "opacity-50 cursor-not-allowed",
-          isOpen && "border-transparent ring-2 ring-teal-500 dark:ring-teal-400"
+          isOpen && "border-emerald-500/40 ring-4 ring-emerald-500/10 shadow-lg",
+          className
         )}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <span className="truncate">{displayLabel}</span>
-        <ChevronDown className={cn("h-4 w-4 opacity-50 transition-transform", isOpen && "rotate-180")} />
+        <span className="truncate font-medium">{displayLabel}</span>
+        <ChevronDown className={cn("h-4 w-4 text-slate-400 dark:text-slate-500 transition-all duration-300", isOpen && "rotate-180 text-emerald-500")} />
       </button>
 
       {isOpen && (
         <div className={cn(
-          "absolute z-[60] w-full min-w-max overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xl transition-all dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100",
-          direction === "up" ? "bottom-full mb-2 origin-bottom" : "top-full mt-2 origin-top"
+          "absolute z-[100] w-full min-w-max overflow-hidden rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl text-slate-900 shadow-2xl animate-in fade-in zoom-in-95 duration-200",
+          "dark:border-white/10 dark:bg-[#0A0F1C]/95 dark:text-gray-100",
+          direction === "up" ? "bottom-full mb-3 origin-bottom" : "top-full mt-3 origin-top"
         )}>
-          <ul className="max-h-60 overflow-y-auto overscroll-contain py-1 custom-scrollbar">
+          <ul className="max-h-64 overflow-y-auto overscroll-contain p-1.5 custom-scrollbar">
             {options.map((opt) => (
               <li key={opt.value}>
                 <button
                   type="button"
                   disabled={opt.disabled}
                   className={cn(
-                    "w-full px-5 py-3 text-left text-sm transition-colors",
+                    "w-full px-4 py-3 text-left text-sm transition-all duration-200 rounded-xl",
                     opt.disabled
                       ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-slate-50 dark:hover:bg-gray-700",
-                    value === opt.value && "bg-slate-100 text-slate-900 dark:bg-gray-700 dark:text-gray-100"
+                      : "hover:bg-slate-100 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-400 group",
+                    value === opt.value
+                      ? "bg-slate-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
+                      : "text-slate-600 dark:text-slate-400"
                   )}
                   onClick={() => {
                     if (!opt.disabled) {
@@ -103,12 +110,17 @@ export function Select({
                     }
                   }}
                 >
-                  {opt.label}
+                  <div className="flex items-center justify-between">
+                    <span>{opt.label}</span>
+                    {value === opt.value && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                    )}
+                  </div>
                 </button>
               </li>
             ))}
             {options.length === 0 && (
-              <li className="px-5 py-3 text-sm opacity-50">No options</li>
+              <li className="px-5 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">No options available</li>
             )}
           </ul>
         </div>

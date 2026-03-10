@@ -1,3 +1,4 @@
+import React from "react";
 import { cn } from "@/components/cn";
 import type { ButtonHTMLAttributes } from "react";
 
@@ -7,10 +8,12 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
 };
 
-export function Button({ className, variant = "primary", size = "default", loading, children, ...props }: Props) {
-  return (
+export function Button({ className, variant = "primary", size = "default", loading, children, title, ...props }: Props) {
+  const isDisabled = Boolean(loading || props.disabled);
+  const button = (
     <button
-      disabled={loading || props.disabled}
+      aria-disabled={isDisabled}
+      disabled={isDisabled}
       className={cn(
         "inline-flex items-center justify-center rounded-full transition gap-2",
         size === "default" ? "px-4 py-2 text-sm font-semibold" : "px-3 py-1 text-xs font-medium",
@@ -32,5 +35,21 @@ export function Button({ className, variant = "primary", size = "default", loadi
       )}
       {children}
     </button>
+  );
+
+  // Many browsers do not show native tooltips for disabled buttons. If the
+  // button is disabled but a title is provided, wrap it in a span that has
+  // the title so the tooltip is visible on hover.
+  if (isDisabled && title) {
+    return (
+      <span title={title} className="inline-block">
+        {button}
+      </span>
+    );
+  }
+
+  return (
+    // Pass title to the button when not disabled so native tooltip appears
+    React.cloneElement(button, { title })
   );
 }

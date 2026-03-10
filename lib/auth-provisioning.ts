@@ -25,7 +25,23 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
     ];
 
     const userRolesFromSession = (user as unknown as { roles?: UserRole[] }).roles;
-    const roles: UserRole[] = userRolesFromSession ?? (isPrimaryAdmin ? adminRoles : (existingUser?.roles ?? defaultRoles));
+    const isNewUser = !existingUser;
+
+    let roles: UserRole[];
+    if (isNewUser) {
+        // New users from SSO should get the least-privileged default.
+        // Allow local/credentials flow to supply roles via session when present.
+        if (isPrimaryAdmin) {
+            roles = adminRoles;
+        } else if (isLocal) {
+            roles = userRolesFromSession ?? defaultRoles;
+        } else {
+            roles = defaultRoles;
+        }
+    } else {
+        // Existing users keep their stored roles; local session roles can override.
+        roles = userRolesFromSession ?? existingUser?.roles ?? defaultRoles;
+    }
 
     console.log(`[Auth] Provisioning ${authSource} user: ${email} with roles: ${roles.join(", ")}`);
 

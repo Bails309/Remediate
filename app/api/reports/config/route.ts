@@ -26,7 +26,26 @@ export async function GET() {
 
 export async function POST(request: Request) {
   await requireAdmin();
-  const payload = reportSchema.parse(await request.json());
+  const body = await request.json();
+
+  // Allow frontend to send a convenient `transport` value that maps to port/TLS
+  // behavior. Supported values: 'smtp' (25, no TLS), 'starttls' (587, STARTTLS),
+  // 'smtps' (465, implicit TLS), 'custom' (leave as-is).
+  if (body.transport) {
+    if (body.transport === "smtps") {
+      body.smtpPort = 465;
+      body.smtpSecure = true;
+    } else if (body.transport === "starttls") {
+      body.smtpPort = 587;
+      body.smtpSecure = false;
+    } else if (body.transport === "smtp") {
+      body.smtpPort = 25;
+      body.smtpSecure = false;
+    }
+    // if 'custom', expect smtpPort and smtpSecure to be provided by the client
+  }
+
+  const payload = reportSchema.parse(body);
   const timezone = payload.timezone || "UTC";
   if (timezone.toUpperCase() !== "UTC") {
     return NextResponse.json({ error: "Only UTC timezone is supported." }, { status: 400 });

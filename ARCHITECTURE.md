@@ -9,7 +9,8 @@ A high-level view of Remediate components and interactions.
 - **`worker` (BullMQ)**: Background job processor that consumes upload payloads from Redis and handles periodic maintenance (VACUUM, retention).
 - **`pentest-backend` (Node/Express)**: Isolated toolkit service that executes curated pentest binaries (Nmap, Nuclei, etc.). Accessed via signed JWTs from the main app.
 - **PostgreSQL (Prisma)**: Primary relational datastore for sites, vulnerabilities, scan history, and tool execution logs.
-- **Redis**: Short-lived payload storage, queue coordination via BullMQ, and worker heartbeats.
+- **Redis**: Job coordination via BullMQ, worker heartbeats, and optionally short-lived upload payload storage.
+- **Azure Blob Storage (Optional)**: Persistent storage for upload payloads as an alternative to Redis (recommended for production clusters).
 
 ## Data Flow
 1. **Ingestion**: User uploads Nessus CSV. The API saves the payload to Redis (2-hour TTL) and enqueues a BullMQ job.

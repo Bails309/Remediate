@@ -62,6 +62,14 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     let settled = false;
     let poller: ReturnType<typeof setInterval> | null = null;
 
+    const refreshHistory = async () => {
+      const history = await fetch("/api/uploads/history", { cache: "no-store" });
+      if (history.ok) {
+        const latest = (await history.json()) as Upload[];
+        setUploads(latest);
+      }
+    };
+
     const finalize = (status: "Completed" | "Failed") => {
       if (settled) {
         return;
@@ -75,6 +83,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
       } else {
         toast.error("Upload failed");
       }
+      refreshHistory();
     };
 
     const pollProgress = async () => {
@@ -146,7 +155,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     <div className="space-y-10">
       <div>
         <h2 className="text-2xl font-semibold">CSV Uploads</h2>
-        <p className="text-sm opacity-70">Upload Nessus remediation CSVs by site.</p>
+        <p className="text-sm opacity-70">Upload security remediation CSVs by site.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
@@ -161,12 +170,15 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
               ]}
             />
 
-            <label className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm">
+            <label
+              className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
+              title="Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
+            >
               <input type="file" accept=".csv" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
               {file ? file.name : "Drop or select CSV file"}
             </label>
 
-            <Button onClick={startUpload}>Start Upload</Button>
+            <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen site">Start Upload</Button>
           </div>
         </div>
 

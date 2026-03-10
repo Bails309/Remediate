@@ -35,11 +35,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await requireUser();
 
   try {
-    await prisma.$transaction([
-      prisma.vulnerability.deleteMany({ where: { siteId } }),
-      prisma.uploadHistory.deleteMany({ where: { siteId } }),
-      prisma.site.delete({ where: { id: siteId } }),
-    ]);
+    await prisma.site.delete({ where: { id: siteId } });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to delete site", error);

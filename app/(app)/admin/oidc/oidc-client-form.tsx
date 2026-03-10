@@ -38,6 +38,11 @@ export function OidcClientForm() {
     load();
   }, []);
 
+  const [origin, setOrigin] = useState<string>("");
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
   const updateField = (field: keyof OidcState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -90,7 +95,29 @@ export function OidcClientForm() {
         <h2 className="text-2xl font-semibold">SSO Configuration</h2>
         <p className="text-sm opacity-70">Manage Keycloak OIDC parameters securely.</p>
         <div className="mt-2 text-xs font-mono opacity-50 bg-white/5 p-2 rounded w-fit">
-          Callback URL: [your-domain]/api/auth/callback/keycloak
+          Callback URL: {origin ? `${origin}/api/auth/callback/keycloak` : "[your-domain]/api/auth/callback/keycloak"}
+        </div>
+        <div className="mt-1 text-xs opacity-70">
+          <span title="This is the Redirect URI that you must register in Keycloak for the Remediate client. It must match exactly when exchanging the authorization code.">Need help? Hover callback URL for details.</span>
+        </div>
+        <div className="mt-2 space-y-3">
+          <div className="text-sm opacity-70">
+            <strong>Preferred (recommended):</strong> Login entry — robust when used from portal tiles (lands in the app, verifies SSO is enabled, then triggers Keycloak).
+            <div className="mt-1 text-xs font-mono bg-white/5 p-2 rounded w-fit" title="Use this URL in portal tiles to auto-start SSO when users click the tile. Includes an optional callback query parameter.">
+              {origin
+                ? `${origin}/login?sso=keycloak&callbackUrl=${encodeURIComponent(origin + "/dashboard")}`
+                : "https://[your-domain]/login?sso=keycloak&callbackUrl=https%3A%2F%2F[your-domain]%2Fdashboard"}
+            </div>
+          </div>
+
+          <div className="text-sm opacity-70">
+            <strong>Alternate (advanced):</strong> Direct provider URL — canonical NextAuth entrypoint but may be affected by portal redirects or header stripping.
+            <div className="mt-1 text-xs font-mono bg-white/5 p-2 rounded w-fit" title="Direct NextAuth provider endpoint. Use when you need the canonical NextAuth signin endpoint; may be affected by portal redirect policies.">
+              {origin
+                ? `${origin}/api/auth/signin/keycloak?callbackUrl=${encodeURIComponent(origin + "/dashboard")}`
+                : "https://[your-domain]/api/auth/signin/keycloak?callbackUrl=https%3A%2F%2F[your-domain]%2Fdashboard"}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -146,8 +173,8 @@ export function OidcClientForm() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-4 border-t border-foreground/5 pt-6">
-          <Button onClick={save} className="bg-accent hover:bg-accent/90">Save Settings</Button>
-          <Button variant="outline" onClick={testConnection} loading={testing}>
+          <Button onClick={save} className="bg-accent hover:bg-accent/90" title="Save OIDC configuration">Save Settings</Button>
+          <Button variant="outline" onClick={testConnection} loading={testing} title="Attempt a simple OIDC discovery against the Issuer URL to validate connectivity">
             Test Connection
           </Button>
         </div>

@@ -17,15 +17,15 @@ const baseNav = [
 ];
 
 const adminNavItems = [
-  { href: "/uploads", label: "Uploads", icon: Upload },
-  { href: "/sites", label: "Sites", icon: Shield },
-  { href: "/admin/oidc", label: "Auth Settings", icon: Settings },
-  { href: "/admin/storage", label: "Storage Settings", icon: Database },
-  { href: "/admin/import", label: "Import Settings", icon: Settings },
-  { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox },
-  { href: "/admin/reports", label: "Reports", icon: Mail },
-  { href: "/admin/health", label: "System Health", icon: Activity },
-  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage CSV uploads and processing" },
+  { href: "/sites", label: "Sites", icon: Shield, title: "Manage tracked sites and their settings" },
+  { href: "/admin/oidc", label: "Auth Settings", icon: Settings, title: "Configure SSO / OIDC providers and callback URLs" },
+  { href: "/admin/storage", label: "Storage Settings", icon: Database, title: "Configure where uploaded scan files are stored (Redis or Azure Blob)" },
+  { href: "/admin/import", label: "Import Settings", icon: Settings, title: "CSV import behavior and thresholds" },
+  { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox, title: "Review failed uploads and retries" },
+  { href: "/admin/reports", label: "Reports", icon: Mail, title: "Configure weekly report recipients and SMTP settings" },
+  { href: "/admin/health", label: "System Health", icon: Activity, title: "Inspect background workers, DB, and Redis health" },
+  { href: "/admin/users", label: "Users", icon: Users, title: "Manage application users and roles" },
 ];
 
 const toolsNavItems = [
@@ -85,7 +85,9 @@ export function Sidebar({ session }: { session?: Session | null }) {
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[color:var(--color-accent-2)]">Remediate</p>
-          <p className="mt-1 text-xl font-bold tracking-tight">Nessus Triage</p>
+          <p className="mt-1 text-xl font-bold tracking-tight">
+            {pathname.startsWith("/tools") ? "CyberDefend" : "Nessus Triage"}
+          </p>
         </div>
       </div>
 
@@ -178,6 +180,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={item.title}
                     className={cn(
                       "flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium transition-all group ml-1",
                       active

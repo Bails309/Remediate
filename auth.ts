@@ -43,19 +43,39 @@ const result = NextAuth(async () => {
                 const now = Math.floor(Date.now() / 1000);
                 const ONE_HOUR = 3600;
 
-                // Initial sign-in or forced refresh
-                if (user || trigger === "update" || !token.lastRefreshed || (now - (token.lastRefreshed as number) > ONE_HOUR)) {
-                    const email = user?.email || token.email;
-                    if (email) {
-                        const dbUser = await prisma.user.findUnique({ where: { email } });
-                        if (dbUser) {
-                            token.roles = (dbUser as { roles: string[] }).roles;
-                            token.userId = dbUser.id;
-                            token.authSource = (dbUser as { authSource?: string }).authSource;
-                            token.lastRefreshed = now;
-                        }
+                const email = user?.email || token.email;
+
+                // If we have an email, check DB for the user so we can detect role/record updates
+                const dbUser = email ? await prisma.user.findUnique({ where: { email } }) : null;
+
+                // Refresh when:
+                // - initial sign-in (user present)
+                // - an explicit update trigger is provided
+                // - no lastRefreshed timestamp
+                // - more than ONE_HOUR has passed since last refresh
+                // - OR the user's roles in the DB differ from the token (so role changes apply immediately)
+                const tokenLastRefreshed = (token.lastRefreshed as number) || 0;
+
+                const dbRoles = (dbUser?.roles ?? []) as string[];
+                const tokenRoles = (token.roles as string[]) ?? [];
+                const sortArr = (arr: string[]) => arr.slice().sort();
+                const rolesChanged = JSON.stringify(sortArr(dbRoles)) !== JSON.stringify(sortArr(tokenRoles));
+
+                if (
+                    user ||
+                    trigger === "update" ||
+                    !token.lastRefreshed ||
+                    (now - tokenLastRefreshed > ONE_HOUR) ||
+                    rolesChanged
+                ) {
+                    if (dbUser) {
+                        token.roles = dbRoles;
+                        token.userId = dbUser.id;
+                        token.authSource = (dbUser as { authSource?: string }).authSource;
+                        token.lastRefreshed = now;
                     }
                 }
+
                 return token;
             },
             async session({ session, token }: { session: Session; token: JWT }) {

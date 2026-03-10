@@ -103,6 +103,7 @@
 
         console.log("[Migrate] Triggering Prisma Migrate Deploy (Re-entrant Rollup)...");
         execSync("npm run prisma migrate deploy", { stdio: "pipe" });
+
         console.log("[Migrate] Database is now up to date.");
       } finally {
         try {

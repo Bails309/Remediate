@@ -6,6 +6,7 @@ import { cn } from "@/components/cn";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { toast } from "sonner";
 
 export function StorageSettingsClient() {
@@ -18,7 +19,9 @@ export function StorageSettingsClient() {
     const [azureAuthMethod, setAzureAuthMethod] = useState<"CONNECTION_STRING" | "ACCOUNT_KEY" | "SAS_TOKEN">("CONNECTION_STRING");
     const [azureAccountName, setAzureAccountName] = useState("");
     const [azureAccountKey, setAzureAccountKey] = useState("");
+    const [azureAccountKeyFingerprint, setAzureAccountKeyFingerprint] = useState("");
     const [azureSasToken, setAzureSasToken] = useState("");
+    const [azureSasTokenFingerprint, setAzureSasTokenFingerprint] = useState("");
     const [azureContainerName, setAzureContainerName] = useState("uploads");
 
     useEffect(() => {
@@ -32,7 +35,9 @@ export function StorageSettingsClient() {
                     setAzureConnectionString(data.azureConnectionStringMasked || "");
                     setAzureAccountName(data.azureAccountName || "");
                     setAzureAccountKey(data.azureAccountKeyMasked || "");
+                    setAzureAccountKeyFingerprint(data.azureAccountKeyFingerprint || "");
                     setAzureSasToken(data.azureSasTokenMasked || "");
+                    setAzureSasTokenFingerprint(data.azureSasTokenFingerprint || "");
                     setAzureContainerName(data.azureContainerName || "uploads");
                 }
             } catch (err) {
@@ -109,6 +114,14 @@ export function StorageSettingsClient() {
 
             if (!res.ok) throw new Error("Failed to save configuration");
 
+            const data = await res.json();
+            if (data.azureAccountKeyFingerprint !== undefined) {
+                setAzureAccountKeyFingerprint(data.azureAccountKeyFingerprint || "");
+            }
+            if (data.azureSasTokenFingerprint !== undefined) {
+                setAzureSasTokenFingerprint(data.azureSasTokenFingerprint || "");
+            }
+
             toast.success("Storage settings saved successfully");
         } catch (e) {
             toast.error(e instanceof Error ? e.message : "An unexpected error occurred");
@@ -184,9 +197,12 @@ export function StorageSettingsClient() {
                     ) : (
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
-                                    Azure Authentication Method
-                                </label>
+                                <div className="flex items-center gap-2">
+                                    <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+                                        Azure Authentication Method
+                                    </label>
+                                    <InfoTooltip text="Choose how to authenticate to Azure Blob: Connection String, Account Key, or SAS token. Values are encrypted before storage." />
+                                </div>
                                 <div className="flex gap-2 mb-4">
                                     <button type="button" onClick={() => setAzureAuthMethod("CONNECTION_STRING")}
                                         className={cn("px-3 py-2 rounded-md border", azureAuthMethod === "CONNECTION_STRING" ? "bg-[color:var(--color-accent)] text-white" : "bg-white dark:bg-gray-900")}
@@ -228,6 +244,11 @@ export function StorageSettingsClient() {
                                             Account Key
                                         </label>
                                         <Input type="password" value={azureAccountKey} onChange={(e) => setAzureAccountKey(e.target.value)} placeholder="account key" />
+                                        {azureAccountKeyFingerprint ? (
+                                            <p className="mt-2 text-xs text-foreground/60">
+                                                Stored key fingerprint: <span className="font-mono">{azureAccountKeyFingerprint}</span>
+                                            </p>
+                                        ) : null}
                                         <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
                                             <ShieldCheck size={14} />
                                             Account key will be encrypted before storage.
@@ -246,6 +267,11 @@ export function StorageSettingsClient() {
                                             SAS Token
                                         </label>
                                         <Input type="password" value={azureSasToken} onChange={(e) => setAzureSasToken(e.target.value)} placeholder="?sv=...&ss=..." />
+                                        {azureSasTokenFingerprint ? (
+                                            <p className="mt-2 text-xs text-foreground/60">
+                                                Stored SAS fingerprint: <span className="font-mono">{azureSasTokenFingerprint}</span>
+                                            </p>
+                                        ) : null}
                                         <div className="mt-2 flex items-center gap-2 text-xs text-[color:var(--color-accent)] font-medium bg-[color:var(--color-accent)]/10 px-3 py-2 rounded-xl border border-[color:var(--color-accent)]/20">
                                             <ShieldCheck size={14} />
                                             SAS token will be encrypted before storage.
@@ -266,7 +292,7 @@ export function StorageSettingsClient() {
                                 />
                             </div>
 
-                            <div className="pt-2">
+                            <div className="pt-2 flex items-center gap-2">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -280,6 +306,7 @@ export function StorageSettingsClient() {
                                 >
                                     Test Azure Connection
                                 </Button>
+                                <InfoTooltip text="Probes the storage container with the provided credentials to verify connectivity and permissions." />
                             </div>
                         </div>
                     )}

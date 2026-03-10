@@ -1,11 +1,25 @@
-import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
+import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from "@azure/storage-blob";
 import { prisma } from "./prisma";
-import { decrypt } from "./crypto";
+import { decrypt, fingerprintSecret } from "./crypto";
 
 export interface StorageProvider {
     save(key: string, content: string): Promise<void>;
     read(key: string): Promise<string>;
     delete(key: string): Promise<void>;
+}
+
+async function streamToText(stream: NodeJS.ReadableStream): Promise<string> {
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of stream) {
+        if (typeof chunk === "string") {
+            chunks.push(Buffer.from(chunk, "utf8"));
+        } else {
+            chunks.push(Buffer.from(chunk));
+        }
+    }
+
+    return Buffer.concat(chunks).toString("utf8");
 }
 
 class AzureBlobProvider implements StorageProvider {
@@ -18,15 +32,23 @@ class AzureBlobProvider implements StorageProvider {
     async save(key: string, content: string): Promise<void> {
         await this.client.createIfNotExists();
         const blockBlobClient = this.client.getBlockBlobClient(key);
-        await blockBlobClient.upload(content, content.length);
+        await blockBlobClient.upload(content, Buffer.byteLength(content, "utf8"));
     }
 
     async read(key: string): Promise<string> {
         const blockBlobClient = this.client.getBlockBlobClient(key);
         const downloadResponse = await blockBlobClient.download(0);
+
+        if (downloadResponse.readableStreamBody) {
+            return streamToText(downloadResponse.readableStreamBody);
+        }
+
         const body = await downloadResponse.blobBody;
-        if (!body) throw new Error("Azure blob downloaded body is empty");
-        return body.text();
+        if (body) {
+            return body.text();
+        }
+
+        throw new Error("Azure blob downloaded body is empty");
     }
 
     async delete(key: string): Promise<void> {
@@ -68,6 +90,16 @@ export async function getStorageProvider(): Promise<StorageProvider> {
         where: { id: "singleton" },
     });
 
+    console.info("[Storage] Loaded config", {
+        provider: config?.provider ?? null,
+        azureAuthMethod: config?.azureAuthMethod ?? null,
+        azureAccountName: config?.azureAccountName ?? null,
+        azureContainerName: config?.azureContainerName ?? null,
+        hasConnectionString: Boolean(config?.azureConnectionStringEnc),
+        hasAccountKey: Boolean(config?.azureAccountKeyEnc),
+        hasSasToken: Boolean(config?.azureSasTokenEnc),
+    });
+
     // Azure Provider
     if (config?.provider === "AZURE") {
         try {
@@ -76,15 +108,23 @@ export async function getStorageProvider(): Promise<StorageProvider> {
 
             if (config.azureAuthMethod === "CONNECTION_STRING" && config.azureConnectionStringEnc) {
                 const connectionString = decrypt(config.azureConnectionStringEnc);
+                console.info("Azure storage: using Connection String (masked)", connectionString ? `****${connectionString.slice(-8)}` : "(none)");
                 blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
             } else if (config.azureAuthMethod === "ACCOUNT_KEY" && config.azureAccountName && config.azureAccountKeyEnc) {
-                const { StorageSharedKeyCredential } = await import("@azure/storage-blob");
                 const accountKey = decrypt(config.azureAccountKeyEnc);
+                console.info("Azure storage: using Account Key for account", config.azureAccountName);
+                const maskedKey = accountKey ? `****${accountKey.slice(-8)}` : undefined;
+                console.info("Azure storage: accountKey (masked):", maskedKey);
+                console.info("Azure storage: accountKey fingerprint:", fingerprintSecret(accountKey));
                 const credential = new StorageSharedKeyCredential(config.azureAccountName, accountKey);
                 blobServiceClient = new BlobServiceClient(`https://${config.azureAccountName}.blob.core.windows.net`, credential);
             } else if (config.azureAuthMethod === "SAS_TOKEN" && config.azureAccountName && config.azureSasTokenEnc) {
                 const sasToken = decrypt(config.azureSasTokenEnc);
-                const url = `https://${config.azureAccountName}.blob.core.windows.net?${sasToken.startsWith("?") ? sasToken.substring(1) : sasToken}`;
+                const raw = sasToken.startsWith("?") ? sasToken.substring(1) : sasToken;
+                const masked = raw ? `...${raw.slice(-12)}` : undefined;
+                console.info("Azure storage: using SAS token (masked):", masked);
+                console.info("Azure storage: SAS fingerprint:", fingerprintSecret(raw));
+                const url = `https://${config.azureAccountName}.blob.core.windows.net?${raw}`;
                 blobServiceClient = new BlobServiceClient(url);
             }
 
@@ -92,11 +132,49 @@ export async function getStorageProvider(): Promise<StorageProvider> {
                 const containerClient = blobServiceClient.getContainerClient(containerName);
                 return new AzureBlobProvider(containerClient);
             }
-        } catch (e) {
+        } catch (e: any) {
+            // Surface any HTTP auth hints from Azure SDK errors
+            try {
+                const hdrs = e?.response?.headers || e?.details?.response?.headers;
+                if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
+                    console.error('Azure storage auth failure, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
+                }
+            } catch (_) {
+                // ignore
+            }
             console.error("Failed to initialize Azure storage provider, falling back to Redis storage", e);
         }
+    }
+
+    if (config?.provider !== "AZURE") {
+        console.info("[Storage] Falling back to Redis because provider is not AZURE", {
+            provider: config?.provider ?? null,
+        });
     }
 
     // Explicit Redis Provider or Default
     return new RedisStorageProvider();
 }
+
+// Augment Azure provider operations with richer error logging
+// so that transient auth issues can be diagnosed with response headers.
+const enhanceAzureErrors = (fn: (...args: any[]) => Promise<any>) => {
+    return async function (this: any, ...args: any[]) {
+        try {
+            return await fn.apply(this, args);
+        } catch (e: any) {
+            try {
+                const hdrs = e?.response?.headers || e?.details?.response?.headers;
+                if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
+                    console.error('Azure storage operation failed, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
+                }
+            } catch (_) {}
+            throw e;
+        }
+    };
+};
+
+// Wrap AzureBlobProvider methods to log headers on failure while preserving `this`
+AzureBlobProvider.prototype.save = enhanceAzureErrors(AzureBlobProvider.prototype.save as any) as any;
+AzureBlobProvider.prototype.read = enhanceAzureErrors(AzureBlobProvider.prototype.read as any) as any;
+AzureBlobProvider.prototype.delete = enhanceAzureErrors(AzureBlobProvider.prototype.delete as any) as any;

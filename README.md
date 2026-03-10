@@ -86,9 +86,14 @@ Pentest toolkit:
 
 AUTH_SECRET is used to encrypt OIDC config stored in Postgres.
 
-External DB/Redis support:
-- Set DATABASE_URL and REDIS_URL to your external services.
+External DB/Redis/Storage support:
+- Set `DATABASE_URL` and `REDIS_URL` to your external services.
 - The app does not depend on container-local storage for either service.
+- **Azure Blob Storage**: Optionally use Azure Blob Storage for persistent upload storage. Configure via the Admin dashboard or env vars:
+  - `AZURE_STORAGE_CONNECTION_STRING`
+  - `AZURE_STORAGE_ACCOUNT_NAME` / `AZURE_STORAGE_ACCOUNT_KEY`
+  - `AZURE_STORAGE_SAS_TOKEN`
+  - `AZURE_STORAGE_CONTAINER_NAME` (required for Azure)
 
 ### Redis Requirements
 - **Modules**: None required.
@@ -136,6 +141,26 @@ npx prisma migrate deploy
 - Keycloak OIDC is configured via .env or the Admin UI.
 - If you prefer UI configuration, set the values in the Admin page and redeploy or restart to pick them up.
 
+To create a portal tile (for example Microsoft MyApplications) that immediately starts SSO when clicked, point the tile at your app's NextAuth provider signin URL. Example:
+
+```
+https://<your-domain>/api/auth/signin/keycloak
+
+// Optionally include a callbackUrl to return users to a specific page after sign-in:
+https://<your-domain>/api/auth/signin/keycloak?callbackUrl=https%3A%2F%2F<your-domain>%2Fdashboard
+```
+
+The provider id (`keycloak` above) matches the provider added in `auth.ts`.
+
+Alternatively, you can point portal tiles at the login page which will automatically start the Keycloak flow and is often more reliable when embedded in portals:
+
+```
+https://<your-domain>/login?sso=keycloak
+
+// With a callback:
+https://<your-domain>/login?sso=keycloak&callbackUrl=https%3A%2F%2F<your-domain>%2Fdashboard
+```
+
 ## Pentest Toolkit
 - The pentest backend runs in a separate container without host-exposed ports.
 - Tools are defined in `pentest-backend/config/tools.json` and mounted into the backend container.
@@ -178,3 +203,11 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - prisma/: Prisma schema
 - Dockerfile: Multi-stage container build
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
+
+## Release notes
+
+- v1.1.6 — 2026-03-10
+  - Fix: Azure Blob upload/download Node runtime bugs and unified SDK imports (resolves unsigned request errors).
+  - Fix: JWT/session role propagation now picks up DB role changes immediately (no sign-out required).
+  - Fix: Health checks extended to validate Account Key and SAS Token Azure auth methods.
+  - Misc: Worker/prisma startup improvements and assorted bug fixes.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { toast } from "sonner";
-import { LogIn, Key, RefreshCw, Check } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check, Trash2 } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -94,6 +94,30 @@ export function UsersClient() {
             toast.error(error.message);
         } finally {
             setUpdatingId(null);
+        }
+    };
+
+    const deleteUser = async (user: User) => {
+        const ok = confirm(`Delete user ${user.name}? This action cannot be undone.`);
+        if (!ok) return;
+
+        try {
+            const res = await fetch("/api/admin/users", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: user.id }),
+            });
+
+            if (!res.ok) {
+                const payload = await res.json();
+                throw new Error(payload.error || "Failed to delete user");
+            }
+
+            toast.success("User deleted");
+            setUsers(prev => prev.filter(u => u.id !== user.id));
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error(error.message);
         }
     };
 
@@ -201,17 +225,27 @@ export function UsersClient() {
                                             <ClientDate date={user.createdAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric' }} />
                                         </td>
                                         <td className="px-6 py-3 text-right">
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => updateRoles(user)}
-                                                disabled={updatingId === user.id}
-                                                className="glass glass-edge text-xs font-medium transition-all hover:text-[color:var(--color-accent)]"
-                                            >
-                                                {updatingId === user.id ? (
-                                                    <RefreshCw className="h-3 w-3 animate-spin mr-2" />
-                                                ) : null}
-                                                Save roles
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => updateRoles(user)}
+                                                    disabled={updatingId === user.id}
+                                                    className="glass glass-edge text-xs font-medium transition-all hover:text-[color:var(--color-accent)]"
+                                                >
+                                                    {updatingId === user.id ? (
+                                                        <RefreshCw className="h-3 w-3 animate-spin mr-2" />
+                                                    ) : null}
+                                                    Save roles
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => deleteUser(user)}
+                                                    className="text-rose-500 hover:bg-rose-50"
+                                                >
+                                                    <Trash2 className="h-3 w-3 mr-2" />
+                                                    Delete
+                                                </Button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

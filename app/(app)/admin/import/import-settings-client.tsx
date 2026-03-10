@@ -103,6 +103,7 @@ export function ImportSettingsClient() {
                         min="0"
                         value={pluginGracePeriodDays}
                         onChange={(e) => setPluginGracePeriodDays(parseInt(e.target.value) || 0)}
+                        title="Number of days to ignore recently-published plugins during CSV import. Set to 0 to process all findings immediately."
                     />
                     <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
                         Vulnerabilities published within this window will be ignored during CSV upload to allow automated patching tools time to remediate them. Set to 0 to ingest all findings immediately.

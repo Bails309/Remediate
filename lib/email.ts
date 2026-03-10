@@ -16,15 +16,29 @@ export async function sendEmail(
       settings.smtpUser && settings.smtpPass
         ? { user: settings.smtpUser, pass: settings.smtpPass }
         : undefined,
+    tls: {
+      // Allow overriding TLS verification in environments where the SMTP server
+      // uses self-signed certs. Default is to verify.
+      rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED === "false" ? false : true,
+    },
   });
 
-  await transporter.sendMail({
-    from: settings.smtpFrom,
-    to,
-    subject,
-    text,
-    html,
-  });
+  try {
+    await transporter.sendMail({
+      from: settings.smtpFrom,
+      to,
+      subject,
+      text,
+      html,
+    });
+  } catch (err) {
+    // Improve observability: include non-sensitive connection info to help
+    // diagnose misconfiguration (auth required vs TLS mismatch) without
+    // logging credentials.
+    console.error(`Failed to send mail to ${to} via ${settings.smtpHost}:${settings.smtpPort} (secure=${settings.smtpSecure})`);
+    console.error(err);
+    throw err;
+  }
 }
 
 export async function sendReportEmail(

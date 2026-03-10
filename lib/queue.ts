@@ -1,7 +1,7 @@
 import { Queue, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 
-const QUEUE_NAME = "{upload-queue}";
+export const QUEUE_NAME = "{upload-queue}";
 
 export const uploadQueue = new Queue(QUEUE_NAME, {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

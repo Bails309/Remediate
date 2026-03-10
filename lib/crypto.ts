@@ -30,3 +30,7 @@ export function decrypt(cipherText: string) {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
+
+export function fingerprintSecret(value: string) {
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex").slice(0, 12);
+}

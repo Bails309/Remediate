@@ -91,6 +91,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isUpdatingCollaboration, setIsUpdatingCollaboration] = useState(false);
 
+  const roles = session?.user?.roles ?? [];
+  const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  const isAssignee = Boolean(session?.user?.id && detail?.assigneeId && session.user.id === detail.assigneeId);
+  const canEditCollaboration = isWebAdmin || isAssignee;
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     if (siteId) params.set("siteId", siteId);
@@ -667,8 +671,15 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             <Button
               size="sm"
               variant={detail?.askForHelp ? "outline" : "primary"}
-              onClick={toggleAskForHelp}
-              disabled={isUpdatingCollaboration}
+              onClick={() => {
+                if (!canEditCollaboration) {
+                  toast.error("Only the assignee or an admin can toggle collaboration");
+                  return;
+                }
+                void toggleAskForHelp();
+              }}
+              disabled={isUpdatingCollaboration || !canEditCollaboration}
+              title={!canEditCollaboration ? "Only the assignee or an admin can toggle collaboration" : undefined}
             >
               {detail?.askForHelp ? "Disable Help" : "Ask for Help"}
             </Button>
@@ -680,13 +691,20 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Collaborators</p>
                 <div className="flex flex-wrap gap-2">
                   {users.filter(u => u.id !== detail.assigneeId).map(user => {
-                    const isCollaborator = detail.collaborators.some(c => c.id === user.id);
+                    const isCollaborator = (detail?.collaborators ?? []).some(c => c.id === user.id);
                     return (
                       <Badge
                         key={user.id}
                         tone={isCollaborator ? "low" : "neutral"}
                         className="cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => updateCollaborators(user.id, isCollaborator)}
+                        onClick={() => {
+                          if (!canEditCollaboration) {
+                            toast.error("Only the assignee or an admin can modify collaborators");
+                            return;
+                          }
+                          void updateCollaborators(user.id, isCollaborator);
+                        }}
+                        title={!canEditCollaboration ? "Only the assignee or an admin can modify collaborators" : undefined}
                       >
                         {user.name} {isCollaborator ? "✓" : "+"}
                       </Badge>

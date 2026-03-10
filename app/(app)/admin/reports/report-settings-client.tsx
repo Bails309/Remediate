@@ -34,6 +34,15 @@ export function ReportSettingsClient() {
     smtpFrom: "",
   });
 
+  const detectTransport = (port: number, secure: boolean) => {
+    if (port === 465 && secure) return "smtps";
+    if (port === 587 && !secure) return "starttls";
+    if (port === 25 && !secure) return "smtp";
+    return "custom";
+  };
+
+  const [transport, setTransport] = useState<string>(detectTransport(587, false));
+
   useEffect(() => {
     const load = async () => {
       const response = await fetch("/api/reports/config");
@@ -54,6 +63,7 @@ export function ReportSettingsClient() {
             smtpSecure: data.config.smtpSecure,
             smtpFrom: data.config.smtpFrom,
           });
+          setTransport(detectTransport(data.config.smtpPort, data.config.smtpSecure));
         }
       }
       setLoading(false);
@@ -71,6 +81,7 @@ export function ReportSettingsClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        transport,
         smtpPort: Number(form.smtpPort),
         hour: Number(form.hour),
         minute: Number(form.minute),
@@ -154,6 +165,7 @@ export function ReportSettingsClient() {
               value={form.recipients}
               onChange={(event) => updateField("recipients", event.target.value)}
               placeholder="Recipients (comma separated)"
+              title="Comma-separated email addresses. Example: alice@example.com, bob@example.com"
             />
           </div>
           <div>
@@ -168,14 +180,47 @@ export function ReportSettingsClient() {
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              SMTP Port
+              Transport
             </label>
-            <Input
-              value={String(form.smtpPort)}
-              onChange={(event) => updateField("smtpPort", event.target.value)}
-              placeholder="SMTP Port"
+            <Select
+              value={transport}
+              onChange={(val) => {
+                const t = String(val);
+                setTransport(t);
+                if (t === "smtps") {
+                  updateField("smtpPort", 465);
+                  updateField("smtpSecure", true);
+                } else if (t === "starttls") {
+                  updateField("smtpPort", 587);
+                  updateField("smtpSecure", false);
+                } else if (t === "smtp") {
+                  updateField("smtpPort", 25);
+                  updateField("smtpSecure", false);
+                }
+                // custom leaves existing values
+              }}
+              title="Choose how the SMTP connection is secured. STARTTLS (port 587) upgrades the connection; SMTPS (port 465) uses implicit TLS. Use Custom to specify a non-standard port or mode."
+              options={[
+                { label: "SMTP (no TLS) — port 25", value: "smtp" },
+                { label: "STARTTLS (SMTP) — port 587", value: "starttls" },
+                { label: "SMTPS (implicit TLS) — port 465", value: "smtps" },
+                { label: "Custom", value: "custom" },
+              ]}
             />
           </div>
+          {transport === "custom" && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                SMTP Port
+              </label>
+              <Input
+                value={String(form.smtpPort)}
+                onChange={(event) => updateField("smtpPort", Number(event.target.value))}
+                placeholder="SMTP Port"
+                title="Specify a custom SMTP port when using non-standard ports or Custom transport."
+              />
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               SMTP Username
@@ -207,14 +252,7 @@ export function ReportSettingsClient() {
               placeholder="From Address"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={form.smtpSecure}
-              onChange={(event) => updateField("smtpSecure", event.target.checked)}
-            />
-            <span className="text-sm">Use TLS</span>
-          </div>
+          {/* TLS behavior is derived from the Transport selection above. */}
           <div className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -226,8 +264,8 @@ export function ReportSettingsClient() {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button onClick={save}>Save Settings</Button>
-          <Button variant="outline" onClick={sendTest}>
+          <Button onClick={save} title="Save report and SMTP configuration">Save Settings</Button>
+          <Button variant="outline" onClick={sendTest} title="Send a one-off test email using the current SMTP settings">
             Send Test Email
           </Button>
         </div>

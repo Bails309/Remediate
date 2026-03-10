@@ -14,6 +14,7 @@ import {
     AlertCircle,
     Cloud
 } from "lucide-react";
+import { cn } from "@/components/cn";
 
 interface HealthData {
     database: { status: string; latency: string; type: string };
@@ -114,7 +115,10 @@ export function HealthClient() {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className={cn(
+                "grid gap-6 md:grid-cols-2",
+                data.storage.provider === "AZURE" ? "lg:grid-cols-4" : "lg:grid-cols-3"
+            )}>
                 {/* Database */}
                 <HealthCard
                     title="Database"

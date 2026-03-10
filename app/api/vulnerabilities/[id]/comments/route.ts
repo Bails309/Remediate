@@ -22,7 +22,7 @@ export async function GET(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const isAdmin = (user.roles as string[]).some((role) =>
+    const isAdmin = ((user.roles as string[]) || []).some((role) =>
         (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
@@ -37,7 +37,7 @@ export async function GET(
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
-    const isCollaborator = (vulnerability.collaborators as { id: string }[]).some((c) => c.id === user.id);
+    const isCollaborator = ((vulnerability.collaborators as { id: string }[]) || []).some((c) => c.id === user.id);
     const isAssignee = vulnerability.assigneeId === user.id;
 
     // Visibility Rules:

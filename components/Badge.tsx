@@ -5,9 +5,10 @@ type Props = {
   tone?: "critical" | "high" | "medium" | "low" | "neutral";
   className?: string;
   onClick?: () => void;
+  title?: string;
 };
 
-export function Badge({ children, tone = "neutral", className, onClick }: Props) {
+export function Badge({ children, tone = "neutral", className, onClick, title }: Props) {
   const toneClass =
     tone === "critical"
       ? "bg-[#3a0f0f] text-[#ffb4a4]"
