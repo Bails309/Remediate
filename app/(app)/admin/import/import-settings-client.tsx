@@ -5,6 +5,7 @@ import { Save, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/components/cn";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
+import { Button } from "@/components/Button";
 
 export function ImportSettingsClient() {
     const [isSaving, setIsSaving] = useState(false);
@@ -111,21 +112,14 @@ export function ImportSettingsClient() {
                 </div>
 
                 <div className="pt-4">
-                    <button
+                    <Button
                         type="submit"
-                        disabled={isSaving}
-                        className={cn(
-                            "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[color:var(--color-accent)] font-semibold text-white transition-opacity",
-                            isSaving ? "opacity-50 cursor-not-allowed" : "hover:opacity-90",
-                        )}
+                        loading={isSaving}
+                        className="w-full h-12 rounded-full"
                     >
-                        {isSaving ? (
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        ) : (
-                            <Save size={18} />
-                        )}
+                        <Save size={18} />
                         Save Configuration
-                    </button>
+                    </Button>
                 </div>
             </form>
         </Card>

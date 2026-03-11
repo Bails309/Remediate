@@ -61,25 +61,25 @@ export function StorageSettingsClient() {
     const testConnection = async () => {
         if (provider !== "AZURE") return;
         setTesting(true);
-            try {
-                const body: AzureTestBody = { containerName: azureContainerName };
-                if (azureAuthMethod === "CONNECTION_STRING") {
-                    body.connectionString = azureConnectionString;
-                } else if (azureAuthMethod === "ACCOUNT_KEY") {
-                    body.azureAuthMethod = "ACCOUNT_KEY";
-                    body.accountName = azureAccountName;
-                    body.accountKey = azureAccountKey;
-                } else if (azureAuthMethod === "SAS_TOKEN") {
-                    body.azureAuthMethod = "SAS_TOKEN";
-                    body.accountName = azureAccountName;
-                    body.sasToken = azureSasToken;
-                }
+        try {
+            const body: AzureTestBody = { containerName: azureContainerName };
+            if (azureAuthMethod === "CONNECTION_STRING") {
+                body.connectionString = azureConnectionString;
+            } else if (azureAuthMethod === "ACCOUNT_KEY") {
+                body.azureAuthMethod = "ACCOUNT_KEY";
+                body.accountName = azureAccountName;
+                body.accountKey = azureAccountKey;
+            } else if (azureAuthMethod === "SAS_TOKEN") {
+                body.azureAuthMethod = "SAS_TOKEN";
+                body.accountName = azureAccountName;
+                body.sasToken = azureSasToken;
+            }
 
-                const res = await fetch("/api/admin/storage/test", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body),
-                });
+            const res = await fetch("/api/admin/storage/test", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
 
             const data = await res.json();
             if (res.ok) {
@@ -98,20 +98,20 @@ export function StorageSettingsClient() {
         e.preventDefault();
         setIsSaving(true);
 
-            try {
-                const payload: {
-                    provider: string;
-                    azureAuthMethod: string;
-                    azureContainerName: string;
-                    azureConnectionString?: string;
-                    azureAccountName?: string;
-                    azureAccountKey?: string;
-                    azureSasToken?: string;
-                } = {
-                    provider,
-                    azureAuthMethod,
-                    azureContainerName,
-                };
+        try {
+            const payload: {
+                provider: string;
+                azureAuthMethod: string;
+                azureContainerName: string;
+                azureConnectionString?: string;
+                azureAccountName?: string;
+                azureAccountKey?: string;
+                azureSasToken?: string;
+            } = {
+                provider,
+                azureAuthMethod,
+                azureContainerName,
+            };
 
             if (azureAuthMethod === "CONNECTION_STRING") {
                 payload.azureConnectionString = azureConnectionString;
@@ -331,7 +331,7 @@ export function StorageSettingsClient() {
                     <div className="pt-6 border-t border-slate-200 dark:border-gray-800">
                         <Button
                             type="submit"
-                            className="bg-accent hover:bg-accent/90 px-8 rounded-full h-12"
+                            className="px-8 rounded-full h-12"
                             loading={isSaving}
                         >
                             <Save size={18} className="mr-2" />

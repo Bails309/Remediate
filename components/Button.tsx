@@ -18,9 +18,10 @@ export function Button({ className, variant = "primary", size = "default", loadi
         "inline-flex items-center justify-center rounded-full transition gap-2",
         size === "default" ? "px-4 py-2 text-sm font-semibold" : "px-3 py-1 text-xs font-medium",
         "disabled:cursor-not-allowed disabled:opacity-60",
-        variant === "primary" && "bg-[color:var(--color-accent)] text-white hover:opacity-90",
+        variant === "primary" && "bg-gradient-to-br from-cyan-600/20 to-cyan-700/20 border border-cyan-500/30 text-cyan-700 shadow-[0_4px_12px_rgba(0,180,255,0.1)] hover:from-cyan-600/30 hover:to-cyan-700/30 hover:shadow-[0_4px_20px_rgba(0,180,255,0.2)] active:scale-[0.98]",
+        variant === "primary" && "dark:from-[#00C8FF]/15 dark:to-[#00C8FF]/5 dark:border-[#00C8FF]/30 dark:text-[#00C8FF] dark:shadow-[0_0_20px_rgba(0,200,255,0.1)] dark:hover:from-[#00C8FF]/25 dark:hover:to-[#00C8FF]/15 dark:hover:shadow-[0_0_30px_rgba(0,200,255,0.2)]",
         variant === "outline" &&
-        "border border-slate-300 bg-transparent text-slate-700 rounded-md hover:bg-slate-50 transition-colors",
+        "border border-slate-300 bg-transparent text-slate-700 rounded-md hover:bg-slate-50 transition-all",
         variant === "outline" && "dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800",
         variant === "ghost" && "text-[color:var(--color-foreground)] hover:bg-[color:var(--color-muted)]",
         className

@@ -173,7 +173,7 @@ export function OidcClientForm() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-4 border-t border-foreground/5 pt-6">
-          <Button onClick={save} className="bg-accent hover:bg-accent/90" title="Save OIDC configuration">Save Settings</Button>
+          <Button onClick={save} title="Save OIDC configuration">Save Settings</Button>
           <Button variant="outline" onClick={testConnection} loading={testing} title="Attempt a simple OIDC discovery against the Issuer URL to validate connectivity">
             Test Connection
           </Button>

@@ -5,8 +5,8 @@
   --foreground: #0f172a;
   --card: rgba(255, 255, 255, 0.85);
   --muted: rgba(255, 255, 255, 0.5);
-  --accent: #6366f1;
-  --accent-2: #0d9488;
+  --accent: #0ea5e9;
+  --accent-2: #06b6d4;
   --border: rgba(0, 0, 0, 0.08);
   --border-specular: rgba(255, 255, 255, 1);
   --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
@@ -19,7 +19,7 @@
   --foreground: #f8fafc;
   --card: rgba(30, 41, 59, 0.7);
   --muted: rgba(30, 41, 59, 0.2);
-  --accent: #818cf8;
+  --accent: #00C8FF;
   --accent-2: #2dd4bf;
   --border: rgba(255, 255, 255, 0.1);
   --border-specular: rgba(255, 255, 255, 0.05);
