@@ -51,6 +51,15 @@ export function TrendChart({ data }: { data: TrendData[] }) {
                             backdropFilter: "blur(24px)",
                             color: "var(--color-foreground)"
                         }}
+                        labelFormatter={(val) => {
+                            if (!val) return "";
+                            return new Date(val).toLocaleDateString(undefined, {
+                                weekday: 'short',
+                                month: "short",
+                                day: "numeric",
+                                year: 'numeric'
+                            });
+                        }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12, opacity: 0.8 }} />
                     <Line

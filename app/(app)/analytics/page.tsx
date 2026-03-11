@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { BucketFilter } from "@/components/BucketFilter";
 import { TrendChart } from "@/components/analytics/TrendChart";
+import { TrendRangeFilter } from "@/components/analytics/TrendRangeFilter";
 import { HeatmapTable } from "@/components/analytics/HeatmapTable";
 import { StatusDonutChart } from "@/components/analytics/StatusDonutChart";
 import { BarChart } from "@/components/analytics/BarChart";
@@ -12,13 +13,22 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+interface TrendDataPoint {
+    date: number;
+    Critical: number;
+    High: number;
+    Medium: number;
+    Low: number;
+}
+
 export default async function AnalyticsPage({
     searchParams,
 }: {
-    searchParams: Promise<{ bucketId?: string }>;
+    searchParams: Promise<{ bucketId?: string; range?: string }>;
 }) {
     const params = await searchParams;
     const bucketId = params.bucketId;
+    const range = params.range || "7d";
     const nowVal = new Date().getTime();
 
     const buckets = await prisma.site.findMany({ orderBy: { name: "asc" } });
@@ -32,31 +42,64 @@ export default async function AnalyticsPage({
     }
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // 1. Trend Data (Logical Issue Counts)
-    const currentRiskGroups = await prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
-        SELECT risk::text, count(*)::int as count FROM (
-            SELECT DISTINCT ON (name, host, port, "pluginId") risk
-            FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status = 'Open'" : "WHERE status = 'Open'"}
-            ORDER BY name, host, port, "pluginId", risk ASC
-        ) as groups
-        GROUP BY risk
-    `, ...values);
+    // 1. Trend Data (Historical Reconstruction)
+    const intervalMap: Record<string, string> = {
+        "7d": "7 days",
+        "30d": "30 days",
+        "3m": "3 months",
+        "6m": "6 months",
+        "12m": "12 months"
+    };
+    const interval = intervalMap[range] || "7 days";
 
-    const riskMap = new Map(currentRiskGroups.map(g => [g.risk, g.count]));
-
-    const trendData = [];
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        trendData.push({
-            date: d.getTime(),
-            Critical: riskMap.get('Critical') || 0,
-            High: riskMap.get('High') || 0,
-            Medium: riskMap.get('Medium') || 0,
-            Low: riskMap.get('Low') || 0,
-        });
+    const trendValues: (string | number)[] = [interval];
+    let trendWhere = "";
+    if (bucketId) {
+        trendWhere = `AND "siteId" = $2::uuid`;
+        trendValues.push(bucketId);
     }
+
+    const trendGroups = await prisma.$queryRawUnsafe<{ day: Date; risk: string; count: number }[]>(`
+        WITH dates AS (
+            SELECT (generate_series(
+                (CURRENT_DATE - $1::interval), 
+                CURRENT_DATE, 
+                '1 day'::interval
+            ))::date AS day
+        ),
+        active_vulns AS (
+            SELECT risk, "createdAt", NULL::timestamp as "archivedAt", "siteId"
+            FROM "Vulnerability"
+            WHERE status = 'Open'
+            UNION ALL
+            SELECT risk, "createdAt", "archivedAt", "siteId"
+            FROM "VulnerabilityHistory"
+        )
+        SELECT 
+            d.day, 
+            v.risk::text, 
+            count(v.risk)::int as count
+        FROM dates d
+        LEFT JOIN active_vulns v ON v."createdAt"::date <= d.day 
+            AND (v."archivedAt" IS NULL OR v."archivedAt"::date > d.day)
+            ${trendWhere}
+        GROUP BY d.day, v.risk
+        ORDER BY d.day ASC;
+    `, ...trendValues);
+
+    const trendMap = new Map<number, TrendDataPoint>();
+    trendGroups.forEach((row: { day: Date; risk: string; count: number }) => {
+        const time = new Date(row.day).getTime();
+        if (!trendMap.has(time)) {
+            trendMap.set(time, { date: time, Critical: 0, High: 0, Medium: 0, Low: 0 });
+        }
+        const point = trendMap.get(time);
+        if (point && row.risk) {
+            point[row.risk as keyof Omit<TrendDataPoint, 'date'>] = row.count;
+        }
+    });
+
+    const trendData = Array.from(trendMap.values()).sort((a, b) => a.date - b.date);
 
     // 2. Unassigned Tasks (Logical)
     const unassignedRisks = await prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
@@ -100,7 +143,7 @@ export default async function AnalyticsPage({
     }
 
     const bucketsMap = new Map<string, RiskCounts>();
-    bucketsDataRaw.forEach(row => {
+    bucketsDataRaw.forEach((row: { siteId: string; risk: string; count: number }) => {
         if (!bucketsMap.has(row.siteId)) {
             bucketsMap.set(row.siteId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
@@ -132,7 +175,7 @@ export default async function AnalyticsPage({
     `, ...values);
 
     const techCountsMap = new Map<string, RiskCounts>();
-    techDataRaw.forEach(row => {
+    techDataRaw.forEach((row: { assigneeId: string; risk: string; count: number }) => {
         if (!techCountsMap.has(row.assigneeId)) {
             techCountsMap.set(row.assigneeId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
@@ -176,7 +219,7 @@ export default async function AnalyticsPage({
         NoFixAvailable: "#8b5cf6" // Purple
     };
 
-    const statusData = statusRiskGroups.map(g => ({
+    const statusData = statusRiskGroups.map((g: { status: string; count: number }) => ({
         name: g.status,
         value: g.count,
         color: statusColors[g.status] || "#3b82f6"
@@ -194,7 +237,7 @@ export default async function AnalyticsPage({
     `, ...values);
 
     const hostAggregates = new Map<string, { Critical: number, High: number, Medium: number, Low: number }>();
-    hostRiskGroups.forEach(h => {
+    hostRiskGroups.forEach((h: { host: string; risk: string; count: number }) => {
         const current = hostAggregates.get(h.host) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
         current[h.risk as keyof typeof current] += h.count;
         hostAggregates.set(h.host, current);
@@ -222,7 +265,7 @@ export default async function AnalyticsPage({
     `, ...values);
 
     const commonAggregates = new Map<string, { Critical: number, High: number, Medium: number, Low: number }>();
-    commonVulnGroups.forEach(v => {
+    commonVulnGroups.forEach((v: { name: string; risk: string; count: number }) => {
         const current = commonAggregates.get(v.name) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
         current[v.risk as keyof typeof current] += v.count;
         commonAggregates.set(v.name, current);
@@ -249,7 +292,7 @@ export default async function AnalyticsPage({
     `, ...values);
 
     const agingCounts = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "91+ Days": 0 };
-    agingGroups.forEach(v => {
+    agingGroups.forEach((v: { createdAt: Date; risk: string }) => {
         const days = Math.floor((nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24));
         if (days <= 30) agingCounts["0-30 Days"]++;
         else if (days <= 60) agingCounts["31-60 Days"]++;
@@ -271,7 +314,7 @@ export default async function AnalyticsPage({
         Low: { totalDays: 0, count: 0 },
     };
 
-    agingGroups.forEach(v => {
+    agingGroups.forEach((v: { createdAt: Date; risk: string }) => {
         const daysOpen = (nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24);
         const agg = dwellAggregates[v.risk as keyof typeof dwellAggregates];
         if (agg) {
@@ -299,7 +342,10 @@ export default async function AnalyticsPage({
                 </div>
 
                 <div className="mt-8 overflow-hidden rounded-[24px] border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 pt-6">
-                    <h3 className="px-6 pb-4 text-lg font-semibold">Vulnerability Levels Over Time</h3>
+                    <div className="flex items-center justify-between px-6 pb-4">
+                        <h3 className="text-lg font-semibold">Vulnerability Levels Over Time</h3>
+                        <TrendRangeFilter selected={range} />
+                    </div>
                     <TrendChart data={trendData} />
                 </div>
             </div>
