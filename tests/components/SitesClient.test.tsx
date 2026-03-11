@@ -35,16 +35,16 @@ describe("SitesClient", () => {
 
     await waitFor(() => expect(screen.getByText("New Site")).toBeTruthy());
 
-    // Mock confirm to allow removal
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-
     // Find the removal button for the newly added site by its aria-label
     const removeBtn = screen.getByLabelText("Remove New Site");
     fireEvent.click(removeBtn);
 
+    // Wait for the modal to appear and click confirm
+    const confirmDeleteBtn = await screen.findByText("Delete Permanently");
+    fireEvent.click(confirmDeleteBtn);
+
     await waitFor(() => expect(screen.queryByText("New Site")).toBeNull());
 
-    confirmSpy.mockRestore();
     toastSpy.mockRestore();
   });
 });
