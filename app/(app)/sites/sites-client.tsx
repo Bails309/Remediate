@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Trash2, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/components/cn";
+
 
 type Site = { id: string; name: string };
 
@@ -21,21 +21,40 @@ export function SitesClient({ initialSites }: Props) {
 
   const createSite = async () => {
     if (!name.trim()) return;
-    const response = await fetch("/api/sites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
+    try {
+      const response = await fetch("/api/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
 
-    if (!response.ok) {
-      toast.error("Failed to create bucket");
-      return;
+      let parsed: any = null;
+      try {
+        // If the server redirected (e.g. to a login page), `response.redirected` will be true
+        if (response.redirected || (response.url && response.url.includes("/login"))) {
+          toast.error("Not authenticated — please sign in and try again.");
+          return;
+        }
+
+        parsed = await response.json();
+      } catch (e) {
+        const txt = await response.text().catch(() => "");
+        toast.error(`Unexpected server response: ${txt ? txt.slice(0, 200) : response.status}`);
+        return;
+      }
+
+      if (!response.ok) {
+        toast.error(parsed?.error || "Failed to create bucket");
+        return;
+      }
+
+      const site = parsed as Site;
+      setSites((prev) => [...prev, site]);
+      setName("");
+      toast.success("Bucket added");
+    } catch (err) {
+      toast.error("Failed to create bucket (network error)");
     }
-
-    const site = (await response.json()) as Site;
-    setSites((prev) => [...prev, site]);
-    setName("");
-    toast.success("Bucket added");
   };
 
   const removeSite = (site: Site) => {
@@ -75,7 +94,9 @@ export function SitesClient({ initialSites }: Props) {
           onChange={(event) => setName(event.target.value)}
           placeholder="Create new bucket"
         />
-        <Button onClick={createSite}>Add Bucket</Button>
+        <Button onClick={createSite} disabled={!name.trim()} title={!name.trim() ? "Enter a bucket name" : undefined}>
+          Add Bucket
+        </Button>
       </div>
 
       <div className="grid gap-3">
@@ -114,7 +135,7 @@ export function SitesClient({ initialSites }: Props) {
               </div>
               <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">Delete Bucket?</h3>
               <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
-                Are you sure you want to remove <span className="font-bold text-slate-700 dark:text-slate-300">"{siteToDelete.name}"</span>?
+                Are you sure you want to remove <span className="font-bold text-slate-700 dark:text-slate-300">&quot;{siteToDelete.name}&quot;</span>?
                 This action is permanent and will securely wipe all related uploads and vulnerability data.
               </p>
 
