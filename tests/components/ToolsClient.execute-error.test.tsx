@@ -1,26 +1,34 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
 describe("ToolsClient execute error handling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows error text when execute returns non-ok", async () => {
     (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
-    const mockFetch = vi.fn((input: RequestInfo | URL) => {
+    const mockFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
       if (url.includes("/api/tools/list")) {
-        return Promise.resolve({ ok: true, json: async () => ({ tools: [{ id: "t1", name: "Echo", inputs: [] }] }) } as Response);
+        return { ok: true, json: async () => ({ tools: [{ id: "t1", name: "Echo", inputs: [] }] }) } as Response;
       }
       if (url.includes("/api/tools/execute")) {
-        return Promise.resolve({ ok: false, json: async () => ({ error: "bad" }) } as Response);
+        return { ok: false, json: async () => ({ error: "bad" }) } as Response;
       }
       if (url.includes("/api/tools/logs")) {
-        return Promise.resolve({ ok: true, json: async () => ({ logs: [] }) } as Response);
+        return { ok: true, json: async () => ({ logs: [] }) } as Response;
       }
-      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      return { ok: true, json: async () => ({}) } as Response;
     });
 
     // @ts-expect-error mocking global fetch
@@ -36,11 +44,13 @@ describe("ToolsClient execute error handling", () => {
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
+    await vi.runAllTimersAsync();
+
     // Expect an error displayed in the terminal area
     await waitFor(() => {
       const pre = document.querySelector("pre");
       if (!pre || !pre.textContent?.includes("bad")) throw new Error("error not shown");
       return true;
-    });
+    }, { timeout: 3000 });
   });
 });
