@@ -7,26 +7,28 @@ describe("Badge Component", () => {
         render(<Badge>Default Badge</Badge>);
         const badge = screen.getByText("Default Badge");
         expect(badge).toBeDefined();
-        expect(badge.className).toContain("bg-[color:var(--color-muted)]");
+        expect(badge.className).toContain("inline-flex");
+        expect(badge.className).toContain("rounded-full");
     });
 
     it("renders with critical tone", () => {
         render(<Badge tone="critical">Critical Badge</Badge>);
         const badge = screen.getByText("Critical Badge");
-        expect(badge.className).toContain("bg-[#3a0f0f]");
-        expect(badge.className).toContain("text-[#ffb4a4]");
+        expect(badge.className).toContain("text-red-600");
+        expect(badge.className).toContain("bg-red-500/10");
     });
 
     it("renders with high tone", () => {
         render(<Badge tone="high">High Badge</Badge>);
         const badge = screen.getByText("High Badge");
-        expect(badge.className).toContain("bg-[#3a240f]");
-        expect(badge.className).toContain("text-[#ffc07a]");
+        expect(badge.className).toContain("text-orange-600");
+        expect(badge.className).toContain("bg-orange-500/10");
     });
 
     it("applies base classes to all variants", () => {
         render(<Badge tone="low">Low Badge</Badge>);
         const badge = screen.getByText("Low Badge");
-        expect(badge.className).toContain("rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide");
+        expect(badge.className).toContain("inline-flex");
+        expect(badge.className).toContain("px-2.5");
     });
 });

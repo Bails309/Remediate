@@ -1,9 +1,18 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 async function test() {
-  const result = await prisma.$queryRawUnsafe(SELECT COUNT(*)::int as "groupCount" FROM "Vulnerability");
-  console.log(typeof result[0].groupCount);
-  console.log(result[0].groupCount);
-  process.exit(0);
+  const mod = await import('@prisma/client');
+  const { PrismaClient } = mod;
+  const prisma = new PrismaClient();
+  try {
+    const result = await prisma.$queryRawUnsafe('SELECT COUNT(*)::int as "groupCount" FROM "Vulnerability"');
+    console.log(typeof result[0].groupCount);
+    console.log(result[0].groupCount);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(0);
+  }
 }
-test().catch(console.error);
+
+test().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

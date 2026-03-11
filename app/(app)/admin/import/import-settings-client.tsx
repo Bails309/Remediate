@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { Save, AlertCircle, CheckCircle2 } from "lucide-react";
-import { cn } from "@/components/cn";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";

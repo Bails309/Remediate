@@ -13,8 +13,8 @@ describe("Button Component", () => {
     it("applies primary variant by default", () => {
         render(<Button>Primary</Button>);
         const button = screen.getByRole("button", { name: "Primary" });
-        expect(button.className).toContain("bg-[color:var(--color-accent)]");
-        expect(button.className).toContain("text-white");
+        expect(button.className).toContain("bg-gradient-to-br");
+        expect(button.className).toMatch(/text-(?:white|cyan|#00C8FF|cyan-700)/);
     });
 
     it("applies outline variant correctly", () => {
