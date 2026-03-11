@@ -151,10 +151,11 @@ export function ReportSettingsClient() {
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
               Timezone
             </label>
-            <Input
+            <Select
               value={form.timezone}
-              onChange={(event) => updateField("timezone", event.target.value)}
-              placeholder="Timezone (e.g. UTC)"
+              onChange={(val) => updateField("timezone", String(val))}
+              options={Intl.supportedValuesOf("timeZone").map((tz) => ({ label: tz, value: tz }))}
+              title="Select your local timezone to automatically handle Daylight Saving Time adjustments."
             />
           </div>
           <div>

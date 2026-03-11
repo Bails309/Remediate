@@ -47,12 +47,10 @@ export async function POST(request: Request) {
 
   const payload = reportSchema.parse(body);
   const timezone = payload.timezone || "UTC";
-  if (timezone.toUpperCase() !== "UTC") {
-    return NextResponse.json({ error: "Only UTC timezone is supported." }, { status: 400 });
-  }
+
   await upsertReportConfig({
     ...payload,
-    timezone: timezone.toUpperCase(),
+    timezone: timezone,
   });
   return NextResponse.json({ ok: true });
 }
