@@ -186,7 +186,13 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   };
 
   const selectedCount = selected.length;
-  const allSelected = useMemo(() => data.length > 0 && selected.length === data.length, [data, selected]);
+  const allSelected = useMemo(() => {
+    if (data.length === 0) return false;
+    return data.every(item => {
+      const ids = item.groupIds?.split(",") || [item.id];
+      return ids.every(id => selected.includes(id));
+    });
+  }, [data, selected]);
 
   const renderStatusBadge = (value: string) => {
     const dotClass = statusDotMap[value] ?? "bg-slate-400";
@@ -199,10 +205,13 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   };
 
   const toggleAll = () => {
+    const currentPageIds = data.flatMap(item => item.groupIds?.split(",") || [item.id]);
     if (allSelected) {
-      setSelected([]);
+      // Deselect all items shown on the current page
+      setSelected(prev => prev.filter(id => !currentPageIds.includes(id)));
     } else {
-      setSelected(data.map((item) => item.id));
+      // Select all items shown on the current page
+      setSelected(prev => [...new Set([...prev, ...currentPageIds])]);
     }
   };
 
