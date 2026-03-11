@@ -32,7 +32,7 @@ function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: 
             className={cn(
                 "cursor-pointer inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors border select-none",
                 checked
-                    ? "bg-teal-500/10 border-teal-500 text-teal-700 dark:bg-teal-400/10 dark:border-teal-400 dark:text-teal-300"
+                    ? "bg-cyan-500/10 border-cyan-500 text-cyan-700 dark:bg-[#00C8FF]/10 dark:border-[#00C8FF] dark:text-[#00C8FF] shadow-[0_0_8px_rgba(0,200,255,0.2)]"
                     : "bg-transparent border-slate-300 text-slate-500 hover:border-slate-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
             )}
         >
@@ -158,7 +158,7 @@ export function UsersClient() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="border-b border-white/5 bg-white/5 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                                 <th className="px-6 py-4">User</th>
                                 <th className="px-6 py-4">Authentication</th>
                                 <th className="px-6 py-4">Roles</th>
@@ -185,15 +185,15 @@ export function UsersClient() {
                                 </tr>
                             ) : (
                                 users.map((user) => (
-                                    <tr key={user.id} className="group hover:bg-white/5 transition-colors">
+                                    <tr key={user.id} className="group hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors border-b border-slate-100 dark:border-white/5 last:border-none">
                                         <td className="px-6 py-3">
                                             <div className="flex items-center gap-3">
                                                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)] font-bold">
                                                     {user.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium">{user.name}</p>
-                                                    <p className="text-xs opacity-60">{user.email}</p>
+                                                    <p className="font-bold text-slate-900 dark:text-white">{user.name}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 opacity-60 font-medium">{user.email}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -230,7 +230,7 @@ export function UsersClient() {
                                                     variant="ghost"
                                                     onClick={() => updateRoles(user)}
                                                     disabled={updatingId === user.id}
-                                                    className="glass glass-edge text-xs font-medium transition-all hover:text-[color:var(--color-accent)]"
+                                                    className="glass glass-edge text-[10px] font-bold uppercase tracking-widest transition-all hover:text-cyan-500 dark:hover:text-[#00C8FF]"
                                                 >
                                                     {updatingId === user.id ? (
                                                         <RefreshCw className="h-3 w-3 animate-spin mr-2" />
@@ -240,7 +240,7 @@ export function UsersClient() {
                                                 <Button
                                                     variant="ghost"
                                                     onClick={() => deleteUser(user)}
-                                                    className="text-rose-500 hover:bg-rose-50"
+                                                    className="text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10"
                                                 >
                                                     <Trash2 className="h-3 w-3 mr-2" />
                                                     Delete

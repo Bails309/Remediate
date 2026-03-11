@@ -191,8 +191,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const renderStatusBadge = (value: string) => {
     const dotClass = statusDotMap[value] ?? "bg-slate-400";
     return (
-      <Badge className="inline-flex items-center gap-2 px-3 py-1 normal-case">
-        <span className={cn("h-2 w-2 rounded-full", dotClass)} />
+      <Badge className="inline-flex items-center gap-2 px-3 py-1 font-bold normal-case bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10">
+        <span className={cn("h-2 w-2 rounded-full", dotClass, "shadow-[0_0_8px_currentColor]")} />
         {value}
       </Badge>
     );
@@ -393,7 +393,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm opacity-70">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-400">
           Showing {(page - 1) * pageSize + (data.length ? 1 : 0)}
           -{(page - 1) * pageSize + data.length} of {total}
         </div>
@@ -408,11 +408,21 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             ]}
           />
           <div className="flex items-center gap-2">
-            <Button variant="ghost" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>
+            <Button
+              variant="ghost"
+              disabled={page === 1}
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
               Previous
             </Button>
-            <span className="text-sm opacity-60">Page {page}</span>
-            <Button variant="ghost" disabled={page * pageSize >= total} onClick={() => setPage(prev => prev + 1)}>
+            <span className="text-sm font-bold text-slate-900 dark:text-white px-3 py-1 bg-slate-100 dark:bg-white/5 rounded-full border border-slate-200 dark:border-white/10">Page {page}</span>
+            <Button
+              variant="ghost"
+              disabled={page * pageSize >= total}
+              onClick={() => setPage(prev => prev + 1)}
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
               Next
             </Button>
           </div>
@@ -437,16 +447,19 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         <Button
           variant="outline"
           onClick={() => { setFoldDuplicates(!foldDuplicates); setPage(1); }}
-          className={cn("text-slate-700 dark:text-gray-300", foldDuplicates && "bg-[color:var(--color-primary)] text-white")}
+          className={cn(
+            "text-slate-700 dark:text-slate-300 font-semibold transition-all duration-300",
+            foldDuplicates && "bg-cyan-500/10 border-cyan-500 text-cyan-700 dark:bg-[#00C8FF]/10 dark:border-[#00C8FF] dark:text-[#00C8FF] shadow-[0_0_15px_rgba(0,200,255,0.1)]"
+          )}
         >
           {foldDuplicates ? "Folding Active" : "Fold Duplicates"}
         </Button>
       </div>
 
       {selectedCount > 0 && (
-        <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-full border border-gray-200 bg-white/90 px-6 py-3 shadow-2xl backdrop-blur-md transition-all duration-300 dark:border-gray-700 dark:bg-gray-900/90">
-          <span className="text-sm font-medium">{selectedCount} selected</span>
-          <span className="h-6 w-px bg-slate-200 dark:bg-gray-700" />
+        <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-full border border-slate-200 dark:border-[color:rgba(0,200,255,0.3)] bg-white/95 dark:bg-slate-900/95 px-6 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_0_30px_rgba(0,200,255,0.15)] backdrop-blur-md transition-all animate-in slide-in-from-bottom-8 duration-500">
+          <span className="text-sm font-bold text-slate-800 dark:text-white">{selectedCount} selected</span>
+          <span className="h-6 w-px bg-slate-200 dark:bg-white/10" />
           <Button
             onClick={() => {
               if (session?.user?.id) {
@@ -456,10 +469,11 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               }
             }}
             variant="outline"
+            className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
           >
             Assign to Me
           </Button>
-          <Button onClick={() => assignTo(null)} variant="outline">
+          <Button onClick={() => assignTo(null)} variant="outline" className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10">
             Unassign
           </Button>
           <div className="w-52">
@@ -493,16 +507,16 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-[28px] border border-[color:var(--color-border)]">
+      <div className="overflow-x-auto rounded-[28px] border border-slate-200 dark:border-[color:rgba(0,200,255,0.2)] shadow-[0_0_20px_rgba(0,200,255,0.05),0_0_2px_rgba(0,200,255,0.1)] dark:shadow-[0_0_20px_rgba(0,200,255,0.15),0_0_2px_rgba(0,200,255,0.5)] bg-white dark:bg-white/5 backdrop-blur-sm">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-[color:var(--color-border)] text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <thead className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
             <tr>
-              <th className="p-4">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+              <th className="p-4 text-center">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#00C8FF]" />
               </th>
               <th className="p-4">Issue</th>
               <th className="p-4">Host</th>
-              <th className="p-4">Risk</th>
+              <th className="p-4 text-center">Risk</th>
               <th className="p-4">Status</th>
               <th className="p-4">Assignee</th>
               <th className="p-4">Last Seen</th>
@@ -514,29 +528,36 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               if (entry.type === 'single') {
                 const { item } = entry;
                 return (
-                  <tr key={item.id} className="border-b border-[color:var(--color-border)] last:border-none">
+                  <tr key={item.id} className="border-b border-slate-100 dark:border-white/5 last:border-none hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
                     <td className="p-4">
-                      <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} />
+                      <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} className="accent-[#00C8FF]" />
                     </td>
                     <td className="p-4">
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-xs opacity-60">Plugin {item.pluginId}</p>
+                      <p className="font-bold text-slate-900 dark:text-white mb-0.5">{item.name}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60">Plugin {item.pluginId}</p>
                     </td>
                     <td className="p-4">
-                      <p className="font-semibold">{item.host}:{item.port}</p>
-                      <p className="text-xs opacity-60">{item.cve ?? "No CVE"}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{item.host}:{item.port}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 opacity-80">{item.cve ?? "No CVE"}</p>
                     </td>
                     <td className="p-4">
-                      <Badge tone={riskToneMap[item.risk] ?? "neutral"}>{item.risk}</Badge>
+                      <Badge tone={riskToneMap[item.risk] ?? "neutral"}>
+                        {item.risk}
+                      </Badge>
                     </td>
                     <td className="p-4">{renderStatusBadge(item.status)}</td>
-                    <td className="p-4">{item.assignee?.name ?? "Unassigned"}</td>
+                    <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">{item.assignee?.name ?? "Unassigned"}</td>
                     <td className="p-4">
-                      <ClientDate date={item.lastSeenAt} className="text-xs opacity-70" />
+                      <ClientDate date={item.lastSeenAt} className="text-xs text-slate-500 dark:text-slate-400" />
                     </td>
                     <td className="p-4">
-                      <Button variant="ghost" onClick={() => setDetail(item)}>
-                        View
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDetail(item)}
+                        className="text-cyan-600 dark:text-[#00C8FF] hover:bg-cyan-50 dark:hover:bg-[#00C8FF]/10 font-bold group/btn"
+                      >
+                        View <ChevronRight className="ml-1 h-3 w-3 transition-transform group-hover/btn:translate-x-1" />
                       </Button>
                     </td>
                   </tr>
@@ -548,41 +569,48 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               const groupMembers = subItems[entry.key] || [];
 
               return [
-                <tr key={`group-${entry.key}`} className="bg-[color:var(--color-surface-hover)] border-b border-[color:var(--color-border)]">
+                <tr key={`group-${entry.key}`} className="bg-slate-50/50 dark:bg-white/[0.03] border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors group">
                   <td className="p-4">
                     <input
                       type="checkbox"
                       checked={isGroupSelected(group)}
                       onChange={() => toggleGroupSelect(group)}
+                      className="accent-[#00C8FF]"
                     />
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => toggleGroup(group)} className="p-1 hover:bg-white/10 rounded transition-colors">
-                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <button onClick={() => toggleGroup(group)} className="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded transition-colors">
+                        {isExpanded ? <ChevronDown size={16} className="text-slate-600 dark:text-slate-400" /> : <ChevronRight size={16} className="text-slate-600 dark:text-slate-400" />}
                       </button>
                       <div>
-                        <p className="font-semibold">{group.name}</p>
-                        <p className="text-xs opacity-60">Plugin {group.pluginId} • {group.groupCount} issues</p>
+                        <p className="font-bold text-slate-900 dark:text-white mb-0.5">{group.name}</p>
+                        <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60 uppercase tracking-tight">Plugin {group.pluginId} • {group.groupCount} issues</p>
                       </div>
                     </div>
                   </td>
                   <td className="p-4">
-                    <p className="font-semibold">{group.host}:{group.port}</p>
-                    <p className="text-xs opacity-60 truncate max-w-[200px]" title={group.groupCves ?? ""}>
-                      {group.groupCount} CVEs: {group.groupCves}
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{group.host}:{group.port}</p>
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 opacity-70 dark:opacity-50 uppercase tracking-tight truncate max-w-[200px]" title={group.groupCves ?? ""}>
+                      {group.groupCves}
                     </p>
                   </td>
                   <td className="p-4">
-                    <Badge tone={riskToneMap[group.risk] ?? "neutral"}>{group.risk}</Badge>
+                    <Badge tone={riskToneMap[group.risk] ?? "neutral"}>
+                      {group.risk}
+                    </Badge>
                   </td>
                   <td className="p-4">{renderStatusBadge(group.status)}</td>
-                  <td className="p-4">{group.assignee?.name ?? "Unassigned"}</td>
+                  <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">{group.assignee?.name ?? "Unassigned"}</td>
                   <td className="p-4">
-                    <ClientDate date={group.lastSeenAt} className="text-xs opacity-70" />
+                    <ClientDate date={group.lastSeenAt} className="text-xs text-slate-500 dark:text-slate-400" />
                   </td>
                   <td className="p-4">
-                    <Button variant="ghost" onClick={() => toggleGroup(group)}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => toggleGroup(group)}
+                      className="text-[#00C8FF] hover:bg-[#00C8FF]/10 font-bold"
+                    >
                       {isExpanded ? "Collapse" : "Expand"}
                     </Button>
                   </td>
@@ -590,41 +618,48 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 ...(isExpanded ? (groupMembers.length > 0 ? [
                   <tr key={`${entry.key}-expanded`}>
                     <td colSpan={8} className="p-0">
-                      <div className="bg-white/95 backdrop-blur-xl border border-slate-200 shadow-inner rounded-b-lg px-8 py-6 dark:bg-gray-900/90 dark:border-gray-700/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="bg-slate-50/80 dark:bg-black/40 backdrop-blur-xl border-x border-b border-slate-200 dark:border-white/5 rounded-b-2xl px-8 py-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                         {groupMembers.map((member) => (
-                          <div key={member.id} className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 last:border-none pb-4 last:pb-0">
+                          <div key={member.id} className="flex items-center justify-between border-b border-slate-200 dark:border-white/5 last:border-none pb-4 last:pb-0 group/member">
                             <div className="flex items-center gap-6 flex-1">
                               <input
                                 type="checkbox"
                                 checked={selected.includes(member.id)}
                                 onChange={() => toggleSelect(member.id)}
-                                className="mt-1"
+                                className="mt-1 accent-[#00C8FF]"
                               />
                               <div className="min-w-[200px]">
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Issue</p>
-                                <p className="text-sm text-slate-900 dark:text-gray-100 font-medium">{member.name}</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">Issue</p>
+                                <p className="text-sm text-slate-900 dark:text-white font-bold">{member.name}</p>
                               </div>
                               <div className="min-w-[150px]">
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">CVE</p>
-                                <p className="text-sm font-mono text-slate-900 dark:text-gray-100">{member.cve ?? "None"}</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">CVE</p>
+                                <p className="text-sm font-mono text-slate-700 dark:text-slate-200">{member.cve ?? "None"}</p>
                               </div>
                               <div className="min-w-[100px]">
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Risk</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">Risk</p>
                                 <div className="mt-1 scale-90 origin-left">
-                                  <Badge tone={riskToneMap[member.risk] ?? "neutral"}>{member.risk}</Badge>
+                                  <Badge tone={riskToneMap[member.risk] ?? "neutral"} className="scale-90 origin-left">
+                                    {member.risk}
+                                  </Badge>
                                 </div>
                               </div>
                               <div className="min-w-[120px]">
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Status</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">Status</p>
                                 <div className="mt-1">{renderStatusBadge(member.status)}</div>
                               </div>
                               <div className="min-w-[120px]">
-                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Assignee</p>
-                                <p className="text-sm text-slate-900 dark:text-gray-100">{member.assignee?.name ?? "Unassigned"}</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">Assignee</p>
+                                <p className="text-sm text-slate-700 dark:text-slate-200 font-medium">{member.assignee?.name ?? "Unassigned"}</p>
                               </div>
                             </div>
-                            <Button variant="ghost" size="sm" onClick={() => setDetail(member)}>
-                              View Output
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDetail(member)}
+                              className="text-cyan-600 dark:text-[#00C8FF] hover:bg-cyan-50 dark:hover:bg-[#00C8FF]/10 font-bold group/btn-sm"
+                            >
+                              View Output <ChevronRight className="ml-1 h-3 w-3 transition-transform group-hover/btn-sm:translate-x-1" />
                             </Button>
                           </div>
                         ))}
@@ -650,20 +685,20 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         <div className="space-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Synopsis</p>
-            <p className="mt-2 text-slate-900 dark:text-gray-100">{detail?.synopsis ?? "No synopsis provided."}</p>
+            <p className="mt-2 text-slate-900 dark:text-slate-100">{detail?.synopsis ?? "No synopsis provided."}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</p>
-            <p className="mt-2 text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.description ?? "No description available."}</p>
+            <p className="mt-2 text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.description ?? "No description available."}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Solution</p>
-            <p className="mt-2 text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.solution ?? "No solution provided."}</p>
+            <p className="mt-2 text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.solution ?? "No solution provided."}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Plugin Output</p>
-            <div className="mt-2 bg-slate-50/50 dark:bg-gray-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-gray-800/50 overflow-x-auto">
-              <pre className="text-[11px] font-mono text-slate-900 dark:text-gray-100 leading-relaxed">{detail?.pluginOutput ?? "No plugin output."}</pre>
+            <div className="mt-2 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/50 overflow-x-auto">
+              <pre className="text-[11px] font-mono text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.pluginOutput ?? "No plugin output."}</pre>
             </div>
           </div>
         </div>
@@ -724,22 +759,22 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
 
           <div className="space-y-4">
             {comments.map((comment) => (
-              <div key={comment.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-                <div className="flex justify-between items-center text-xs opacity-60">
+              <div key={comment.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
+                <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold">{comment.author.name}</span>
                   <ClientDate date={comment.createdAt} />
                 </div>
-                <p className="text-sm">{comment.content}</p>
+                <p className="text-sm text-slate-800 dark:text-slate-200">{comment.content}</p>
               </div>
             ))}
             {comments.length === 0 && (
-              <p className="text-sm opacity-50 italic">No comments yet.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 italic">No comments yet.</p>
             )}
           </div>
 
           <div className="space-y-3 pt-2">
             <textarea
-              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[100px]"
+              className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[100px] text-slate-900 dark:text-white placeholder:text-slate-400"
               placeholder="Add a private comment..."
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
@@ -749,6 +784,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 onClick={addComment}
                 disabled={isSubmittingComment || !commentText.trim()}
                 loading={isSubmittingComment}
+                className="bg-[#00C8FF] text-white hover:bg-[#00C8FF]/90"
               >
                 Post Comment
               </Button>
