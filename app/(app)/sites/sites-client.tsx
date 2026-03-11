@@ -28,7 +28,7 @@ export function SitesClient({ initialSites }: Props) {
         body: JSON.stringify({ name }),
       });
 
-      let parsed: any = null;
+      let parsed: unknown = null;
       try {
         // If the server redirected (e.g. to a login page), `response.redirected` will be true
         if (response.redirected || (response.url && response.url.includes("/login"))) {
@@ -37,14 +37,19 @@ export function SitesClient({ initialSites }: Props) {
         }
 
         parsed = await response.json();
-      } catch (e) {
+      } catch {
         const txt = await response.text().catch(() => "");
         toast.error(`Unexpected server response: ${txt ? txt.slice(0, 200) : response.status}`);
         return;
       }
 
       if (!response.ok) {
-        toast.error(parsed?.error || "Failed to create bucket");
+        toast.error("Failed to create bucket");
+        return;
+      }
+
+      if (typeof parsed !== "object" || parsed === null || !("id" in parsed) || !("name" in parsed)) {
+        toast.error("Unexpected server response");
         return;
       }
 
@@ -52,7 +57,7 @@ export function SitesClient({ initialSites }: Props) {
       setSites((prev) => [...prev, site]);
       setName("");
       toast.success("Bucket added");
-    } catch (err) {
+    } catch {
       toast.error("Failed to create bucket (network error)");
     }
   };

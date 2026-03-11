@@ -38,17 +38,19 @@ describe("SitesClient error flows", () => {
     }) as unknown as typeof fetch;
 
     const toastErr = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<SitesClient initialSites={[{ id: "s1", name: "Site 1" }]} />);
 
     const removeBtn = screen.getByLabelText("Remove Site 1");
     fireEvent.click(removeBtn);
 
+    // Click the modal confirm button
+    const confirmBtn = await screen.findByText("Delete Permanently");
+    fireEvent.click(confirmBtn);
+
     await waitFor(() => expect(toastErr).toHaveBeenCalled());
     expect(screen.getByText("Site 1")).toBeTruthy();
 
     toastErr.mockRestore();
-    confirmSpy.mockRestore();
   });
 });
