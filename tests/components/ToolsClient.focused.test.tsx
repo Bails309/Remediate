@@ -25,7 +25,7 @@ describe("ToolsClient focused flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error
+    // @ts-expect-error mocking global fetch
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);
@@ -65,7 +65,7 @@ describe("ToolsClient focused flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error
+    // @ts-expect-error mocking global fetch
     global.fetch = mockFetch as unknown as typeof fetch;
 
     const { container } = render(<ToolsClient session={session} />);

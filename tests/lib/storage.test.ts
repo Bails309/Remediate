@@ -46,7 +46,7 @@ vi.mock("@azure/storage-blob", () => ({
 const redisStore = new Map<string, string>();
 vi.mock("@/lib/redis", () => ({
   redis: {
-    set: vi.fn(async (_k: string, _v: string, _ex?: "EX", _ttl?: number): Promise<"OK"> => {
+    set: vi.fn(async (_k: string, _v: string): Promise<"OK"> => {
       redisStore.set(_k, _v);
       return "OK";
     }),

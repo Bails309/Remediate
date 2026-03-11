@@ -10,7 +10,7 @@ describe("ToolsClient execute flow", () => {
   it("loads tools, selects one, runs execute and shows output", async () => {
     // jsdom doesn't implement scrollIntoView — stub it to avoid runtime errors
     (Element.prototype as any).scrollIntoView = () => { };
-    const mockFetch = vi.fn((input: RequestInfo | URL, _opts?: RequestInit) => {
+    const mockFetch = vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
       if (url.includes("/api/tools/list")) {
         return Promise.resolve({ ok: true, json: async () => ({ tools: [{ id: "t1", name: "Echo", description: "desc", inputs: [] }] }) } as Response);

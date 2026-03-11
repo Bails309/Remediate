@@ -39,7 +39,7 @@ describe("UploadsClient polling + history", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error
+    // @ts-expect-error mocking global fetch
     global.fetch = mockFetch as unknown as typeof fetch;
     // Provide a minimal EventSource mock for jsdom/node
     class MockEventSource {

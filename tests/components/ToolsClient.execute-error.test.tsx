@@ -9,7 +9,7 @@ describe("ToolsClient execute error handling", () => {
     (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
-    const mockFetch = vi.fn((input: RequestInfo | URL, _opts?: RequestInit) => {
+    const mockFetch = vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
       if (url.includes("/api/tools/list")) {
         return Promise.resolve({ ok: true, json: async () => ({ tools: [{ id: "t1", name: "Echo", inputs: [] }] }) } as Response);
@@ -23,7 +23,7 @@ describe("ToolsClient execute error handling", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error
+    // @ts-expect-error mocking global fetch
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);
