@@ -45,18 +45,19 @@ export function Select({
   }, []);
 
   const selectedOption = useMemo(() => {
-    const searchVal = String(value || "").trim();
-    const defaultVal = String(props.defaultValue || "").trim();
+    const searchVal = value !== undefined ? String(value).trim() : undefined;
+    const defaultVal = props.defaultValue !== undefined ? String(props.defaultValue).trim() : undefined;
 
-    if (!searchVal && !defaultVal) return null;
+    const target = searchVal !== undefined ? searchVal : defaultVal;
+    if (target === undefined) return null;
 
     // Try exact match first
-    let found = options.find(opt => String(opt.value).trim() === (searchVal || defaultVal));
+    let found = options.find(opt => String(opt.value).trim() === target);
 
     // Fallback to case-insensitive match
     if (!found) {
       found = options.find(opt =>
-        String(opt.value).trim().toLowerCase() === (searchVal || defaultVal).toLowerCase()
+        String(opt.value).trim().toLowerCase() === target.toLowerCase()
       );
     }
 

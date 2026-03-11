@@ -42,4 +42,16 @@ describe("Select component", () => {
     fireEvent.click(disabledBtn);
     expect(handleChange).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the label for an empty string value when a matching option exists", () => {
+    const options = [
+      { label: "All Items", value: "" },
+      { label: "One", value: "1" },
+    ];
+
+    render(<Select options={options} value="" onChange={() => { }} placeholder="Select..." />);
+
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveTextContent("All Items");
+  });
 });
