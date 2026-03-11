@@ -6,7 +6,7 @@ import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
 describe("ToolsClient focused flows", () => {
   it("handles refresh logs network failure gracefully", async () => {
-    (Element.prototype as any).scrollIntoView = () => {};
+    (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
     let logsCallCount = 0;
@@ -25,7 +25,7 @@ describe("ToolsClient focused flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);
@@ -48,7 +48,7 @@ describe("ToolsClient focused flows", () => {
   // NOTE: config save/invalid-JSON flow is covered by ToolsClient.config.test.tsx
 
   it("renders ANSI color codes as styled spans in terminal output", async () => {
-    (Element.prototype as any).scrollIntoView = () => {};
+    (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
     const ansiOutput = "\\x1b[31mRED\\x1b[0m"; // will be converted to escape + [31m sequences by the component
@@ -65,7 +65,7 @@ describe("ToolsClient focused flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
 
     const { container } = render(<ToolsClient session={session} />);

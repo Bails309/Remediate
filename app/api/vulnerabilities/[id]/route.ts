@@ -45,7 +45,12 @@ export async function PATCH(
 
     const { askForHelp, collaboratorIds } = await req.json();
 
-    const updateData: any = {};
+    const updateData: {
+        askForHelp?: boolean;
+        collaborators?: {
+            set: { id: string }[];
+        };
+    } = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
     }

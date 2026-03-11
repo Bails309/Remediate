@@ -35,7 +35,7 @@ describe("ToolsClient config & logs", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);

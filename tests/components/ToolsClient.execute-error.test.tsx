@@ -6,10 +6,10 @@ import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
 describe("ToolsClient execute error handling", () => {
   it("shows error text when execute returns non-ok", async () => {
-    (Element.prototype as any).scrollIntoView = () => {};
+    (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
-    const mockFetch = vi.fn((input: RequestInfo | URL, opts?: RequestInit) => {
+    const mockFetch = vi.fn((input: RequestInfo | URL, _opts?: RequestInit) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
       if (url.includes("/api/tools/list")) {
         return Promise.resolve({ ok: true, json: async () => ({ tools: [{ id: "t1", name: "Echo", inputs: [] }] }) } as Response);
@@ -23,7 +23,7 @@ describe("ToolsClient execute error handling", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);

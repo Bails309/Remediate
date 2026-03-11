@@ -19,9 +19,9 @@ type User = {
 const roleOptions = [
     { value: "site_admin", label: "Site Admin" },
     { value: "web_app_admin", label: "Workspace Admin" },
-    { value: "pentest_admin", label: "Toolkit Admin" },
+    { value: "toolkit_admin", label: "Toolkit Admin" },
     { value: "web_app_user", label: "Workspace User" },
-    { value: "pentest_user", label: "Toolkit User" },
+    { value: "toolkit_user", label: "Toolkit User" },
 ];
 
 function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {

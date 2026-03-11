@@ -145,7 +145,7 @@ export async function getStorageProvider(): Promise<StorageProvider> {
                 if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
                     console.error('Azure storage auth failure, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
                 }
-            } catch (_) {
+            } catch {
                 // ignore
             }
             console.error("Failed to initialize Azure storage provider, falling back to Redis storage", e);
@@ -175,7 +175,7 @@ const enhanceAzureErrors = (fn: (...args: unknown[]) => Promise<unknown>) => {
                 if (hdrs && (hdrs['www-authenticate'] || hdrs['WWW-Authenticate'])) {
                     console.error('Azure storage operation failed, www-authenticate:', hdrs['www-authenticate'] || hdrs['WWW-Authenticate']);
                 }
-            } catch (_) {}
+            } catch { }
             throw e;
         }
     };

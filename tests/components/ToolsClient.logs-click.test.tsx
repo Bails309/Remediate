@@ -1,12 +1,12 @@
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
 describe("ToolsClient logs click behavior", () => {
   it("clicking a log row loads its output into the terminal area", async () => {
-    (Element.prototype as any).scrollIntoView = () => {};
+    (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
 
     const mockLog = { id: "l1", toolId: "t1", toolName: "Echo", status: "completed", output: "SAMPLE OUTPUT", startedAt: new Date().toISOString() };
@@ -22,7 +22,7 @@ describe("ToolsClient logs click behavior", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
 
     render(<ToolsClient session={session} />);

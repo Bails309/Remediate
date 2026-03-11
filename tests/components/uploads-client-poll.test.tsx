@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, vi, beforeEach, afterEach, expect } from "vitest";
 
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
@@ -11,7 +11,7 @@ beforeEach(() => {
 afterEach(() => {
   try {
     vi.useRealTimers();
-  } catch {}
+  } catch { }
 });
 
 describe("UploadsClient polling + history", () => {
@@ -39,7 +39,7 @@ describe("UploadsClient polling + history", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-ignore
+    // @ts-expect-error
     global.fetch = mockFetch as unknown as typeof fetch;
     // Provide a minimal EventSource mock for jsdom/node
     class MockEventSource {
@@ -50,7 +50,7 @@ describe("UploadsClient polling + history", () => {
       addEventListener(name: string, cb: (ev: MessageEvent) => void) {
         this.listeners[name] = cb;
       }
-      close() {}
+      close() { }
       emit(name: string, data: unknown) {
         const cb = this.listeners[name];
         if (cb) cb({ data: JSON.stringify(data) } as MessageEvent);
@@ -74,12 +74,12 @@ describe("UploadsClient polling + history", () => {
     // wait for fetch to be called (poller/refresh should trigger history fetch)
     await waitFor(() => expect(mockFetch).toHaveBeenCalled(), { timeout: 5000 });
 
-      // Wait for the history fetch to be called (poller runs every ~2000ms)
-      await waitFor(() => {
-        const calledHistory = mockFetch.mock.calls.some((c) => String(c[0]).includes("/api/uploads/history"));
-        if (!calledHistory) throw new Error("history not called yet");
-        return true;
-      }, { timeout: 6000 });
+    // Wait for the history fetch to be called (poller runs every ~2000ms)
+    await waitFor(() => {
+      const calledHistory = mockFetch.mock.calls.some((c) => String(c[0]).includes("/api/uploads/history"));
+      if (!calledHistory) throw new Error("history not called yet");
+      return true;
+    }, { timeout: 6000 });
 
     // Uploaded entry should be rendered (file name shown)
     await waitFor(() => expect(screen.getByText("f.csv")).toBeDefined(), { timeout: 5000 });

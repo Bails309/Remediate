@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { decrypt, encrypt } from "@/lib/crypto";
-import type { ReportConfig } from "@prisma/client";
 
 export type ReportSettings = {
   enabled: boolean;
@@ -42,7 +41,20 @@ export async function getReportConfig(decryptPassword = false): Promise<(ReportS
 }
 
 export async function upsertReportConfig(input: ReportSettings) {
-  const data: any = {
+  const data: {
+    enabled: boolean;
+    recipients: string;
+    dayOfWeek: number;
+    hour: number;
+    minute: number;
+    timezone: string;
+    smtpHostEnc: string;
+    smtpPortEnc: string;
+    smtpUserEnc: string | null;
+    smtpPassEnc?: string;
+    smtpSecureEnc: string;
+    smtpFromEnc: string;
+  } = {
     enabled: input.enabled,
     recipients: input.recipients.split(",").map((item) => item.trim()).filter(Boolean).join(","),
     dayOfWeek: input.dayOfWeek,

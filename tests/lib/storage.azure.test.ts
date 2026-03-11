@@ -27,9 +27,9 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@azure/storage-blob", () => {
-  const BlobServiceClient = function (this: any, urlOrConn: string, cred?: unknown) {
+  const BlobServiceClient = function (this: any, _urlOrConn: string, _cred?: unknown) {
     return { getContainerClient: mockGetContainerClient };
-  } as unknown as { fromConnectionString: Function } & Function;
+  } as unknown as { fromConnectionString: (...a: any[]) => any } & ((...a: any[]) => any);
   (BlobServiceClient as any).fromConnectionString = vi.fn(() => ({ getContainerClient: mockGetContainerClient }));
 
   // Provide a real constructor for StorageSharedKeyCredential so `new` works
