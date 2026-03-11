@@ -1,18 +1,10 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
 describe("ToolsClient execute error handling", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("shows error text when execute returns non-ok", async () => {
     (Element.prototype as any).scrollIntoView = () => { };
     const session = { user: { roles: [] } } as any;
@@ -43,8 +35,6 @@ describe("ToolsClient execute error handling", () => {
     fireEvent.click(runBtn);
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
-
-    await vi.runAllTimersAsync();
 
     // Expect an error displayed in the terminal area
     await waitFor(() => {

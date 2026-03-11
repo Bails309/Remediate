@@ -6,6 +6,7 @@
   </picture>
   
   # Remediate
+  <p><strong>Version:</strong> 1.1.7 (2026-03-11)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
