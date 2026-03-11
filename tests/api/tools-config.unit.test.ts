@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/pentest", () => ({ getPentestBackendUrl: vi.fn(), signPentestToken: vi.fn() }));
-vi.mock("../../lib/rbac", () => ({ requirePentestAdmin: vi.fn() }));
+vi.mock("../../lib/rbac", () => ({ requireToolkitAdmin: vi.fn() }));
 
 import { getPentestBackendUrl, signPentestToken } from "../../lib/pentest";
-import { requirePentestAdmin } from "../../lib/rbac";
+import { requireToolkitAdmin } from "../../lib/rbac";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -14,7 +14,7 @@ beforeEach(() => {
 
 describe("/api/tools/config handlers", () => {
   it("GET forwards request and returns payload", async () => {
-    vi.mocked(requirePentestAdmin).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitAdmin).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -31,7 +31,7 @@ describe("/api/tools/config handlers", () => {
   });
 
   it("GET handles fetch error and returns 500", async () => {
-    vi.mocked(requirePentestAdmin).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitAdmin).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -46,7 +46,7 @@ describe("/api/tools/config handlers", () => {
   });
 
   it("PUT forwards body and returns backend payload", async () => {
-    vi.mocked(requirePentestAdmin).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitAdmin).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 

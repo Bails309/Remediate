@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET as listTools } from '../../app/api/tools/list/route';
 import { POST as executeTool } from '../../app/api/tools/execute/route';
 import { GET as getConfig, PUT as updateConfig } from '../../app/api/tools/config/route';
-import { requirePentestUser, requirePentestAdmin } from '@/lib/rbac';
+import { requireToolkitUser, requireToolkitAdmin } from '@/lib/rbac';
 
 // Mock dependencies
 vi.mock('@/lib/rbac', () => ({
-    requirePentestUser: vi.fn(),
-    requirePentestAdmin: vi.fn(),
+    requireToolkitUser: vi.fn(),
+    requireToolkitAdmin: vi.fn(),
 }));
 
 vi.mock('@/lib/pentest', () => ({
@@ -22,8 +22,8 @@ global.fetch = mockFetch;
 describe('Tools API Resilience', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        (requirePentestUser as any).mockResolvedValue({ user: { email: 'test@example.com' } });
-        (requirePentestAdmin as any).mockResolvedValue({ user: { email: 'admin@example.com' } });
+        (requireToolkitUser as any).mockResolvedValue({ user: { email: 'test@example.com' } });
+        (requireToolkitAdmin as any).mockResolvedValue({ user: { email: 'admin@example.com' } });
     });
 
     describe('GET /api/tools/list', () => {

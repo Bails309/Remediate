@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/pentest", () => ({ getPentestBackendUrl: vi.fn(), signPentestToken: vi.fn() }));
-vi.mock("../../lib/rbac", () => ({ requirePentestUser: vi.fn() }));
+vi.mock("../../lib/rbac", () => ({ requireToolkitUser: vi.fn() }));
 
 import { getPentestBackendUrl, signPentestToken } from "../../lib/pentest";
-import { requirePentestUser } from "../../lib/rbac";
+import { requireToolkitUser } from "../../lib/rbac";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -13,7 +13,7 @@ beforeEach(() => {
 
 describe("/api/tools/execute POST", () => {
   it("returns backend payload on success", async () => {
-    vi.mocked(requirePentestUser).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitUser).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -29,7 +29,7 @@ describe("/api/tools/execute POST", () => {
   });
 
   it("returns backend error when non-ok response with JSON error", async () => {
-    vi.mocked(requirePentestUser).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitUser).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -45,8 +45,8 @@ describe("/api/tools/execute POST", () => {
     expect(body.error).toMatch(/Backend Error/);
   });
 
-  it("returns 401 when requirePentestUser throws Unauthorized", async () => {
-    vi.mocked(requirePentestUser).mockRejectedValue(new Error("Unauthorized"));
+  it("returns 401 when requireToolkitUser throws Unauthorized", async () => {
+    vi.mocked(requireToolkitUser).mockRejectedValue(new Error("Unauthorized"));
 
     const { POST } = await import("../../app/api/tools/execute/route");
     const req = new Request("http://localhost", { method: "POST", body: JSON.stringify({}) });
@@ -58,7 +58,7 @@ describe("/api/tools/execute POST", () => {
   });
 
   it("returns 502 on connectivity errors", async () => {
-    vi.mocked(requirePentestUser).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitUser).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 

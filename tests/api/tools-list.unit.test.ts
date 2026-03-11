@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/pentest", () => ({ getPentestBackendUrl: vi.fn(), signPentestToken: vi.fn() }));
-vi.mock("../../lib/rbac", () => ({ requirePentestUser: vi.fn() }));
+vi.mock("../../lib/rbac", () => ({ requireToolkitUser: vi.fn() }));
 
 import { getPentestBackendUrl, signPentestToken } from "../../lib/pentest";
-import { requirePentestUser } from "../../lib/rbac";
+import { requireToolkitUser } from "../../lib/rbac";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -13,7 +13,7 @@ beforeEach(() => {
 
 describe("/api/tools/list GET", () => {
   it("returns list on success", async () => {
-    vi.mocked(requirePentestUser).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitUser).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -28,7 +28,7 @@ describe("/api/tools/list GET", () => {
   });
 
   it("returns backend error when res not ok with JSON body", async () => {
-    vi.mocked(requirePentestUser).mockResolvedValue({ user: { id: "u" } } as any);
+    vi.mocked(requireToolkitUser).mockResolvedValue({ user: { id: "u" } } as any);
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
@@ -43,7 +43,7 @@ describe("/api/tools/list GET", () => {
   });
 
   it("returns 502 on connectivity errors", async () => {
-    vi.mocked(requirePentestUser).mockRejectedValue(new Error("Network"));
+    vi.mocked(requireToolkitUser).mockRejectedValue(new Error("Network"));
     const { GET } = await import("../../app/api/tools/list/route");
     const res = await GET();
     expect(res.status).toBe(502);
