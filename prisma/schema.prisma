@@ -50,6 +50,7 @@ model User {
   vulnerabilityHistory VulnerabilityHistory[]
   uploads       UploadHistory[]  @relation("UploadedBy")
   pentestExecutions PentestExecution[]
+  assignmentNotifications AssignmentNotification[]
   createdAt     DateTime         @default(now())
 }
 
@@ -89,6 +90,7 @@ model Vulnerability {
   askForHelp               Boolean              @default(false)
   collaborators            User[]               @relation("Collaborators")
   comments                 Comment[]
+  assignmentNotifications AssignmentNotification[]
 
   site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation("Assignee", fields: [assigneeId], references: [id])
@@ -235,4 +237,17 @@ model Comment {
   author          User          @relation(fields: [authorId], references: [id])
 
   @@index([vulnerabilityId, createdAt(sort: Desc)])
+}
+
+model AssignmentNotification {
+  id              String        @id @default(uuid()) @db.Uuid
+  userId          String        @db.Uuid
+  vulnerabilityId String        @db.Uuid
+  createdAt       DateTime      @default(now())
+  sentAt          DateTime?
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt])
 }

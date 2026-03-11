@@ -28,9 +28,22 @@ export async function POST(request: NextRequest) {
     updateData.assigneeId = payload.assigneeId;
   }
 
-  await prisma.vulnerability.updateMany({
-    where: { id: { in: payload.ids } },
-    data: updateData,
+  await prisma.$transaction(async (tx) => {
+    await tx.vulnerability.updateMany({
+      where: { id: { in: payload.ids } },
+      data: updateData,
+    });
+
+    // If assigneeId was changed to a user (not null/unassigned), log notifications
+    if (payload.assigneeId) {
+      const notifications = payload.ids.map((id: string) => ({
+        userId: payload.assigneeId as string,
+        vulnerabilityId: id,
+      }));
+      await tx.assignmentNotification.createMany({
+        data: notifications,
+      });
+    }
   });
 
   return NextResponse.json({ ok: true });

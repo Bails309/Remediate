@@ -5,6 +5,7 @@ import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
 // Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
+import { startNotificationScheduler } from "../lib/notification-scheduler";
 import { Worker, Job } from "bullmq";
 
 async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
