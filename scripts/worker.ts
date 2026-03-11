@@ -55,6 +55,8 @@ async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
 async function run() {
   console.log("Worker started with BullMQ");
   startReportScheduler();
+  // start background notification scheduler in worker process
+  startNotificationScheduler();
 
   const HEARTBEAT_KEY = "worker:heartbeat";
   const HEARTBEAT_INTERVAL_MS = 10_000;

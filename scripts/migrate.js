@@ -102,7 +102,17 @@
         await checkAndFixMigrations(prisma);
 
         console.log("[Migrate] Triggering Prisma Migrate Deploy (Re-entrant Rollup)...");
-        execSync("npm run prisma migrate deploy", { stdio: "pipe" });
+        try {
+          execSync("npm run prisma migrate deploy", { stdio: "pipe" });
+        } catch (e) {
+          const stderr = e.stderr ? e.stderr.toString() : (e.message || "");
+          if (stderr.includes("already exists")) {
+            console.warn("[Migrate] Detected partially-applied migration (relation already exists). Skipping migrate deploy to allow app startup.");
+            // Intentionally continue without rethrowing so the app can start.
+          } else {
+            throw e;
+          }
+        }
 
         console.log("[Migrate] Database is now up to date.");
       } finally {

@@ -2,6 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { getReportConfig } from "@/lib/reports";
 import { sendEmail, renderEmailLayout } from "@/lib/email";
 
+type AssignmentNotificationRecord = {
+    id: string;
+    userId: string;
+    user?: { name?: string; email?: string };
+    vulnerability: { id: string; name?: string; risk?: string; host?: string; port?: string };
+};
+
 const NOTIFICATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function startNotificationScheduler() {
@@ -22,21 +29,21 @@ export function startNotificationScheduler() {
             if (pending.length === 0) return;
 
             // Group by user
-            const userNotifications = pending.reduce((acc, n) => {
+            const userNotifications = pending.reduce((acc, n: AssignmentNotificationRecord) => {
                 if (!acc[n.userId]) {
                     acc[n.userId] = {
                         user: n.user,
-                        notifications: [],
+                        notifications: [] as AssignmentNotificationRecord[],
                     };
                 }
-                acc[n.userId].notifications.push(n);
+                acc[n.userId].notifications.push(n as AssignmentNotificationRecord);
                 return acc;
-            }, {} as Record<string, { user: any; notifications: any[] }>);
+            }, {} as Record<string, { user?: { name?: string; email?: string }; notifications: AssignmentNotificationRecord[] }>);
 
             for (const userId in userNotifications) {
                 const { user, notifications } = userNotifications[userId];
-                const uniqueVulnsDict: Record<string, any> = {};
-                notifications.forEach(n => {
+                const uniqueVulnsDict: Record<string, { id: string; name?: string; risk?: string; host?: string; port?: string }> = {};
+                notifications.forEach((n: AssignmentNotificationRecord) => {
                     uniqueVulnsDict[n.vulnerability.id] = n.vulnerability;
                 });
                 const uniqueVulns = Object.values(uniqueVulnsDict);
@@ -58,7 +65,7 @@ export function startNotificationScheduler() {
                     contentHtml: `
             <h1 style="color: #0f172a; font-size: 28px; font-weight: 800; margin: 0 0 12px 0; letter-spacing: -0.03em; line-height: 1.1;">Security Briefing</h1>
             <p style="color: #475569; font-size: 16px; font-weight: 400; line-height: 1.6; margin: 0 0 32px 0;">
-                Hello <span style="font-weight: 600; color: #0f172a;">${user.name || "there"}</span>, you have been designated as a collaborator or primary owner for <span style="font-weight: 700; color: #2563eb;">${uniqueVulns.length}</span> new finding(s).
+                Hello <span style="font-weight: 600; color: #0f172a;">${user?.name ?? "there"}</span>, you have been designated as a collaborator or primary owner for <span style="font-weight: 700; color: #2563eb;">${uniqueVulns.length}</span> new finding(s).
             </p>
 
             <div style="text-transform: uppercase; font-size: 11px; font-weight: 800; color: #94a3b8; letter-spacing: 0.1em; margin-bottom: 16px;">Assigned Findings</div>
@@ -108,9 +115,9 @@ export function startNotificationScheduler() {
           `
                 });
 
-                const text = `Hello ${user.name || "there"},\n\nYou have ${uniqueVulns.length} new finding assignments:\n\n${uniqueVulns.map(v => `- ${v.name} (${v.risk}) - ${v.host}`).join("\n")}\n\nView details: ${appUrl}/vulnerabilities`;
+                const text = `Hello ${user?.name ?? "there"},\n\nYou have ${uniqueVulns.length} new finding assignments:\n\n${uniqueVulns.map(v => `- ${v.name} (${v.risk}) - ${v.host}`).join("\n")}\n\nView details: ${appUrl}/vulnerabilities`;
 
-                if (user.email) {
+                if (user?.email) {
                     await sendEmail(config, user.email, subject, html, text);
 
                     // Mark as sent

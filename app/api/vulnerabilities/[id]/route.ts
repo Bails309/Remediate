@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
-import { sendEmail, renderEmailLayout } from "@/lib/email";
-import { getReportConfig } from "@/lib/reports";
+// email/reporting helpers removed from this route to avoid unused imports
 
 export async function PATCH(
     req: Request,
@@ -62,7 +61,13 @@ export async function PATCH(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-        const u = await (tx.vulnerability as any).update({
+        const u = await (tx.vulnerability as unknown as {
+            update: (opts: {
+                where: { id: string };
+                data: typeof updateData;
+                include: { collaborators: { select: { id: true; name: true; email: true } } };
+            }) => Promise<unknown>;
+        }).update({
             where: { id: vulnerabilityId },
             data: updateData,
             include: {
@@ -75,7 +80,9 @@ export async function PATCH(
             const newCollaboratorIds = collaboratorIds.filter((id: string) => !existingCollaboratorIds.includes(id));
 
             if (newCollaboratorIds.length > 0) {
-                await (tx.assignmentNotification as any).createMany({
+                await (tx.assignmentNotification as unknown as {
+                    createMany: (opts: { data: { userId: string; vulnerabilityId: string }[] }) => Promise<unknown>;
+                }).createMany({
                     data: newCollaboratorIds.map(userId => ({
                         userId,
                         vulnerabilityId
