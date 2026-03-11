@@ -33,7 +33,7 @@ describe("Admin Users API Integration", () => {
             data: {
                 email: "admin@test.com",
                 name: "Admin",
-                roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"]
+                roles: ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"]
             }
         });
 

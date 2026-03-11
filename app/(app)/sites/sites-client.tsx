@@ -25,14 +25,14 @@ export function SitesClient({ initialSites }: Props) {
     });
 
     if (!response.ok) {
-      toast.error("Failed to create site");
+      toast.error("Failed to create bucket");
       return;
     }
 
     const site = (await response.json()) as Site;
     setSites((prev) => [...prev, site]);
     setName("");
-    toast.success("Site added");
+    toast.success("Bucket added");
   };
 
   const removeSite = async (site: Site) => {
@@ -44,28 +44,28 @@ export function SitesClient({ initialSites }: Props) {
     const response = await fetch(`/api/sites/${site.id}`, { method: "DELETE" });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      toast.error(data.error ?? "Failed to remove site");
+      toast.error(data.error ?? "Failed to remove bucket");
       return;
     }
 
     setSites((prev) => prev.filter((item) => item.id !== site.id));
-    toast.success("Site removed");
+    toast.success("Bucket removed");
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold">Sites</h2>
-        <p className="text-sm opacity-70">Organize uploads by site or environment.</p>
+        <h2 className="text-2xl font-semibold">Buckets</h2>
+        <p className="text-sm opacity-70">Organize uploads by bucket or environment.</p>
       </div>
 
       <div className="flex flex-wrap gap-4">
         <Input
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Create new site"
+          placeholder="Create new bucket"
         />
-        <Button onClick={createSite}>Add Site</Button>
+        <Button onClick={createSite}>Add Bucket</Button>
       </div>
 
       <div className="grid gap-3">
@@ -73,7 +73,7 @@ export function SitesClient({ initialSites }: Props) {
           <div key={site.id} className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 py-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{site.name}</p>
-              <p className="truncate text-[11px] opacity-60">Site ID: {site.id}</p>
+              <p className="truncate text-[11px] opacity-60">Bucket ID: {site.id}</p>
             </div>
             <button
               onClick={() => removeSite(site)}

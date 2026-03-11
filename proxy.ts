@@ -32,7 +32,7 @@ const proxyHandler = auth((req: AuthRequest) => {
         return NextResponse.redirect(new URL("/dashboard", nextUrl));
     }
 
-    if (nextUrl.pathname.startsWith("/tools") && !hasAnyRole(["site_admin", "pentest_admin", "pentest_user"])) {
+    if (nextUrl.pathname.startsWith("/tools") && !hasAnyRole(["site_admin", "toolkit_admin", "toolkit_user"])) {
         return NextResponse.redirect(new URL("/dashboard", nextUrl));
     }
 

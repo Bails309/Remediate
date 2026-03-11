@@ -27,10 +27,10 @@ describe("SitesClient", () => {
 
     render(<SitesClient initialSites={[{ id: "s1", name: "Site 1" }]} />);
 
-    const input = screen.getByPlaceholderText("Create new site");
+    const input = screen.getByPlaceholderText("Create new bucket");
     fireEvent.change(input, { target: { value: "New Site" } });
 
-    const btn = screen.getByText("Add Site");
+    const btn = screen.getByText("Add Bucket");
     fireEvent.click(btn);
 
     await waitFor(() => expect(screen.getByText("New Site")).toBeTruthy());

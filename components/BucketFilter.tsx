@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Select } from "@/components/Select";
 
-type Site = { id: string; name: string };
+type Bucket = { id: string; name: string };
 
-export function SiteFilter({ sites, selected }: { sites: Site[]; selected: string }) {
+export function BucketFilter({ buckets, selected }: { buckets: Bucket[]; selected: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
@@ -13,16 +13,16 @@ export function SiteFilter({ sites, selected }: { sites: Site[]; selected: strin
   const onChange = (value: string) => {
     const next = new URLSearchParams(params?.toString() || "");
     if (value) {
-      next.set("siteId", value);
+      next.set("bucketId", value);
     } else {
-      next.delete("siteId");
+      next.delete("bucketId");
     }
     router.push(`${pathname}?${next.toString()}`);
   };
 
   const options = [
-    { label: "All Sites", value: "" },
-    ...sites.map((site) => ({ label: site.name, value: site.id }))
+    { label: "All Buckets", value: "" },
+    ...buckets.map((bucket) => ({ label: bucket.name, value: bucket.id }))
   ];
 
   return (

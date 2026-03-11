@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+
 
 FROM node:lts-slim AS deps
 ARG APP_VERSION=1.1.6

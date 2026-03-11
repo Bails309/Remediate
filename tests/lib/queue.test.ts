@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock BullMQ before importing the queue module
 const { mockAdd, mockGetJob, mockGetJobs } = vi.hoisted(() => ({
@@ -24,6 +24,7 @@ vi.mock("@/lib/redis", () => ({
     set: vi.fn(),
     get: vi.fn(),
     eval: vi.fn().mockResolvedValue(1),
+    del: vi.fn(),
   },
 }));
 
@@ -33,7 +34,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("queue operations", () => {
+  it("getLockKey returns a formatted key", () => {
+    expect(queue.getLockKey("site-123")).toBe("{site:site-123}:upload-lock");
+  });
+
   it("enqueueUpload adds job to uploadQueue", async () => {
     await queue.enqueueUpload("u1", "payload-key");
     expect(mockAdd).toHaveBeenCalledWith("u1", { uploadId: "u1", storageKey: "payload-key" }, { jobId: "u1" });
@@ -50,5 +59,32 @@ describe("queue operations", () => {
     const ids = await queue.listDeadLetters(10);
     expect(mockGetJobs).toHaveBeenCalledWith(["failed"], 0, 9, false);
     expect(ids).toEqual(["j1", "j2"]);
+  });
+
+  it("getRetryCount returns attemptsMade from job", async () => {
+    mockGetJob.mockResolvedValue({ attemptsMade: 3 });
+    const attempts = await queue.getRetryCount("u1");
+    expect(attempts).toBe(3);
+  });
+
+  it("removeDeadLetter calls remove on existing job", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockGetJob.mockResolvedValue({ remove });
+    await queue.removeDeadLetter("u1");
+    expect(remove).toHaveBeenCalled();
+  });
+
+  it("removeDeadLetters iterates ids and calls removeDeadLetter", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockGetJob.mockResolvedValue({ remove });
+    await queue.removeDeadLetters(["a", "b"]);
+    expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("resetRetry forwards to removeDeadLetter", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockGetJob.mockResolvedValue({ remove });
+    await queue.resetRetry("u1");
+    expect(remove).toHaveBeenCalled();
   });
 });

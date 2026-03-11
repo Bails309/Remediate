@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const allowedRoles = ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"];
+        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"];
         const hasInvalid = roles.some((role: string) => !allowedRoles.includes(role));
         if (hasInvalid) {
             return NextResponse.json({ error: "Invalid role" }, { status: 400 });

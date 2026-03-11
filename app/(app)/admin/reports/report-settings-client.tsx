@@ -59,7 +59,7 @@ export function ReportSettingsClient() {
             smtpHost: data.config.smtpHost,
             smtpPort: data.config.smtpPort,
             smtpUser: data.config.smtpUser ?? "",
-            smtpPass: "",
+            smtpPass: data.config.smtpPass ?? "",
             smtpSecure: data.config.smtpSecure,
             smtpFrom: data.config.smtpFrom,
           });

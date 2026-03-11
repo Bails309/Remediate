@@ -17,7 +17,9 @@ export type ReportSettings = {
   smtpFrom: string;
 };
 
-export async function getReportConfig(): Promise<(ReportSettings & { lastSentAt?: string | null }) | null> {
+export const SMTP_PASS_PLACEHOLDER = "__SMTP_PASS_SET__";
+
+export async function getReportConfig(decryptPassword = false): Promise<(ReportSettings & { lastSentAt?: string | null }) | null> {
   const config = await prisma.reportConfig.findFirst();
   if (!config) {
     return null;
@@ -32,7 +34,7 @@ export async function getReportConfig(): Promise<(ReportSettings & { lastSentAt?
     smtpHost: decrypt(config.smtpHostEnc),
     smtpPort: Number(decrypt(config.smtpPortEnc)),
     smtpUser: config.smtpUserEnc ? decrypt(config.smtpUserEnc) : undefined,
-    smtpPass: config.smtpPassEnc ? decrypt(config.smtpPassEnc) : undefined,
+    smtpPass: config.smtpPassEnc ? (decryptPassword ? decrypt(config.smtpPassEnc) : SMTP_PASS_PLACEHOLDER) : undefined,
     smtpSecure: decrypt(config.smtpSecureEnc) === "true",
     smtpFrom: decrypt(config.smtpFromEnc),
     lastSentAt: config.lastSentAt?.toISOString() ?? null,
@@ -40,7 +42,7 @@ export async function getReportConfig(): Promise<(ReportSettings & { lastSentAt?
 }
 
 export async function upsertReportConfig(input: ReportSettings) {
-  const data = {
+  const data: any = {
     enabled: input.enabled,
     recipients: input.recipients.split(",").map((item) => item.trim()).filter(Boolean).join(","),
     dayOfWeek: input.dayOfWeek,
@@ -50,10 +52,14 @@ export async function upsertReportConfig(input: ReportSettings) {
     smtpHostEnc: encrypt(input.smtpHost),
     smtpPortEnc: encrypt(String(input.smtpPort)),
     smtpUserEnc: input.smtpUser ? encrypt(input.smtpUser) : null,
-    smtpPassEnc: input.smtpPass ? encrypt(input.smtpPass) : null,
     smtpSecureEnc: encrypt(String(input.smtpSecure)),
     smtpFromEnc: encrypt(input.smtpFrom),
-  } satisfies Partial<ReportConfig>;
+  };
+
+  // Only update sensitive fields if they are provided and not the placeholder
+  if (input.smtpPass && input.smtpPass !== SMTP_PASS_PLACEHOLDER && input.smtpPass.trim() !== "") {
+    data.smtpPassEnc = encrypt(input.smtpPass);
+  }
 
   const existing = await prisma.reportConfig.findFirst();
   if (!existing) {

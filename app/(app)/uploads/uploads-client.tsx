@@ -33,7 +33,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
 
   const startUpload = async () => {
     if (!siteId || !file) {
-      toast.error("Select a site and file");
+      toast.error("Select a bucket and file");
       return;
     }
 
@@ -159,7 +159,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
     <div className="space-y-10">
       <div>
         <h2 className="text-2xl font-semibold">CSV Uploads</h2>
-        <p className="text-sm opacity-70">Upload security remediation CSVs by site.</p>
+        <p className="text-sm opacity-70">Upload security remediation CSVs by bucket.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
@@ -168,7 +168,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
             <Select
               value={siteId}
               onChange={setSiteId}
-              placeholder="Select site"
+              placeholder="Select bucket"
               options={[
                 ...sites.map((site) => ({ label: site.name, value: site.id }))
               ]}
@@ -182,7 +182,7 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
               {file ? file.name : "Drop or select CSV file"}
             </label>
 
-            <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen site">Start Upload</Button>
+            <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen bucket">Start Upload</Button>
           </div>
         </div>
 

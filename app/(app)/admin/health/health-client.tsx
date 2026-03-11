@@ -20,7 +20,7 @@ interface HealthData {
     database: { status: string; latency: string; type: string };
     redis: { status: string; latency: string; memory: string };
     worker: { status: string };
-    pentestBackend: { status: string; url: string | null };
+    toolkitBackend: { status: string; url: string | null };
     schema: { status: string; version: string };
     process: {
         uptime: string;
@@ -187,9 +187,9 @@ export function HealthClient() {
                     icon={<Zap className="h-4 w-4" />}
                 />
                 <SmallHealthCard
-                    label="PENTEST BACKEND"
-                    value={data.pentestBackend?.status ?? "Not configured"}
-                    status={data.pentestBackend?.status}
+                    label="TOOLKIT BACKEND"
+                    value={data.toolkitBackend?.status ?? "Not configured"}
+                    status={data.toolkitBackend?.status}
                     icon={<Terminal className="h-4 w-4" />}
                 />
             </div>

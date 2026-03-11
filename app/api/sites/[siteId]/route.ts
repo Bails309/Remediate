@@ -38,7 +38,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await prisma.site.delete({ where: { id: siteId } });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Failed to delete site", error);
-    return NextResponse.json({ error: "Failed to delete site" }, { status: 500 });
+    console.error("Failed to delete bucket", error);
+    return NextResponse.json({ error: "Failed to delete bucket" }, { status: 500 });
   }
 }

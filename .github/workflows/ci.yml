@@ -96,6 +96,45 @@ jobs:
       - name: Run unit tests with coverage
         run: npx vitest run --coverage
 
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+          retention-days: 30
+
+      - name: Check coverage threshold
+        if: always()
+        env:
+          MIN_STATEMENTS: 75
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const files = [
+            'coverage/coverage-summary.json',
+            'coverage/coverage-final.json',
+            'coverage/v8/coverage-final.json',
+            'coverage/coverage-summary.json'
+          ];
+          let data;
+          for (const f of files) {
+            if (fs.existsSync(f)) {
+              try { data = JSON.parse(fs.readFileSync(f,'utf8')); break } catch(e){}
+            }
+          }
+          if (!data) { console.log('No coverage summary found in coverage/; skipping threshold check'); process.exit(0); }
+          let pct;
+          if (data.total && data.total.statements && typeof data.total.statements.pct === 'number') pct = data.total.statements.pct;
+          else if (data.total && data.total.lines && typeof data.total.lines.pct === 'number') pct = data.total.lines.pct;
+          else if (data.coverage && data.coverage.statements && typeof data.coverage.statements.pct === 'number') pct = data.coverage.statements.pct;
+          if (typeof pct !== 'number') { console.log('Unable to determine statements coverage percentage; skipping threshold check'); process.exit(0); }
+          console.log('Statements coverage:', pct);
+          const min = Number(process.env.MIN_STATEMENTS || 75);
+          if (pct < min) { console.error(`Coverage ${pct}% is below threshold ${min}%`); process.exit(1); }
+          console.log('Coverage threshold met');
+          NODE
+
   integration:
     runs-on: ubuntu-latest
     needs: unit

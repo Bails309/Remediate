@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-import { requireUser } from "@/lib/rbac";
+import { requireUser, hasAnyRole, checkAdmin } from "@/lib/rbac";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -50,5 +50,39 @@ describe("requireUser", () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
 
     await expect(requireUser()).rejects.toThrow("Redirected to /login?error=SessionExpired");
+  });
+});
+
+describe("admin and pentest guards", () => {
+  it("requireAdmin throws when user lacks admin roles", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "x@x.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u1", email: "x@x.com", roles: ["web_app_user"] } as any);
+    await expect(import("@/lib/rbac").then((m) => m.requireAdmin())).rejects.toThrow("Forbidden");
+  });
+
+  it("requireAdmin returns session when user has admin role", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "admin@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u-admin", email: "admin@example.com", roles: ["site_admin"] } as any);
+    const session = await import("@/lib/rbac").then((m) => m.requireAdmin());
+    expect(session.user.id).toBe("u-admin");
+  });
+
+  it("requireToolkitUser throws when missing toolkit roles", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "user@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u1", email: "user@example.com", roles: ["web_app_user"] } as any);
+    await expect(import("@/lib/rbac").then((m) => m.requireToolkitUser())).rejects.toThrow("Forbidden");
+  });
+
+  it("requireToolkitAdmin requires toolkit toolkit roles", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "padmin@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u2", email: "padmin@example.com", roles: ["toolkit_admin"] } as any);
+    const session = await import("@/lib/rbac").then((m) => m.requireToolkitAdmin());
+    expect(session.user.id).toBe("u2");
+  });
+
+  it("hasAnyRole and checkAdmin behave correctly", () => {
+    expect(hasAnyRole({ roles: ["site_admin"] }, ["site_admin"])).toBe(true);
+    expect(hasAnyRole(null, ["a"])).toBe(false);
+    expect(checkAdmin({ roles: ["web_app_admin"] })).toBe(true);
   });
 });

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requirePentestAdmin } from "@/lib/rbac";
+import { requireToolkitAdmin } from "@/lib/rbac";
 import { getPentestBackendUrl, signPentestToken } from "@/lib/pentest";
 
 export async function GET() {
   try {
-    const session = await requirePentestAdmin();
+    const session = await requireToolkitAdmin();
     const token = signPentestToken(session);
 
     const res = await fetch(`${getPentestBackendUrl()}/api/tools/config`, {
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const session = await requirePentestAdmin();
+    const session = await requireToolkitAdmin();
     const token = signPentestToken(session);
     const body = await req.json();
 

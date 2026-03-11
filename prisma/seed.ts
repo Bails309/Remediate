@@ -11,7 +11,7 @@ async function main() {
     create: {
       email: adminEmail,
       name: "Admin User",
-      roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
+      roles: ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"],
     },
   });
 

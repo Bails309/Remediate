@@ -286,7 +286,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     try {
       const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ askForHelp: !detail.askForHelp }),
+        body: JSON.stringify({
+          askForHelp: !detail.askForHelp,
+          ...(detail.askForHelp ? { collaboratorIds: [] } : {})
+        }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -337,9 +340,9 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         <Select
           value={siteId}
           onChange={(v) => { setSiteId(v); setPage(1); }}
-          placeholder="All sites"
+          placeholder="All buckets"
           options={[
-            { label: "All sites", value: "" },
+            { label: "All buckets", value: "" },
             ...sites.map((site) => ({ label: site.name, value: site.id }))
           ]}
         />
@@ -690,7 +693,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Collaborators</p>
                 <div className="flex flex-wrap gap-2">
-                  {users.filter(u => u.id !== detail.assigneeId).map(user => {
+                  {users.filter(u => u.id !== detail.assigneeId && u.id !== session?.user?.id).map(user => {
                     const isCollaborator = (detail?.collaborators ?? []).some(c => c.id === user.id);
                     return (
                       <Badge

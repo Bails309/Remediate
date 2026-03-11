@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         pluginId: gPluginId,
         siteId: siteId ?? undefined, // Keep site context if provided
       },
-      include: { site: true, assignee: true },
+      include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
       orderBy: { lastSeenAt: 'desc' }
     });
     return NextResponse.json({ items });
@@ -111,11 +111,14 @@ export async function GET(request: NextRequest) {
 
     // Hydrate the items with assignee info (since group by loses relations)
     const hydratedItems = await Promise.all(items.map(async (item: Record<string, unknown>) => {
-      if (item.assigneeId) {
-        const assignee = await prisma.user.findUnique({ where: { id: item.assigneeId as string } });
-        return { ...item, assignee };
-      }
-      return item;
+      const vulnWithRelations = await prisma.vulnerability.findUnique({
+        where: { id: item.id as string },
+        include: {
+          assignee: { select: { id: true, name: true } },
+          collaborators: { select: { id: true, name: true } }
+        }
+      });
+      return { ...item, ...vulnWithRelations };
     }));
 
     return NextResponse.json({ total: count, items: hydratedItems, page, pageSize });
@@ -146,7 +149,7 @@ export async function GET(request: NextRequest) {
     prisma.vulnerability.count({ where }),
     prisma.vulnerability.findMany({
       where,
-      include: { site: true, assignee: true },
+      include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
       orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,

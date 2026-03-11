@@ -148,10 +148,10 @@ export function ToolsClient({ session }: { session: Session }) {
   const [selectedVariationId, setSelectedVariationId] = useState<string>("");
   const configRef = useRef<HTMLDivElement>(null);
 
-  const isPentestAdmin = useMemo(() => {
+  const isToolkitAdmin = useMemo(() => {
     const roles = session.user?.roles || [];
-    // Registry management is strictly for pentest_admin or site_admin
-    return roles.includes("site_admin") || roles.includes("pentest_admin");
+    // Registry management is strictly for toolkit_admin or site_admin
+    return roles.includes("site_admin") || roles.includes("toolkit_admin");
   }, [session.user?.roles]);
 
   useEffect(() => {
@@ -202,7 +202,7 @@ export function ToolsClient({ session }: { session: Session }) {
       const messages = [
         "Probing target connectivity...",
         "Executing security scan...",
-        "Routing traffic through Pentest Internal...",
+        "Routing traffic through Internal Toolkit...",
         "Analyzing target responses...",
         "Fetching latest vulnerability signatures...",
         "Parsing raw terminal output...",
@@ -269,7 +269,7 @@ export function ToolsClient({ session }: { session: Session }) {
   }, []);
 
   const loadConfig = useCallback(async () => {
-    if (!isPentestAdmin) return;
+    if (!isToolkitAdmin) return;
     setConfigLoading(true);
     try {
       const res = await fetch("/api/tools/config");
@@ -280,7 +280,7 @@ export function ToolsClient({ session }: { session: Session }) {
     } finally {
       setConfigLoading(false);
     }
-  }, [isPentestAdmin]);
+  }, [isToolkitAdmin]);
 
   const saveConfig = async () => {
     setConfigSaving(true);
@@ -306,10 +306,10 @@ export function ToolsClient({ session }: { session: Session }) {
 
   useEffect(() => {
     refreshLogs();
-    if (isPentestAdmin) {
+    if (isToolkitAdmin) {
       loadConfig();
     }
-  }, [isPentestAdmin, loadConfig, refreshLogs]);
+  }, [isToolkitAdmin, loadConfig, refreshLogs]);
 
   // Auto-scroll to config when tool is selected
   useEffect(() => {
@@ -432,7 +432,7 @@ export function ToolsClient({ session }: { session: Session }) {
       <div className="relative z-10 flex flex-col gap-8 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500">Pentest Toolkit</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500">Toolkit</p>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Execute Secure Tools</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               Run curated scans from the isolated tools container with role-based access controls.
@@ -772,7 +772,7 @@ export function ToolsClient({ session }: { session: Session }) {
           </div>
         </section>
 
-        {isPentestAdmin && (
+        {isToolkitAdmin && (
           <section className="glass glass-edge rounded-[32px] p-8 border border-amber-500/10">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-4">

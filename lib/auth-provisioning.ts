@@ -19,9 +19,9 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
     const adminRoles: UserRole[] = [
         UserRole.site_admin,
         UserRole.web_app_admin,
-        UserRole.pentest_admin,
+        UserRole.toolkit_admin,
         UserRole.web_app_user,
-        UserRole.pentest_user,
+        UserRole.toolkit_user,
     ];
 
     const userRolesFromSession = (user as unknown as { roles?: UserRole[] }).roles;

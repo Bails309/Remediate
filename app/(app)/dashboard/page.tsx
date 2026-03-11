@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/StatCard";
-import { SiteFilter } from "@/components/SiteFilter";
+import { BucketFilter } from "@/components/BucketFilter";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
 
@@ -17,21 +17,21 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ siteId?: string }>;
+  searchParams: Promise<{ bucketId?: string }>;
 }) {
   const params = await searchParams;
-  const siteId = params.siteId;
+  const bucketId = params.bucketId;
 
   // Get counts of logical issues (unique groups) per risk
   const conditions: string[] = [`status != 'Remediated'`];
   const values: (string | number)[] = [];
-  if (siteId) {
+  if (bucketId) {
     conditions.push(`"siteId" = $1::uuid`);
-    values.push(siteId);
+    values.push(bucketId);
   }
   const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
-  const [sites, riskGroups, latest] = await Promise.all([
+  const [buckets, riskGroups, latest] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
     prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
       SELECT risk::text, count(*)::int as count FROM (
@@ -57,9 +57,9 @@ export default async function DashboardPage({
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold">Risk Overview</h2>
-            <p className="text-sm opacity-70">Active issues across your selected site.</p>
+            <p className="text-sm opacity-70">Active issues across your selected bucket.</p>
           </div>
-          <SiteFilter sites={sites} selected={siteId ?? ""} />
+          <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -98,7 +98,7 @@ export default async function DashboardPage({
         <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
           <h3 className="text-lg font-semibold">Operational Tips</h3>
           <ul className="mt-4 space-y-3 text-sm opacity-70">
-            <li>Upload one site at a time to preserve lifecycle accuracy.</li>
+            <li>Upload one bucket at a time to preserve lifecycle accuracy.</li>
             <li>Assign owners early to reduce dwell time.</li>
             <li>Review &quot;No Fix&quot; weekly for vendor updates.</li>
           </ul>

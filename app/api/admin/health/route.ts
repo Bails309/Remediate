@@ -60,21 +60,21 @@ export async function GET(request: NextRequest) {
         workerStatus = "Unhealthy";
     }
 
-    // Pentest backend health check (if configured)
-    const pentestUrl = process.env.PENTEST_BACKEND_URL;
-    let pentestStatus = "Not configured";
-    if (pentestUrl) {
+    // Toolkit backend health check (if configured)
+    const toolkitUrl = process.env.PENTEST_BACKEND_URL;
+    let toolkitStatus = "Not configured";
+    if (toolkitUrl) {
         try {
             // normalize URL
-            const checkUrl = new URL(pentestUrl);
+            const checkUrl = new URL(toolkitUrl);
             checkUrl.pathname = "/health";
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 3000);
             const res = await fetch(checkUrl.toString(), { signal: controller.signal });
             clearTimeout(timeout);
-            pentestStatus = res.ok ? "Healthy" : `Unhealthy (${res.status})`;
+            toolkitStatus = res.ok ? "Healthy" : `Unhealthy (${res.status})`;
         } catch {
-            pentestStatus = "Unhealthy";
+            toolkitStatus = "Unhealthy";
         }
     }
 
@@ -175,8 +175,8 @@ export async function GET(request: NextRequest) {
         worker: {
             status: workerStatus,
         },
-        pentestBackend: {
-            status: pentestStatus,
+        toolkitBackend: {
+            status: toolkitStatus,
             url: process.env.PENTEST_BACKEND_URL ?? null,
         },
         schema: {

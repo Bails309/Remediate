@@ -4,11 +4,11 @@ import { redirect } from "next/navigation";
 
 
 export const WEB_APP_ADMIN_ROLES = ["site_admin", "web_app_admin"] as const;
-export const PENTEST_ROLES = ["site_admin", "pentest_admin", "pentest_user"] as const;
-export const PENTEST_ADMIN_ROLES = ["site_admin", "pentest_admin"] as const;
+export const TOOLKIT_ROLES = ["site_admin", "toolkit_admin", "toolkit_user"] as const;
+export const TOOLKIT_ADMIN_ROLES = ["site_admin", "toolkit_admin"] as const;
 
 export type AppRole = typeof WEB_APP_ADMIN_ROLES[number]
-  | typeof PENTEST_ROLES[number]
+  | typeof TOOLKIT_ROLES[number]
   | "web_app_user";
 
 export async function requireUser() {
@@ -37,17 +37,17 @@ export async function requireAdmin() {
   return session;
 }
 
-export async function requirePentestUser() {
+export async function requireToolkitUser() {
   const session = await requireUser();
-  if (!hasAnyRole(session.user, PENTEST_ROLES)) {
+  if (!hasAnyRole(session.user, TOOLKIT_ROLES)) {
     throw new Error("Forbidden");
   }
   return session;
 }
 
-export async function requirePentestAdmin() {
+export async function requireToolkitAdmin() {
   const session = await requireUser();
-  if (!hasAnyRole(session.user, PENTEST_ADMIN_ROLES)) {
+  if (!hasAnyRole(session.user, TOOLKIT_ADMIN_ROLES)) {
     throw new Error("Forbidden");
   }
   return session;

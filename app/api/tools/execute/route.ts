@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requirePentestUser } from "@/lib/rbac";
+import { requireToolkitUser } from "@/lib/rbac";
 import { getPentestBackendUrl, signPentestToken } from "@/lib/pentest";
 
 export async function POST(req: Request) {
   try {
-    const session = await requirePentestUser();
+    const session = await requireToolkitUser();
     const token = signPentestToken(session);
     const body = await req.json();
 

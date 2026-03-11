@@ -17,8 +17,8 @@ export const metadata: Metadata = {
     default: "Remediate",
     template: "%s | Remediate",
   },
-  description: "Advanced Nessus vulnerability remediation triage and lifecycle management.",
-  keywords: ["Vulnerability Management", "Triage", "Nessus", "Remediation", "Security"],
+  description: "Advanced automated vulnerability remediation triage and lifecycle management.",
+  keywords: ["Vulnerability Management", "Triage", "Security Operations", "Remediation", "Security"],
   authors: [{ name: "Remediate Team" }],
 };
 

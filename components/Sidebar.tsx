@@ -18,7 +18,7 @@ const baseNav = [
 
 const adminNavItems = [
   { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage CSV uploads and processing" },
-  { href: "/sites", label: "Sites", icon: Shield, title: "Manage tracked sites and their settings" },
+  { href: "/sites", label: "Buckets", icon: Shield, title: "Manage tracked buckets and their settings" },
   { href: "/admin/oidc", label: "Auth Settings", icon: Settings, title: "Configure SSO / OIDC providers and callback URLs" },
   { href: "/admin/storage", label: "Storage Settings", icon: Database, title: "Configure where uploaded scan files are stored (Redis or Azure Blob)" },
   { href: "/admin/import", label: "Import Settings", icon: Settings, title: "CSV import behavior and thresholds" },
@@ -38,7 +38,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
   const [mounted, setMounted] = useState(false);
   const roles = session?.user?.roles || [];
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
-  const isPentestUser = roles.includes("site_admin") || roles.includes("pentest_admin") || roles.includes("pentest_user");
+  const isToolkitUser = roles.includes("site_admin") || roles.includes("toolkit_admin") || roles.includes("toolkit_user");
 
   const isAdminChildActive = useMemo(() =>
     adminNavItems.some(item => pathname === item.href),
@@ -86,7 +86,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-[color:var(--color-accent-2)]">Remediate</p>
           <p className="mt-1 text-xl font-bold tracking-tight">
-            {pathname.startsWith("/tools") ? "CyberDefend" : "Nessus Triage"}
+            {pathname.startsWith("/tools") ? "CyberDefend" : "Vulnerability Intelligence"}
           </p>
         </div>
       </div>
@@ -121,7 +121,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
           </div>
         </div>
 
-        {isPentestUser && (
+        {isToolkitUser && (
           <div className="space-y-2">
             <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 flex items-center gap-2">
               <Wrench size={10} />

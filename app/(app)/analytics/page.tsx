@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { SiteFilter } from "@/components/SiteFilter";
+import { BucketFilter } from "@/components/BucketFilter";
 import { TrendChart } from "@/components/analytics/TrendChart";
 import { HeatmapTable } from "@/components/analytics/HeatmapTable";
 import { StatusDonutChart } from "@/components/analytics/StatusDonutChart";
@@ -15,20 +15,20 @@ export const dynamic = "force-dynamic";
 export default async function AnalyticsPage({
     searchParams,
 }: {
-    searchParams: Promise<{ siteId?: string }>;
+    searchParams: Promise<{ bucketId?: string }>;
 }) {
     const params = await searchParams;
-    const siteId = params.siteId;
+    const bucketId = params.bucketId;
     const nowVal = new Date().getTime();
 
-    const sites = await prisma.site.findMany({ orderBy: { name: "asc" } });
+    const buckets = await prisma.site.findMany({ orderBy: { name: "asc" } });
 
     // Define common where conditions for raw SQL
     const conditions: string[] = [];
     const values: (string | number)[] = [];
-    if (siteId) {
+    if (bucketId) {
         conditions.push(`"siteId" = $1::uuid`);
-        values.push(siteId);
+        values.push(bucketId);
     }
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -80,8 +80,8 @@ export default async function AnalyticsPage({
         Total: (unassignedMap.get('Critical') || 0) + (unassignedMap.get('High') || 0) + (unassignedMap.get('Medium') || 0) + (unassignedMap.get('Low') || 0)
     }];
 
-    // 3. Vulnerabilities By Site (Logical)
-    const sitesDataRaw = await prisma.$queryRawUnsafe<{ siteId: string; risk: string; count: number }[]>(`
+    // 3. Vulnerabilities By Bucket (Logical)
+    const bucketsDataRaw = await prisma.$queryRawUnsafe<{ siteId: string; risk: string; count: number }[]>(`
         SELECT "siteId"::text as "siteId", risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") "siteId", risk
             FROM "Vulnerability"
@@ -99,26 +99,26 @@ export default async function AnalyticsPage({
         [key: string]: number;
     }
 
-    const sitesMap = new Map<string, RiskCounts>();
-    sitesDataRaw.forEach(row => {
-        if (!sitesMap.has(row.siteId)) {
-            sitesMap.set(row.siteId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
+    const bucketsMap = new Map<string, RiskCounts>();
+    bucketsDataRaw.forEach(row => {
+        if (!bucketsMap.has(row.siteId)) {
+            bucketsMap.set(row.siteId, { Critical: 0, High: 0, Medium: 0, Low: 0 });
         }
-        const counts = sitesMap.get(row.siteId);
+        const counts = bucketsMap.get(row.siteId);
         if (counts) {
             counts[row.risk] = row.count;
         }
     });
 
-    const sitesData = sites.map(site => {
-        const counts = sitesMap.get(site.id) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
+    const bucketsData = buckets.map(site => {
+        const counts = bucketsMap.get(site.id) || { Critical: 0, High: 0, Medium: 0, Low: 0 };
         return {
             id: site.id,
             name: site.name,
             ...counts,
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         };
-    }).filter(s => s.Total > 0 && (!siteId || s.id === siteId));
+    }).filter(s => s.Total > 0 && (!bucketId || s.id === bucketId));
 
     // 4. Tasks By Tech (Logical)
     const techDataRaw = await prisma.$queryRawUnsafe<{ assigneeId: string; risk: string; count: number }[]>(`
@@ -293,9 +293,9 @@ export default async function AnalyticsPage({
                 <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-semibold">Analytics Overview</h2>
-                        <p className="text-sm opacity-70">Visualizing vulnerability metrics across sites.</p>
+                        <p className="text-sm opacity-70">Visualizing vulnerability metrics across buckets.</p>
                     </div>
-                    <SiteFilter sites={sites} selected={siteId ?? ""} />
+                    <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
                 </div>
 
                 <div className="mt-8 overflow-hidden rounded-[24px] border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 pt-6">
@@ -344,8 +344,8 @@ export default async function AnalyticsPage({
             <div className="grid gap-6 lg:grid-cols-2">
                 <div className="space-y-6">
                     <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                        <h3 className="mb-6 font-semibold text-lg">Current Vulnerability Count by Site</h3>
-                        <HeatmapTable title="" data={sitesData} />
+                        <h3 className="mb-6 font-semibold text-lg">Current Vulnerability Count by Bucket</h3>
+                        <HeatmapTable title="" data={bucketsData} />
                     </div>
                 </div>
                 <div className="space-y-6">

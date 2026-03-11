@@ -20,13 +20,13 @@ describe("BucketFilter", () => {
     const push = vi.fn();
     vi.mocked(nav).useRouter = (() => ({ push, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() })) as any;
 
-    const buckets = [{ id: "s1", name: "Site 1" }, { id: "s2", name: "Site 2" }];
+    const buckets = [{ id: "b1", name: "Bucket 1" }, { id: "b2", name: "Bucket 2" }];
     const { container } = render(<BucketFilter buckets={buckets} selected={""} />);
 
     const select = container.querySelector("select") as HTMLSelectElement;
     expect(select).toBeTruthy();
-    fireEvent.change(select, { target: { value: "s2" } });
+    fireEvent.change(select, { target: { value: "b2" } });
 
-    expect(push).toHaveBeenCalledWith("/current?bucketId=s2");
+    expect(push).toHaveBeenCalledWith("/current?bucketId=b2");
   });
 });

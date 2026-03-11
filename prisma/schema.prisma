@@ -12,9 +12,9 @@ datasource db {
 enum UserRole {
   site_admin
   web_app_admin
-  pentest_admin
+  toolkit_admin
   web_app_user
-  pentest_user
+  toolkit_user
 }
 
 enum VulnerabilityStatus {

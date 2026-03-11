@@ -47,7 +47,7 @@ describe("Auth Provisioning", () => {
             expect.objectContaining({
                 create: expect.objectContaining({
                     email: adminEmail,
-                    roles: ["site_admin", "web_app_admin", "pentest_admin", "web_app_user", "pentest_user"],
+                    roles: ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"],
                     authSource: "Local"
                 }),
             })
