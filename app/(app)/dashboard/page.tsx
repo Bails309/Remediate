@@ -23,7 +23,7 @@ export default async function DashboardPage({
   const bucketId = params.bucketId;
 
   // Get counts of logical issues (unique groups) per risk
-  const conditions: string[] = [`status != 'Remediated'`];
+  const conditions: string[] = [`status = 'Open'`];
   const values: (string | number)[] = [];
   if (bucketId) {
     conditions.push(`"siteId" = $1::uuid`);
@@ -57,7 +57,7 @@ export default async function DashboardPage({
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold">Risk Overview</h2>
-            <p className="text-sm opacity-70">Active issues across your selected bucket.</p>
+            <p className="text-sm opacity-70">Open issues across your selected bucket.</p>
           </div>
           <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
         </div>

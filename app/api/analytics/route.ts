@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     by: ["risk"],
     where: {
       ...(siteId ? { siteId } : {}),
-      status: { not: "Remediated" },
+      status: "Open",
     },
     _count: { _all: true },
   });
