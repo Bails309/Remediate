@@ -95,11 +95,11 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
 
     const batchTime = new Date();
     const chunkSize = 500;
-    const uniqueKeys = new Map<string, { pluginId: string; host: string; port: string }>();
+    const uniqueKeys = new Map<string, { pluginId: string; host: string; port: string; cve: string | null }>();
     for (const row of filteredRows) {
-      const key = `${row.pluginId}|${row.host}|${row.port}`;
+      const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
       if (!uniqueKeys.has(key)) {
-        uniqueKeys.set(key, { pluginId: row.pluginId, host: row.host, port: row.port });
+        uniqueKeys.set(key, { pluginId: row.pluginId, host: row.host, port: row.port, cve: row.cve ?? null });
       }
     }
 
@@ -112,6 +112,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
         pluginId: entry.pluginId,
         host: entry.host,
         port: entry.port,
+        cve: entry.cve,
       }));
 
       const active = await prisma.vulnerability.findMany({
@@ -124,7 +125,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       });
 
       for (const item of active) {
-        const key = `${item.pluginId}|${item.host}|${item.port}`;
+        const key = `${item.pluginId}|${item.host}|${item.port}|${item.cve ?? ""}`;
         if (!activeMap.has(key)) {
           activeMap.set(key, { id: item.id });
         }
@@ -141,7 +142,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
 
     let processed = 0;
     for (const row of filteredRows) {
-      const key = `${row.pluginId}|${row.host}|${row.port}`;
+      const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
       const active = activeMap.get(key);
       if (active) {
         touchIds.push(active.id);

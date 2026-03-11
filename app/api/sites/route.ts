@@ -27,7 +27,14 @@ export async function POST(request: NextRequest) {
   }
 
   await requireUser();
-  const payload = siteSchema.parse(await request.json());
-  const site = await prisma.site.create({ data: payload });
+  const raw = await request.json().catch(() => ({}));
+  const name = typeof raw.name === "string" ? raw.name.trim() : raw.name;
+  const parsed = siteSchema.safeParse({ name });
+  if (!parsed.success) {
+    const message = parsed.error?.issues?.map((i) => i.message).join(", ") || "Invalid payload";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const site = await prisma.site.create({ data: parsed.data });
   return NextResponse.json(site, { status: 201 });
 }
