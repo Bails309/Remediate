@@ -40,13 +40,14 @@ function mapActiveItem<T>(item: T) {
 }
 
 export async function GET(request: NextRequest) {
-  const rate = await enforceRateLimit(request);
-  if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
+  try {
+    const rate = await enforceRateLimit(request);
+    if (!rate.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
 
-  await requireUser();
-  const { searchParams } = new URL(request.url);
+    await requireUser();
+    const { searchParams } = new URL(request.url);
   const siteId = searchParams.get("siteId") ?? undefined;
   const status = searchParams.get("status") ?? undefined;
   const risk = searchParams.get("risk") ?? undefined;
@@ -129,11 +130,11 @@ export async function GET(request: NextRequest) {
       valIdx++;
     }
     if (archivedFrom) {
-      conditions.push(`"archivedAt" >= $${valIdx++}`);
+      conditions.push(`"archivedAt" >= $${valIdx++}::timestamp`);
       values.push(archivedFrom.toISOString());
     }
     if (archivedTo) {
-      conditions.push(`"archivedAt" <= $${valIdx++}`);
+      conditions.push(`"archivedAt" <= $${valIdx++}::timestamp`);
       values.push(archivedTo.toISOString());
     }
 
@@ -177,7 +178,8 @@ export async function GET(request: NextRequest) {
             site: true,
           }
         });
-        return mapHistoryItem({ ...item, ...vulnWithRelations });
+        // vulnWithRelations can be null if the record was removed between the raw query and now.
+        return mapHistoryItem({ ...(item as Record<string, unknown>), ...(vulnWithRelations ?? {}) });
       }
 
       const vulnWithRelations = await prisma.vulnerability.findUnique({
@@ -188,7 +190,7 @@ export async function GET(request: NextRequest) {
           site: true,
         }
       });
-      return mapActiveItem({ ...item, ...vulnWithRelations });
+      return mapActiveItem({ ...(item as Record<string, unknown>), ...(vulnWithRelations ?? {}) });
     }));
 
     return NextResponse.json({ total: count, items: hydratedItems, page, pageSize, scope });
@@ -238,16 +240,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ total, items: items.map(mapHistoryItem), page, pageSize, scope });
   }
 
-  const [total, items] = await prisma.$transaction([
-    prisma.vulnerability.count({ where }),
-    prisma.vulnerability.findMany({
-      where,
-      include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
-      orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
+    const [total, items] = await prisma.$transaction([
+      prisma.vulnerability.count({ where }),
+      prisma.vulnerability.findMany({
+        where,
+        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
+        orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
 
-  return NextResponse.json({ total, items: items.map(mapActiveItem), page, pageSize, scope });
+    return NextResponse.json({ total, items: items.map(mapActiveItem), page, pageSize, scope });
+  } catch (err) {
+    // Log the error server-side and return details to the client for debugging in dev
+    console.error("/api/vulnerabilities error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    return NextResponse.json({ error: message, stack }, { status: 500 });
+  }
 }
