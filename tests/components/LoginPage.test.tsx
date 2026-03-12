@@ -10,7 +10,7 @@ vi.mock('next-auth/react', () => ({
 
 // Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
 describe('LoginPage', () => {
     beforeEach(() => {

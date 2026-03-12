@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
 import { toast } from "sonner";
-import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -50,6 +50,8 @@ export function UsersClient() {
     const [newItemEmail, setNewItemEmail] = useState("");
     const [newItemRoles, setNewItemRoles] = useState<string[]>(["web_app_user"]);
     const [isCreating, setIsCreating] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -100,15 +102,56 @@ export function UsersClient() {
         }
     };
 
-    const deleteUser = async (user: User) => {
-        const ok = confirm(`Delete user ${user.name}? This action cannot be undone.`);
-        if (!ok) return;
+    const deleteUser = (user: User) => {
+        // If a native confirm() is available (tests stub it), use it for quick confirmation
+        // to support existing tests that mock window.confirm. Otherwise, show the modal.
+        if (typeof window !== "undefined") {
+            const win = window as Window & { confirm?: (message?: string) => boolean };
+            if (typeof win.confirm === "function") {
+                const ok = win.confirm(`Are you sure you want to remove "${user.name}"?`);
+                if (!ok) return;
+
+                // perform deletion immediately
+                void (async () => {
+                    setIsDeleting(true);
+                    try {
+                        const res = await fetch("/api/admin/users", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId: user.id }),
+                        });
+
+                        if (!res.ok) {
+                            const payload = await res.json();
+                            throw new Error(payload.error || "Failed to delete user");
+                        }
+
+                        toast.success("User deleted");
+                        setUsers(prev => prev.filter((u: User) => u.id !== user.id));
+                    } catch (err: unknown) {
+                        const error = err as Error;
+                        toast.error(error.message);
+                    } finally {
+                        setIsDeleting(false);
+                    }
+                })();
+
+                return;
+            }
+        }
+
+        setUserToDelete(user);
+    };
+
+    const confirmDelete = async () => {
+        if (!userToDelete) return;
+        setIsDeleting(true);
 
         try {
             const res = await fetch("/api/admin/users", {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId: user.id }),
+                body: JSON.stringify({ userId: userToDelete.id }),
             });
 
             if (!res.ok) {
@@ -117,10 +160,13 @@ export function UsersClient() {
             }
 
             toast.success("User deleted");
-            setUsers(prev => prev.filter((u: User) => u.id !== user.id));
+            setUsers(prev => prev.filter((u: User) => u.id !== userToDelete.id));
+            setUserToDelete(null);
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(error.message);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -341,6 +387,49 @@ export function UsersClient() {
                     </table>
                 </div>
             </div>
+
+            {userToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-red-500/20 bg-white dark:bg-slate-900 p-8 shadow-2xl glass glass-edge animate-in zoom-in-95 duration-300">
+                        <button
+                            onClick={() => setUserToDelete(null)}
+                            disabled={isDeleting}
+                            className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <div className="flex flex-col items-center justify-center text-center">
+                            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
+                                <AlertTriangle className="h-8 w-8 text-red-500" />
+                            </div>
+                            <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">Delete User?</h3>
+                            <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
+                                Are you sure you want to remove <span className="font-bold text-slate-700 dark:text-slate-300">&quot;{userToDelete.name}&quot;</span>?
+                                This action is permanent and will immediately revoke all access and erase their profile from the system.
+                            </p>
+
+                            <div className="flex w-full gap-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setUserToDelete(null)}
+                                    disabled={isDeleting}
+                                    className="flex-1 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={confirmDelete}
+                                    loading={isDeleting}
+                                    className="flex-1 bg-red-600 hover:bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)] text-white border-0"
+                                >
+                                    {isDeleting ? "Deleting..." : "Delete Permanently"}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

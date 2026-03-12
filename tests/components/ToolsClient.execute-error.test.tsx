@@ -24,7 +24,7 @@ describe("ToolsClient execute error handling", () => {
     });
 
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     render(<ToolsClient session={session} />);
 

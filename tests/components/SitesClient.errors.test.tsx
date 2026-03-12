@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe("SitesClient error flows", () => {
   it("shows error when create fails", async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "boom" }) } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "boom" }) } as any) as unknown as typeof fetch);
 
     const toastErr = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
@@ -28,14 +28,14 @@ describe("SitesClient error flows", () => {
   });
 
   it("shows error when delete fails and keeps the site", async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
       if (url.includes("/api/sites/") && url.includes("/api/sites/") ) {
         // DELETE path
         return Promise.resolve({ ok: false, json: async () => ({ error: "boom" }) } as any);
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as any);
-    }) as unknown as typeof fetch;
+    }) as unknown as typeof fetch);
 
     const toastErr = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 

@@ -23,7 +23,7 @@ describe("ToolsClient logs click behavior", () => {
     });
 
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     render(<ToolsClient session={session} />);
 

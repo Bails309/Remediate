@@ -12,7 +12,7 @@ describe("UsersClient focused error and delete flows", () => {
   it("shows a toast error when fetching users fails", async () => {
     const mockFetch = vi.fn(() => Promise.resolve({ ok: false, json: async () => ({ error: 'nope' }) } as Response));
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     const { toast } = await import("sonner");
     const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
@@ -38,7 +38,7 @@ describe("UsersClient focused error and delete flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     const { toast } = await import("sonner");
     const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
@@ -79,7 +79,7 @@ describe("UsersClient focused error and delete flows", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     // stub confirm to cancel first
     const origConfirm = (global as any).confirm;

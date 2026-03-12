@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 
 import { ToolsClient } from "@/app/(app)/tools/tools-client";
 
@@ -26,12 +26,15 @@ describe("ToolsClient focused flows", () => {
     });
 
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     render(<ToolsClient session={session} />);
 
-    // Wait for initial logs load
-    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    // Wait for initial logs load to complete (ensure first /api/tools/logs call happened)
+    await waitFor(() => {
+      if (logsCallCount < 1) throw new Error("waiting for initial logs");
+      return true;
+    });
 
     // Click Refresh logs — second call will reject
     const refreshBtn = screen.getByRole("button", { name: /Refresh logs/i });
@@ -66,7 +69,7 @@ describe("ToolsClient focused flows", () => {
     });
 
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     const { container } = render(<ToolsClient session={session} />);
 

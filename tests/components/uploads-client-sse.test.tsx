@@ -17,7 +17,7 @@ describe("UploadsClient SSE", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     // Mock EventSource
     class MockEventSource {
@@ -75,7 +75,7 @@ describe("UploadsClient SSE", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
-    global.fetch = mockFetch as any;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     // Spy on toast.error
     const { toast } = await import("sonner");

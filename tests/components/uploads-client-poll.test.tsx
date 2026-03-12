@@ -40,7 +40,7 @@ describe("UploadsClient polling + history", () => {
     });
 
     // @ts-expect-error mocking global fetch
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
     // Provide a minimal EventSource mock for jsdom/node
     class MockEventSource {
       listeners: Record<string, (ev: MessageEvent) => void> = {};

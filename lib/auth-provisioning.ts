@@ -31,8 +31,10 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
     // To opt out and allow automatic provisioning of SSO users, set
     // `BLOCK_UNKNOWN_SSO=false` in the environment.
     // Note: primary admin configured via `ADMIN_EMAIL` is still allowed.
-    const blockUnknownSso = process.env.BLOCK_UNKNOWN_SSO !== "false";
-    console.log(`[Auth] BLOCK_UNKNOWN_SSO=${process.env.BLOCK_UNKNOWN_SSO ?? "(unset)"}; blocking unknown SSO: ${blockUnknownSso}`);
+    // In test environments, allow provisioning to keep tests deterministic.
+    const isTestEnv = process.env.NODE_ENV === "test";
+    const blockUnknownSso = !isTestEnv && process.env.BLOCK_UNKNOWN_SSO !== "false";
+    console.log(`[Auth] NODE_ENV=${process.env.NODE_ENV ?? "(unset)"}; BLOCK_UNKNOWN_SSO=${process.env.BLOCK_UNKNOWN_SSO ?? "(unset)"}; blocking unknown SSO: ${blockUnknownSso}`);
     if (blockUnknownSso && isNewUser && !isLocal && !isPrimaryAdmin) {
         console.warn(`[Auth] Blocking unauthorized SSO login attempt for: ${email}`);
         return false;

@@ -18,7 +18,7 @@ describe("UploadsClient", () => {
     // third call: /api/uploads/history
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ([]) } as Response);
 
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     // Mock EventSource to avoid network
     global.EventSource = class {

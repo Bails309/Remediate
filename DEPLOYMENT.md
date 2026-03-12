@@ -33,6 +33,12 @@ This document summarizes recommended deployment patterns for Remediate.
    - `NEXTAUTH_SECRET` (Required by NextAuth)
    - `NEXTAUTH_URL` / `AUTH_URL` (Required - Public URL of the app)
    - `ADMIN_EMAIL` (Recommended)
+      - The primary admin account (email) that is always allowed to sign in and be provisioned.
+        Useful for bootstrap access when SSO provisioning is restricted.
+   - `BLOCK_UNKNOWN_SSO` (Recommended default: **block**) 
+      - When unset or any value other than the literal string `false`, the app will block unknown
+        SSO/OIDC sign-ins to prevent accidental account creation. To permit automatic provisioning
+        of SSO users, set `BLOCK_UNKNOWN_SSO=false` in your environment.
    - `LOCAL_AUTH_ENABLED` (Set to `true` for first-time login without SSO)
    - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS` / `LOCAL_AUTH_EMAIL` (Required if local auth enabled)
    - `PENTEST_BACKEND_URL` (Optional - Internal URL for backend)

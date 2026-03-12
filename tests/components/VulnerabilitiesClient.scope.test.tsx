@@ -13,6 +13,12 @@ const session = {
 describe("VulnerabilitiesClient archived scope", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    // Ensure any global stubs (like fetch) are removed to avoid interfering with other tests
+    if ((vi as any).unstubAllGlobals) (vi as any).unstubAllGlobals();
   });
 
   it("switches to archived findings without mixing them into the active queue", async () => {
@@ -62,15 +68,17 @@ describe("VulnerabilitiesClient archived scope", () => {
       } as Response);
     });
 
-    global.fetch = fetchMock as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 
     render(<VulnerabilitiesClient sites={[]} users={[]} session={session as never} />);
 
     expect(await screen.findByText("Open finding")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("scope=active"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Active Findings" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Archived Findings" }));
+    // Switch view using native select change for determinism
+    const scopeSelect = Array.from(document.querySelectorAll("select")).find((s) => Array.from((s as HTMLSelectElement).options).some((o) => o.text === "Archived Findings")) as HTMLSelectElement | undefined;
+    if (!scopeSelect) throw new Error("Scope select not found");
+    fireEvent.change(scopeSelect, { target: { value: "archived" } });
 
     expect(await screen.findByText("Remediated finding")).toBeInTheDocument();
     expect(screen.queryByText("Open finding")).toBeNull();
@@ -118,15 +126,16 @@ describe("VulnerabilitiesClient archived scope", () => {
       } as Response);
     });
 
-    global.fetch = fetchMock as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 
     render(<VulnerabilitiesClient sites={[]} users={[]} session={session as never} />);
 
     await screen.findByText("Active finding");
     expect(fetchMock).toHaveBeenCalledWith(expect.not.stringContaining("archivedFrom="));
 
-    fireEvent.click(screen.getByRole("button", { name: "Active Findings" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Archived Findings" }));
+    const scopeSelect2 = Array.from(document.querySelectorAll("select")).find((s) => Array.from((s as HTMLSelectElement).options).some((o) => o.text === "Archived Findings")) as HTMLSelectElement | undefined;
+    if (!scopeSelect2) throw new Error("Scope select not found");
+    fireEvent.change(scopeSelect2, { target: { value: "archived" } });
 
     const fromInput = await screen.findByLabelText("Archived from");
     const toInput = await screen.findByLabelText("Archived to");
@@ -179,7 +188,7 @@ describe("VulnerabilitiesClient archived scope", () => {
       } as Response);
     });
 
-    global.fetch = fetchMock as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 
     try {
       render(<VulnerabilitiesClient sites={[]} users={[]} session={session as never} />);

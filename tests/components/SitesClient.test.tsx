@@ -21,7 +21,7 @@ describe("SitesClient", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
-    global.fetch = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     const toastSpy = vi.spyOn(toast, "success").mockImplementation(() => ({} as any));
 

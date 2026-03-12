@@ -198,10 +198,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   }, [detail?.id]);
 
   useEffect(() => {
-    const handle = requestAnimationFrame(() => {
-      void fetchData();
-    });
-    return () => cancelAnimationFrame(handle);
+    // Call immediately; avoid requestAnimationFrame scheduling so tests with fake timers
+    // behave deterministically and don't hang waiting for RAF to run.
+    void fetchData();
+    return;
   }, [fetchData]);
 
   // Reset to first page when filters change: perform reset inline in handlers

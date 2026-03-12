@@ -17,7 +17,7 @@ describe("/api/tools/execute POST", () => {
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ job: "ok" }) } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ job: "ok" }) } as any) as unknown as typeof fetch);
 
     const { POST } = await import("../../app/api/tools/execute/route");
     const req = new Request("http://localhost", { method: "POST", body: JSON.stringify({ tool: "t" }) });
@@ -34,7 +34,7 @@ describe("/api/tools/execute POST", () => {
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
     const errBody = JSON.stringify({ error: "Not Found" });
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => errBody } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => errBody } as any) as unknown as typeof fetch);
 
     const { POST } = await import("../../app/api/tools/execute/route");
     const req = new Request("http://localhost", { method: "POST", body: JSON.stringify({}) });
@@ -62,7 +62,7 @@ describe("/api/tools/execute POST", () => {
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
-    global.fetch = vi.fn().mockRejectedValue(new Error("network fail"));
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error("network fail")) as unknown as typeof fetch);
 
     const { POST } = await import("../../app/api/tools/execute/route");
     const req = new Request("http://localhost", { method: "POST", body: JSON.stringify({}) });

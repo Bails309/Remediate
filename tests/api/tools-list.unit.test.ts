@@ -17,7 +17,7 @@ describe("/api/tools/list GET", () => {
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ([{ id: 't1' }]) } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ([{ id: 't1' }]) } as any) as unknown as typeof fetch);
 
     const { GET } = await import("../../app/api/tools/list/route");
     const res = await GET();
@@ -33,7 +33,7 @@ describe("/api/tools/list GET", () => {
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
     const err = JSON.stringify({ error: "Bad" });
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => err } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => err } as any) as unknown as typeof fetch);
 
     const { GET } = await import("../../app/api/tools/list/route");
     const res = await GET();

@@ -19,7 +19,7 @@ describe("/api/tools/config handlers", () => {
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
     // stub fetch
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) } as any) as unknown as typeof fetch);
 
     const { GET } = await import("../../app/api/tools/config/route");
     const res = await GET();
@@ -35,7 +35,7 @@ describe("/api/tools/config handlers", () => {
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
-    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error("boom")) as unknown as typeof fetch);
 
     const { GET } = await import("../../app/api/tools/config/route");
     const res = await GET();
@@ -50,7 +50,7 @@ describe("/api/tools/config handlers", () => {
     vi.mocked(signPentestToken).mockReturnValue("tok");
     vi.mocked(getPentestBackendUrl).mockReturnValue("http://backend");
 
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as any);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as any) as unknown as typeof fetch);
 
     const { PUT } = await import("../../app/api/tools/config/route");
     const req = new Request("http://localhost", { method: "PUT", body: JSON.stringify({ a: 1 }) });

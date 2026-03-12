@@ -17,7 +17,7 @@ vi.mock('@/lib/pentest', () => ({
 
 // Mock global fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
 describe('Tools API Resilience', () => {
     beforeEach(() => {
