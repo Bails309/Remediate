@@ -6,6 +6,7 @@ import { TrendRangeFilter } from "@/components/analytics/TrendRangeFilter";
 import { HeatmapTable } from "@/components/analytics/HeatmapTable";
 import { StatusDonutChart } from "@/components/analytics/StatusDonutChart";
 import { BarChart } from "@/components/analytics/BarChart";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 export const metadata: Metadata = {
     title: "Analytics",
@@ -359,7 +360,10 @@ export default async function AnalyticsPage({
                 </div>
                 <div className="space-y-6">
                     <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                        <h3 className="mb-6 font-semibold text-lg">Average Dwell Time by Risk (Days)</h3>
+                        <div className="mb-6 flex items-center gap-2">
+                            <h3 className="font-semibold text-lg leading-none">Average Dwell Time by Risk (Days)</h3>
+                            <InfoTooltip text="Average Dwell Time is the typical number of days it takes to fix a vulnerability once it's discovered. Lower numbers mean we're finding and fixing issues faster." />
+                        </div>
                         <BarChart data={dwellTimeData} />
                     </div>
                 </div>
@@ -382,7 +386,10 @@ export default async function AnalyticsPage({
                     <HeatmapTable title="" data={commonVulnData} showTotal={true} />
                 </div>
                 <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                    <h3 className="mb-6 font-semibold text-lg">Vulnerability Aging (SLA)</h3>
+                    <div className="mb-6 flex items-center gap-2">
+                        <h3 className="font-semibold text-lg leading-none">Vulnerability Aging (SLA)</h3>
+                        <InfoTooltip text="Vulnerability Aging shows how long our currently open issues have been active. Ideally, we want most issues in the 0-30 days bucket, as older issues represent longer periods of risk exposure." />
+                    </div>
                     <BarChart data={agingData} />
                 </div>
             </div>
