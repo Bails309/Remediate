@@ -23,7 +23,7 @@ function parseDateParam(value: string | null, endOfDay = false) {
   return parsed;
 }
 
-function mapHistoryItem<T extends { archivedAt: Date | string; assignee?: unknown }>(item: T) {
+function mapHistoryItem(item: any) {
   return {
     ...item,
     askForHelp: false,
