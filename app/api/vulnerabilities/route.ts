@@ -23,7 +23,7 @@ function parseDateParam(value: string | null, endOfDay = false) {
   return parsed;
 }
 
-function mapHistoryItem(item: any) {
+function mapHistoryItem(item: Record<string, unknown>) {
   return {
     ...item,
     askForHelp: false,
