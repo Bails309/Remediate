@@ -27,10 +27,12 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
     const userRolesFromSession = (user as unknown as { roles?: UserRole[] }).roles;
     const isNewUser = !existingUser;
 
-    // SECURITY: Optionally block unknown SSO users unless they are the primary admin.
-    // Default behaviour is to allow SSO provisioning; set `BLOCK_UNKNOWN_SSO=true`
-    // in the environment to enable stricter blocking.
-    const blockUnknownSso = process.env.BLOCK_UNKNOWN_SSO === "true";
+    // SECURITY: Block unknown SSO users by default (to avoid accidental account creation).
+    // To opt out and allow automatic provisioning of SSO users, set
+    // `BLOCK_UNKNOWN_SSO=false` in the environment.
+    // Note: primary admin configured via `ADMIN_EMAIL` is still allowed.
+    const blockUnknownSso = process.env.BLOCK_UNKNOWN_SSO !== "false";
+    console.log(`[Auth] BLOCK_UNKNOWN_SSO=${process.env.BLOCK_UNKNOWN_SSO ?? "(unset)"}; blocking unknown SSO: ${blockUnknownSso}`);
     if (blockUnknownSso && isNewUser && !isLocal && !isPrimaryAdmin) {
         console.warn(`[Auth] Blocking unauthorized SSO login attempt for: ${email}`);
         return false;
