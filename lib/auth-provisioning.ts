@@ -27,15 +27,24 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
     const userRolesFromSession = (user as unknown as { roles?: UserRole[] }).roles;
     const isNewUser = !existingUser;
 
+    // SECURITY: Optionally block unknown SSO users unless they are the primary admin.
+    // Default behaviour is to allow SSO provisioning; set `BLOCK_UNKNOWN_SSO=true`
+    // in the environment to enable stricter blocking.
+    const blockUnknownSso = process.env.BLOCK_UNKNOWN_SSO === "true";
+    if (blockUnknownSso && isNewUser && !isLocal && !isPrimaryAdmin) {
+        console.warn(`[Auth] Blocking unauthorized SSO login attempt for: ${email}`);
+        return false;
+    }
+
     let roles: UserRole[];
     if (isNewUser) {
-        // New users from SSO should get the least-privileged default.
-        // Allow local/credentials flow to supply roles via session when present.
+        // New users (Local or Primary Admin) get roles
         if (isPrimaryAdmin) {
             roles = adminRoles;
         } else if (isLocal) {
             roles = userRolesFromSession ?? defaultRoles;
         } else {
+            // This case should be blocked above, but as a safety:
             roles = defaultRoles;
         }
     } else {
@@ -49,7 +58,8 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
         await prisma.user.upsert({
             where: { email },
             update: {
-                name: user.name || "User",
+                // Always sync name from SSO/Auth Provider if available to ensure consistency
+                name: user.name || existingUser?.name || "User",
                 roles: roles,
                 authSource
             },

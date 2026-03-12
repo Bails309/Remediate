@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
 import { toast } from "sonner";
-import { LogIn, Key, RefreshCw, Check, Trash2 } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -47,6 +47,9 @@ export function UsersClient() {
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [draftRoles, setDraftRoles] = useState<Record<string, string[]>>({});
+    const [newItemEmail, setNewItemEmail] = useState("");
+    const [newItemRoles, setNewItemRoles] = useState<string[]>(["web_app_user"]);
+    const [isCreating, setIsCreating] = useState(false);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -68,7 +71,7 @@ export function UsersClient() {
     };
 
     useEffect(() => {
-        fetchUsers();
+        void fetchUsers();
     }, []);
 
     const updateRoles = async (user: User) => {
@@ -88,7 +91,7 @@ export function UsersClient() {
             }
 
             toast.success("User roles updated");
-            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, roles } : u));
+            setUsers((prev: User[]) => prev.map((u: User) => u.id === user.id ? { ...u, roles } : u));
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(error.message);
@@ -114,7 +117,7 @@ export function UsersClient() {
             }
 
             toast.success("User deleted");
-            setUsers(prev => prev.filter(u => u.id !== user.id));
+            setUsers(prev => prev.filter((u: User) => u.id !== user.id));
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(error.message);
@@ -122,16 +125,45 @@ export function UsersClient() {
     };
 
     const toggleDraftRole = (userId: string, role: string) => {
-        setDraftRoles((prev) => {
+        setDraftRoles((prev: Record<string, string[]>) => {
             const current = prev[userId] || [];
             const next = current.includes(role)
-                ? current.filter((item) => item !== role)
+                ? current.filter((item: string) => item !== role)
                 : [...current, role];
             if (!next.includes("web_app_user")) {
                 next.push("web_app_user");
             }
             return { ...prev, [userId]: next };
         });
+    };
+
+    const preRegisterUser = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!newItemEmail) return;
+        setIsCreating(true);
+
+        try {
+            const res = await fetch("/api/admin/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: newItemEmail, roles: newItemRoles }),
+            });
+
+            if (!res.ok) {
+                const payload = await res.json();
+                throw new Error(payload.error || "Failed to pre-register user");
+            }
+
+            toast.success("User pre-registered successfully");
+            setNewItemEmail("");
+            setNewItemRoles(["web_app_user"]);
+            void fetchUsers();
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error(error.message);
+        } finally {
+            setIsCreating(false);
+        }
     };
 
     return (
@@ -143,15 +175,70 @@ export function UsersClient() {
                         View and manage all registered users in the system.
                     </p>
                 </div>
-                <Button
-                    variant="outline"
-                    onClick={fetchUsers}
-                    disabled={loading}
-                    className="glass glass-edge"
-                >
-                    <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={fetchUsers}
+                        disabled={loading}
+                        className="glass glass-edge"
+                    >
+                        <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+                        Refresh
+                    </Button>
+                </div>
+            </div>
+
+            <div className="glass glass-edge rounded-[32px] p-6 lg:p-8">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <UserPlus className="h-5 w-5 text-cyan-500" />
+                    Pre-register SSO User
+                </h2>
+                <form onSubmit={preRegisterUser} className="flex flex-col gap-6">
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-60">Email Address</label>
+                            <input
+                                type="email"
+                                value={newItemEmail}
+                                onChange={(e) => setNewItemEmail(e.target.value)}
+                                placeholder="user@company.com"
+                                className="w-full bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder:opacity-40"
+                                required
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2 lg:col-span-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-60">Initial Roles</label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {roleOptions.map((role) => (
+                                    <RoleTogglePill
+                                        key={role.value}
+                                        label={role.label}
+                                        checked={newItemRoles.includes(role.value)}
+                                        onToggle={() => {
+                                            setNewItemRoles((prev: string[]) =>
+                                                prev.includes(role.value)
+                                                    ? prev.filter((r: string) => r !== role.value)
+                                                    : [...prev, role.value]
+                                            );
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end border-t border-slate-100 dark:border-white/5 pt-6">
+                        <Button
+                            type="submit"
+                            disabled={!newItemEmail}
+                            loading={isCreating}
+                            variant="primary"
+                            className="px-8 shadow-[0_0_30px_rgba(6,182,212,0.1)] transition-all hover:scale-[1.02]"
+                        >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Pre-register User
+                        </Button>
+                    </div>
+                </form>
             </div>
 
             <div className="glass glass-edge overflow-hidden rounded-[32px]">

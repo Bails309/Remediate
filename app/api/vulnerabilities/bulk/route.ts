@@ -29,20 +29,62 @@ export async function POST(request: NextRequest) {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.vulnerability.updateMany({
-      where: { id: { in: payload.ids } },
-      data: updateData,
-    });
-
-    // If assigneeId was changed to a user (not null/unassigned), log notifications
-    if (payload.assigneeId) {
-      const notifications = payload.ids.map((id: string) => ({
-        userId: payload.assigneeId as string,
-        vulnerabilityId: id,
-      }));
-      await tx.assignmentNotification.createMany({
-        data: notifications,
+    if (payload.status && payload.status !== "Open") {
+      // Archiving logic: move to history and delete from active
+      const victims = await tx.vulnerability.findMany({
+        where: { id: { in: payload.ids } }
       });
+
+      if (victims.length > 0) {
+        const now = new Date();
+        await tx.vulnerabilityHistory.createMany({
+          data: victims.map(v => ({
+            id: v.id,
+            siteId: v.siteId,
+            assigneeId: payload.assigneeId !== undefined ? payload.assigneeId : v.assigneeId,
+            status: payload.status!,
+            lastSeenAt: v.lastSeenAt,
+            archivedAt: now,
+            createdAt: v.createdAt,
+            pluginId: v.pluginId,
+            cve: v.cve,
+            cvssScore: v.cvssScore,
+            risk: v.risk,
+            host: v.host,
+            protocol: v.protocol,
+            port: v.port,
+            name: v.name,
+            synopsis: v.synopsis,
+            description: v.description,
+            solution: v.solution,
+            seeAlso: v.seeAlso,
+            pluginOutput: v.pluginOutput,
+            pluginPublicationDate: v.pluginPublicationDate,
+            pluginModificationDate: v.pluginModificationDate
+          }))
+        });
+
+        await tx.vulnerability.deleteMany({
+          where: { id: { in: victims.map(v => v.id) } }
+        });
+      }
+    } else {
+      // Normal update for Open status or just assignee changes
+      await tx.vulnerability.updateMany({
+        where: { id: { in: payload.ids } },
+        data: updateData,
+      });
+
+      // If assigneeId was changed to a user (not null/unassigned), log notifications
+      if (payload.assigneeId) {
+        const notifications = payload.ids.map((id: string) => ({
+          userId: payload.assigneeId as string,
+          vulnerabilityId: id,
+        }));
+        await tx.assignmentNotification.createMany({
+          data: notifications,
+        });
+      }
     }
   });
 

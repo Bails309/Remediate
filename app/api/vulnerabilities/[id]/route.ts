@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { z } from "zod";
 // email/reporting helpers removed from this route to avoid unused imports
+
+const patchSchema = z.object({
+    askForHelp: z.boolean().optional(),
+    collaboratorIds: z.array(z.string()).optional(),
+    assigneeId: z.string().uuid().nullable().optional(),
+});
 
 export async function PATCH(
     req: Request,
@@ -42,16 +49,21 @@ export async function PATCH(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { askForHelp, collaboratorIds } = await req.json();
+    const { askForHelp, collaboratorIds, assigneeId } = patchSchema.parse(await req.json());
 
     const updateData: {
         askForHelp?: boolean;
+        assigneeId?: string | null;
         collaborators?: {
             set: { id: string }[];
         };
     } = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
+    }
+
+    if (assigneeId !== undefined) {
+        updateData.assigneeId = assigneeId;
     }
 
     if (Array.isArray(collaboratorIds)) {
@@ -65,12 +77,16 @@ export async function PATCH(
             update: (opts: {
                 where: { id: string };
                 data: typeof updateData;
-                include: { collaborators: { select: { id: true; name: true; email: true } } };
+                include: {
+                    assignee: { select: { id: true; name: true } };
+                    collaborators: { select: { id: true; name: true; email: true } };
+                };
             }) => Promise<unknown>;
         }).update({
             where: { id: vulnerabilityId },
             data: updateData,
             include: {
+                assignee: { select: { id: true, name: true } },
                 collaborators: { select: { id: true, name: true, email: true } },
             },
         });
@@ -89,6 +105,17 @@ export async function PATCH(
                     }))
                 });
             }
+        }
+
+        if (assigneeId && assigneeId !== vulnerability.assigneeId) {
+            await (tx.assignmentNotification as unknown as {
+                create: (opts: { data: { userId: string; vulnerabilityId: string } }) => Promise<unknown>;
+            }).create({
+                data: {
+                    userId: assigneeId,
+                    vulnerabilityId,
+                }
+            });
         }
 
         return u;

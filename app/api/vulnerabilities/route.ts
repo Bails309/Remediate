@@ -5,6 +5,40 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { Risk, VulnerabilityStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 
+type VulnerabilityScope = "active" | "archived";
+
+function normalizeScope(value: string | null): VulnerabilityScope {
+  return value === "archived" ? "archived" : "active";
+}
+
+function parseDateParam(value: string | null, endOfDay = false) {
+  if (!value) return undefined;
+
+  const normalized = endOfDay ? `${value}T23:59:59.999Z` : `${value}T00:00:00.000Z`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function mapHistoryItem<T extends { archivedAt: Date | string; assignee?: unknown }>(item: T) {
+  return {
+    ...item,
+    askForHelp: false,
+    collaborators: [],
+    recordScope: "archived" as const,
+  };
+}
+
+function mapActiveItem<T>(item: T) {
+  return {
+    ...item,
+    recordScope: "active" as const,
+  };
+}
+
 export async function GET(request: NextRequest) {
   const rate = await enforceRateLimit(request);
   if (!rate.allowed) {
@@ -18,6 +52,10 @@ export async function GET(request: NextRequest) {
   const risk = searchParams.get("risk") ?? undefined;
   const query = searchParams.get("q") ?? undefined;
   const assigneeId = searchParams.get("assigneeId") ?? undefined;
+  const scope = normalizeScope(searchParams.get("scope"));
+  const isArchivedScope = scope === "archived";
+  const archivedFrom = isArchivedScope ? parseDateParam(searchParams.get("archivedFrom")) : undefined;
+  const archivedTo = isArchivedScope ? parseDateParam(searchParams.get("archivedTo"), true) : undefined;
   const fold = searchParams.get("fold") === "true";
   const ids = searchParams.get("ids")?.split(",") ?? undefined;
 
@@ -31,18 +69,28 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get("pageSize") ?? "25") || 25));
 
   if (ids || (gName && gHost && gPort && gPluginId)) {
-    const items = await prisma.vulnerability.findMany({
-      where: ids ? { id: { in: ids } } : {
-        name: gName,
-        host: gHost,
-        port: gPort,
-        pluginId: gPluginId,
-        siteId: siteId ?? undefined, // Keep site context if provided
-      },
-      include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
-      orderBy: { lastSeenAt: 'desc' }
-    });
-    return NextResponse.json({ items });
+    const activeWhere = ids ? { id: { in: ids } } : {
+      name: gName,
+      host: gHost,
+      port: gPort,
+      pluginId: gPluginId,
+      siteId: siteId ?? undefined,
+    };
+
+    const items = isArchivedScope
+      ? await prisma.vulnerabilityHistory.findMany({
+        where: activeWhere,
+        include: { site: true, assignee: true },
+        orderBy: { lastSeenAt: "desc" },
+      })
+      : await prisma.vulnerability.findMany({
+        where: activeWhere,
+        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+    const scopedItems = isArchivedScope ? items.map(mapHistoryItem) : items.map(mapActiveItem);
+    return NextResponse.json({ items: scopedItems, scope });
   }
 
   if (fold) {
@@ -80,14 +128,24 @@ export async function GET(request: NextRequest) {
       values.push(`%${query}%`);
       valIdx++;
     }
+    if (archivedFrom) {
+      conditions.push(`"archivedAt" >= $${valIdx++}`);
+      values.push(archivedFrom.toISOString());
+    }
+    if (archivedTo) {
+      conditions.push(`"archivedAt" <= $${valIdx++}`);
+      values.push(archivedTo.toISOString());
+    }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // 1. Get total number of unique groups
+    const sourceTable = isArchivedScope ? '"VulnerabilityHistory"' : '"Vulnerability"';
+
     const countResults = await prisma.$queryRawUnsafe<{ count: number }[]>(`
       SELECT count(*)::int as count FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") id
-        FROM "Vulnerability"
+        FROM ${sourceTable}
         ${whereClause}
       ) as groups
     `, ...values);
@@ -101,7 +159,7 @@ export async function GET(request: NextRequest) {
           COUNT(*) OVER (PARTITION BY name, host, port, "pluginId")::int as "groupCount",
           STRING_AGG(id::text, ',') OVER (PARTITION BY name, host, port, "pluginId") as "groupIds",
           STRING_AGG(COALESCE(cve, ''), ', ') OVER (PARTITION BY name, host, port, "pluginId") as "groupCves"
-        FROM "Vulnerability"
+        FROM ${sourceTable}
         ${whereClause}
         ORDER BY name, host, port, "pluginId", risk ASC, "lastSeenAt" DESC
       ) as grouped
@@ -111,23 +169,43 @@ export async function GET(request: NextRequest) {
 
     // Hydrate the items with assignee info (since group by loses relations)
     const hydratedItems = await Promise.all(items.map(async (item: Record<string, unknown>) => {
+      if (isArchivedScope) {
+        const vulnWithRelations = await prisma.vulnerabilityHistory.findUnique({
+          where: { id: item.id as string },
+          include: {
+            assignee: { select: { id: true, name: true } },
+            site: true,
+          }
+        });
+        return mapHistoryItem({ ...item, ...vulnWithRelations });
+      }
+
       const vulnWithRelations = await prisma.vulnerability.findUnique({
         where: { id: item.id as string },
         include: {
           assignee: { select: { id: true, name: true } },
-          collaborators: { select: { id: true, name: true } }
+          collaborators: { select: { id: true, name: true } },
+          site: true,
         }
       });
-      return { ...item, ...vulnWithRelations };
+      return mapActiveItem({ ...item, ...vulnWithRelations });
     }));
 
-    return NextResponse.json({ total: count, items: hydratedItems, page, pageSize });
+    return NextResponse.json({ total: count, items: hydratedItems, page, pageSize, scope });
   }
 
   const where = {
     ...(siteId ? { siteId } : {}),
     ...(status ? { status: status as VulnerabilityStatus } : {}),
     ...(risk ? { risk: risk as Risk } : {}),
+    ...(isArchivedScope && (archivedFrom || archivedTo)
+      ? {
+        archivedAt: {
+          ...(archivedFrom ? { gte: archivedFrom } : {}),
+          ...(archivedTo ? { lte: archivedTo } : {}),
+        },
+      }
+      : {}),
     ...(assigneeId
       ? {
         assigneeId: assigneeId === "unassigned" ? null : assigneeId,
@@ -145,6 +223,21 @@ export async function GET(request: NextRequest) {
       : {}),
   };
 
+  if (isArchivedScope) {
+    const [total, items] = await prisma.$transaction([
+      prisma.vulnerabilityHistory.count({ where }),
+      prisma.vulnerabilityHistory.findMany({
+        where,
+        include: { site: true, assignee: true },
+        orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return NextResponse.json({ total, items: items.map(mapHistoryItem), page, pageSize, scope });
+  }
+
   const [total, items] = await prisma.$transaction([
     prisma.vulnerability.count({ where }),
     prisma.vulnerability.findMany({
@@ -156,5 +249,5 @@ export async function GET(request: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({ total, items, page, pageSize });
+  return NextResponse.json({ total, items: items.map(mapActiveItem), page, pageSize, scope });
 }

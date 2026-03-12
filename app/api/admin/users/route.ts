@@ -26,6 +26,59 @@ export async function GET(req: NextRequest) {
     }
 }
 
+export async function POST(req: NextRequest) {
+    const session = await auth();
+    if (!session?.user || !checkAdmin(session.user)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { allowed } = await enforceRateLimit(req);
+    if (!allowed) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
+    try {
+        const { email, roles } = await req.json();
+
+        if (!email || !Array.isArray(roles)) {
+            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check for existing user
+        const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (existing) {
+            return NextResponse.json({ error: "User already exists" }, { status: 400 });
+        }
+
+        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"];
+        const hasInvalid = roles.some((role: string) => !allowedRoles.includes(role));
+        if (hasInvalid) {
+            return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+        }
+
+        const normalizedRoles = Array.from(new Set(roles));
+        if (!normalizedRoles.includes("web_app_user")) {
+            normalizedRoles.push("web_app_user");
+        }
+
+        const user = await prisma.user.create({
+            data: {
+                email: normalizedEmail,
+                name: "Pending Authorization", // Placeholder until SSO sync
+                roles: normalizedRoles,
+                authSource: "SSO", // Default to SSO for pre-registration
+            },
+        });
+
+        return NextResponse.json(user);
+    } catch (error) {
+        console.error("Failed to pre-register user:", error);
+        return NextResponse.json({ error: "Failed to pre-register user" }, { status: 500 });
+    }
+}
+
 export async function PATCH(req: NextRequest) {
     const session = await auth();
     if (!session?.user || !checkAdmin(session.user)) {
