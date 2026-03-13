@@ -135,14 +135,10 @@ const lazyHandler: ProxyHandler<Redis> = {
 
 export const redis = new Proxy({} as unknown as Redis, lazyHandler);
 
-// In non-production envs we still populate the cache key mapping to the proxy so
-// tests that inspect `globalForRedis.redisMap` see a value (the real client will
-// be created lazily on first use).
+// In non-production envs we do NOT populate the cache key mapping to the proxy
+// because the map should only contain real Redis instances. Storing the proxy
+// here causes buildRedisInstance to return the proxy itself when it looks for
+// a cached instance, leading to infinite recursion in the proxy's getter.
 if (process.env.NODE_ENV !== "production") {
-  const _url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
-  const _isTls = _url.startsWith("rediss://");
-  const _tlsReject = _isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
-  const devKey = _isTls ? `${_url}|tls:${String(_tlsReject)}` : _url;
   globalForRedis.redisMap = globalForRedis.redisMap ?? {};
-  globalForRedis.redisMap[devKey] = redis;
 }

@@ -16,9 +16,9 @@ async function main() {
   });
 
   const site = await prisma.site.upsert({
-    where: { name: "Datacenter A" },
+    where: { name: "Data Centre A" },
     update: {},
-    create: { name: "Datacenter A" },
+    create: { name: "Data Centre A" },
   });
 
   const existing = await prisma.vulnerability.count({

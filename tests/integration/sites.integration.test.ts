@@ -24,16 +24,16 @@ describe("Sites API Integration", () => {
     it("POST /api/sites creates a new site", async () => {
         const req = new NextRequest("http://localhost/api/sites", {
             method: "POST",
-            body: JSON.stringify({ name: "Berlin Data Center" })
+            body: JSON.stringify({ name: "Berlin Data Centre" })
         });
 
         const res = await POST(req);
         expect(res.status).toBe(201);
 
         const data = await res.json();
-        expect(data.name).toBe("Berlin Data Center");
+        expect(data.name).toBe("Berlin Data Centre");
 
-        const dbSite = await prisma.site.findFirst({ where: { name: "Berlin Data Center" } });
+        const dbSite = await prisma.site.findFirst({ where: { name: "Berlin Data Centre" } });
         expect(dbSite).toBeDefined();
     });
 

@@ -915,7 +915,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               if (entry.type === 'single') {
                 const { item } = entry;
                 return (
-                  <tr key={item.id} className="border-b border-slate-100 dark:border-white/5 last:border-none hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
+                  <tr key={item.id} onClick={() => setDetail(item)} className="border-b border-slate-100 dark:border-white/5 last:border-none hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group cursor-pointer">
                     <td className="p-4">
                       {isArchivedView ? (
                         <Badge tone="neutral" className="px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
@@ -1088,7 +1088,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           setDetail(null);
           setPendingDetailAssignment(null);
         }}
-        title={detail?.name ?? "Vulnerability"}
+        title="Vulnerability Details"
       >
         <div className="space-y-4">
           {detailIsArchived && (
@@ -1204,7 +1204,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   <Select
                     value=""
                     onChange={(value) => startDetailAssignment(value)}
-                    placeholder="Select assignee..."
+                    placeholder="Assign in detail"
                     options={users.map((user) => ({ label: user.name, value: user.id }))}
                   />
                 </div>
