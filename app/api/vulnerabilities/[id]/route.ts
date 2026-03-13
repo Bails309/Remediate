@@ -14,25 +14,25 @@ const patchSchema = z.object({
 
 interface VulnerabilityWithCollaborators {
     id: string;
-    assigneeId?: string | null;
-    siteId?: string;
-    lastSeenAt?: any;
-    createdAt?: any;
-    pluginId?: string;
-    cve?: string | null;
-    cvssScore?: number | null;
-    risk?: any;
-    host?: string;
-    protocol?: string | null;
-    port?: number | null;
-    name?: string;
-    synopsis?: string | null;
-    description?: string | null;
-    solution?: string | null;
-    seeAlso?: string | null;
-    pluginOutput?: string | null;
-    pluginPublicationDate?: any;
-    pluginModificationDate?: any;
+    assigneeId: string | null;
+    siteId: string;
+    lastSeenAt: unknown;
+    createdAt: unknown;
+    pluginId: string;
+    cve: string | null;
+    cvssScore: number | null;
+    risk: unknown;
+    host: string;
+    protocol: string | null;
+    port: number | null;
+    name: string;
+    synopsis: string | null;
+    description: string | null;
+    solution: string | null;
+    seeAlso: string | null;
+    pluginOutput: string | null;
+    pluginPublicationDate: unknown;
+    pluginModificationDate: unknown;
     collaborators: { id: string }[];
 }
 
@@ -141,7 +141,7 @@ export async function PATCH(
         };
     }
 
-    const updated = await prisma.$transaction(async (tx: any) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const u = await tx.vulnerability.update({
             where: { id: vulnerabilityId },
             data: updateData,
