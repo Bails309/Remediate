@@ -11,7 +11,8 @@ export async function fetchNvdCve(cveId: string, apiKey?: string): Promise<Recor
     const headers: Record<string, string> = {};
     if (apiKey) headers["apiKey"] = apiKey;
 
-    return fetchWithBackoff(url, headers);
+    const result = await fetchWithBackoff(url, headers);
+    return result || {};
 }
 
 /**
@@ -26,7 +27,8 @@ export async function fetchRecentNvdCves(hours = 48, apiKey?: string): Promise<R
     const headers: Record<string, string> = {};
     if (apiKey) headers["apiKey"] = apiKey;
 
-    return fetchWithBackoff(url, headers);
+    const result = await fetchWithBackoff(url, headers);
+    return result || {};
 }
 
 /**
