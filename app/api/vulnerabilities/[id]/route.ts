@@ -16,23 +16,23 @@ interface VulnerabilityWithCollaborators {
     id: string;
     assigneeId: string | null;
     siteId: string;
-    lastSeenAt: unknown;
-    createdAt: unknown;
+    lastSeenAt: Date;
+    createdAt: Date;
     pluginId: string;
     cve: string | null;
     cvssScore: number | null;
-    risk: unknown;
+    risk: Risk;
     host: string;
-    protocol: string | null;
-    port: number | null;
+    protocol: string;
+    port: string;
     name: string;
     synopsis: string | null;
     description: string | null;
     solution: string | null;
     seeAlso: string | null;
     pluginOutput: string | null;
-    pluginPublicationDate: unknown;
-    pluginModificationDate: unknown;
+    pluginPublicationDate: Date | null;
+    pluginModificationDate: Date | null;
     collaborators: { id: string }[];
 }
 
@@ -94,7 +94,7 @@ export async function PATCH(
                     pluginId: vulnerability.pluginId,
                     cve: vulnerability.cve,
                     cvssScore: vulnerability.cvssScore,
-                    risk: vulnerability.risk as Risk,
+                    risk: vulnerability.risk,
                     host: vulnerability.host,
                     protocol: vulnerability.protocol,
                     port: vulnerability.port,
