@@ -58,7 +58,7 @@ export async function dispatchDailyDigests() {
             const text = `Daily Threat intelligence Summary: Found ${filtered.cisaKev.length + filtered.criticalHigh.length + filtered.standard.length} items.`;
             
             await sendEmail(
-                settings as any, // Cast to any to handle type mismatch if necessary
+                settings, 
                 sub.user.email,
                 "Daily Threat Intelligence Digest",
                 html,
@@ -72,7 +72,7 @@ export async function dispatchDailyDigests() {
     }
 }
 
-function filterThreatsForUser(threats: any[], sub: any) {
+function filterThreatsForUser(threats: any[], sub: { minRisk: Risk; cisaKevOnly: boolean }) {
     const cisaKev: any[] = [];
     const criticalHigh: any[] = [];
     const standard: any[] = [];

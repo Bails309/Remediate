@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
-import { AlertTriangle, ShieldAlert, ExternalLink, Info } from "lucide-react";
+import { ShieldAlert, ExternalLink, Info } from "lucide-react";
 
 interface ThreatVulnerability {
   id: string;

@@ -6,7 +6,7 @@ export interface NormalizedThreat {
     summary: string;
     details?: string | null;
     source: string;
-    affectedPackages: any;
+    affectedPackages: unknown;
     publishedAt: Date;
     modifiedAt: Date;
     cvssScore?: number | null;

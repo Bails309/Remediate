@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldAlert, ChevronRight, Activity } from "lucide-react";
+import { ChevronRight, Activity } from "lucide-react";
 import { Badge } from "@/components/Badge";
 import { cn } from "@/components/cn";
 

@@ -4,7 +4,6 @@ import { StatCard } from "@/components/StatCard";
 import { BucketFilter } from "@/components/BucketFilter";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
-import { auth } from "@/auth";
 import { ThreatSummaryCard } from "@/components/ThreatSummaryCard";
 import { Activity, Upload } from "lucide-react";
 import { cn } from "@/components/cn";
@@ -53,7 +52,7 @@ export default async function DashboardPage({
     })
   ]);
 
-  const counts = new Map(riskGroups.map((g: { risk: string; count: number }) => [g.risk, g.count]));
+  const counts = new Map(riskGroups.map((g) => [g.risk, g.count]));
 
   return (
     <div className="space-y-10">
@@ -91,7 +90,7 @@ export default async function DashboardPage({
             </h3>
             <div className="space-y-3">
               {latestUploads.length === 0 && <p className="text-xs opacity-50 italic">No activity yet recorded.</p>}
-              {latestUploads.map((upload: any) => (
+              {latestUploads.map((upload) => (
                 <div key={upload.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 transition-all hover:bg-white/[0.04]">
                   <div className="flex items-center gap-3">
                     <div className={cn(

@@ -6,14 +6,16 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 1.1.8 (2026-03-11)</p>
+  <p><strong>Version:</strong> 1.4.0 (2026-03-13)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
 ## Overview
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
 
-The platform now includes an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
+The platform now includes a comprehensive **Threat Intelligence Centre**. This module synchronises hourly with NVD (CVE), OSV.dev (GHSA/PyPI/etc.), and CISA KEV to provide a real-time global vulnerability feed, complete with automated daily email digests tailored to user risk preferences.
+
+Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
 
 ## Prerequisites
 - Docker Desktop (for local development)
@@ -113,9 +115,13 @@ Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service 
 - Failed uploads retry up to 3 times with exponential backoff before landing in a dead-letter queue.
 - Admins can requeue failed uploads from /admin/dead-letter.
 
-## Weekly Reports
-- Configure SMTP and schedule weekly critical/high summaries in /admin/reports.
-- Report settings are stored encrypted in Postgres using AUTH_SECRET.
+## Threat Intelligence & Reports
+- **Live Feed**: View real-time vulnerability data from NVD, OSV, and CISA KEV in the Intelligence Centre.
+- **Daily Digest**: Configure SMTP and schedule daily vulnerability summaries (08:00 AM) in /dashboard.
+- **Risk Filtering**: Set minimum risk thresholds (Critical/High/etc.) to filter notification noise.
+- **Intelligent Linking**: Direct access to NVD (NIST) and OSV.dev source records for verified intelligence.
+- **Weekly Reports**: Schedule weekly Nessus triage summaries in /admin/reports.
+- Report settings and OIDC configurations are encrypted in Postgres using AUTH_SECRET.
 
 ## Migrations
 On container startup the `app` and `worker` entrypoints run `prisma migrate deploy` inside `scripts/migrate.js`.
@@ -207,8 +213,24 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 
 ## Release notes
 
-- v1.1.6 — 2026-03-10
-  - Fix: Azure Blob upload/download Node runtime bugs and unified SDK imports (resolves unsigned request errors).
-  - Fix: JWT/session role propagation now picks up DB role changes immediately (no sign-out required).
-  - Fix: Health checks extended to validate Account Key and SAS Token Azure auth methods.
-  - Misc: Worker/prisma startup improvements and assorted bug fixes.
+- **v1.4.0 — 2026-03-13**
+  - Feature: Intelligent Vulnerability Linking (Dynamic NIST/OSV redirects).
+  - Feature: Localisation audit (UK English "Centre" naming convention).
+  - Testing: Implementation of focused unit and component tests for the Intelligence module.
+  - Fix: Standardised theme-aware colors for high contrast in light and dark modes.
+  - Fix: Resolved stale CVE sorting bug in the live feed.
+
+- **v1.3.0 — 2026-03-12**
+  - Feature: Relocated Threat Intelligence to a dedicated Centre page.
+  - Feature: High-fidelity "Latest Intelligence" dashboard summary card.
+  - Design: System-wide glassmorphism and modern scrollbar implementation.
+  - Interaction: Success/error toast notifications for user interactions.
+
+- **v1.2.0 — 2026-03-11**
+  - Feature: Automated synchronisation with NVD, OSV, and CISA KEV.
+  - Feature: Daily vulnerability email dispatcher with risk filtering.
+
+- **v1.1.6 — 2026-03-10**
+  - Fix: Azure Blob upload/download Node runtime bugs and unified SDK imports.
+  - Fix: JWT/session role propagation improvements.
+  - Health checks and worker/prisma startup enhancements.

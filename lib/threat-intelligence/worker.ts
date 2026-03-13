@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { fetchNvdCve, fetchOsvById, fetchCisaKev, fetchRecentNvdCves } from "./fetcher";
-import { normalizeThreatData, NormalizedThreat } from "./normalizer";
+import { normalizeThreatData } from "./normalizer";
 import { Queue, Worker } from "bullmq";
 import { redis } from "@/lib/redis";
 
 export const THREAT_QUEUE_NAME = "threat-ingestion";
-export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis as any });
+// @ts-ignore - version mismatch between ioredis versions
+export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis });
 
 /**
  * Ingests a threat by its ID (CVE or OSV ID).
@@ -13,7 +14,7 @@ export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis as a
  */
 export async function ingestThreat(id: string) {
     try {
-        let baseData: any = null;
+        let baseData: Record<string, any> | null = null;
         let cveId: string | null = null;
         let osvId: string | null = null;
 
@@ -32,7 +33,7 @@ export async function ingestThreat(id: string) {
             try {
                 baseData = await fetchOsvById(id);
                 cveId = baseData.aliases?.find((a: string) => a.startsWith("CVE-")) || null;
-            } catch (error) {
+            } catch {
                 console.warn(`OSV fetch failed for ${id}, skipping...`);
                 return;
             }
@@ -42,18 +43,20 @@ export async function ingestThreat(id: string) {
 
         // Enrichment
         let cvss: number | null = baseData.cvssScore || null;
-        let epss: number | null = null;
+        const epss: number | null = null;
         let cisaKev = false;
 
         // If it has a CVE ID, enrich with CISA KEV and EPSS
         if (cveId) {
             const kevList = await fetchCisaKev();
-            cisaKev = kevList.vulnerabilities?.some((v: any) => v.cveID === cveId);
+            const vulnerabilities = kevList.vulnerabilities as any[];
+            cisaKev = vulnerabilities?.some((v: any) => v.cveID === cveId);
             
             if (cvss === null) {
                 try {
                     const nvdData = await fetchNvdCve(cveId);
-                    cvss = nvdData.vulnerabilities?.[0]?.cve?.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore || null;
+                    const vulns = nvdData.vulnerabilities as any[];
+                    cvss = vulns?.[0]?.cve?.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore || null;
                 } catch {
                     // Fallback to vendor in normalizer
                 }
@@ -106,7 +109,7 @@ export async function syncAllThreats(lookbackHours = 48) {
     
     try {
         // 1. Sync CISA KEV
-        const kevData = await fetchCisaKev();
+        await fetchCisaKev();
         const metalId = "CISA_KEV";
         
         await prisma.threatFeedMetadata.upsert({
@@ -118,11 +121,11 @@ export async function syncAllThreats(lookbackHours = 48) {
         // 2. Fetch Recent CVEs from NVD
         console.log(`[Sync] Fetching recent CVEs from NVD (Last ${lookbackHours}h)...`);
         const nvdData = await fetchRecentNvdCves(lookbackHours);
-        const vulns = nvdData.vulnerabilities || [];
+        const vulnerabilities = (nvdData.vulnerabilities || []) as any[];
         
-        console.log(`[Sync] Found ${vulns.length} vulnerabilities. Queueing ingestion...`);
+        console.log(`[Sync] Found ${vulnerabilities.length} vulnerabilities. Queueing ingestion...`);
         
-        for (const vuln of vulns) {
+        for (const vuln of vulnerabilities) {
             const cveId = vuln.cve?.id;
             if (cveId) {
                 await threatQueue.add("ingest", { id: cveId }, { 
@@ -148,7 +151,7 @@ if (process.env.NODE_ENV !== "test") {
     }, { connection: redis as any });
 }
 
-function extractBaseDataFromNvd(nvdData: any) {
+function extractBaseDataFromNvd(nvdData: Record<string, any>) {
     const vuln = nvdData.vulnerabilities?.[0]?.cve;
     if (!vuln) return null;
 

@@ -1,10 +1,16 @@
-import { Risk } from "@prisma/client";
 import { renderEmailLayout } from "../email";
 
+interface ThreatItem {
+    osvId: string;
+    cveId?: string | null;
+    summary: string;
+    cvssScore?: number | null;
+}
+
 interface ThreatGroup {
-    cisaKev: any[];
-    criticalHigh: any[];
-    standard: any[];
+    cisaKev: ThreatItem[];
+    criticalHigh: ThreatItem[];
+    standard: ThreatItem[];
 }
 
 export function renderThreatEmail(threats: ThreatGroup) {
@@ -51,7 +57,7 @@ export function renderThreatEmail(threats: ThreatGroup) {
     });
 }
 
-function renderThreatList(items: any[]) {
+function renderThreatList(items: ThreatItem[]) {
     return items.map(item => `
         <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.05);">
             <div style="display: flex; justify-content: space-between; align-items: start;">

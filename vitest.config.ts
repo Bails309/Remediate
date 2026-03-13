@@ -11,7 +11,7 @@ export default defineConfig({
         include: ["**/*.test.{ts,tsx}"],
         exclude: ["node_modules", ".next", ".git"],
         alias: {
-            "@": ".",
+            "@": path.resolve(__dirname, "."),
         },
         coverage: {
             provider: "v8",

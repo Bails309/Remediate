@@ -6,7 +6,7 @@ const FETCH_TIMEOUT = 15000;
  * Fetcher for NVD CVE API 2.0.
  * Includes exponential backoff for rate limiting (403/429).
  */
-export async function fetchNvdCve(cveId: string, apiKey?: string): Promise<any> {
+export async function fetchNvdCve(cveId: string, apiKey?: string): Promise<Record<string, unknown>> {
     const url = `https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${cveId}`;
     const headers: Record<string, string> = {};
     if (apiKey) headers["apiKey"] = apiKey;
@@ -17,7 +17,7 @@ export async function fetchNvdCve(cveId: string, apiKey?: string): Promise<any> 
 /**
  * Fetcher for recent NVD CVEs (modified within a window).
  */
-export async function fetchRecentNvdCves(hours = 48, apiKey?: string): Promise<any> {
+export async function fetchRecentNvdCves(hours = 48, apiKey?: string): Promise<Record<string, unknown>> {
     const now = new Date();
     const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
     const endTime = now.toISOString();
@@ -32,7 +32,7 @@ export async function fetchRecentNvdCves(hours = 48, apiKey?: string): Promise<a
 /**
  * Fetcher for OSV.dev API.
  */
-export async function fetchOsvById(osvId: string): Promise<any> {
+export async function fetchOsvById(osvId: string): Promise<Record<string, unknown>> {
     const url = `https://api.osv.dev/v1/vulns/${osvId}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!res.ok) throw new Error(`OSV fetch failed: ${res.statusText}`);
@@ -42,7 +42,7 @@ export async function fetchOsvById(osvId: string): Promise<any> {
 /**
  * Fetcher for CISA KEV JSON Feed.
  */
-export async function fetchCisaKev(): Promise<any> {
+export async function fetchCisaKev(): Promise<Record<string, unknown>> {
     const url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
     if (!res.ok) throw new Error(`CISA KEV fetch failed: ${res.statusText}`);
@@ -52,7 +52,7 @@ export async function fetchCisaKev(): Promise<any> {
 /**
  * Generic fetch with exponential backoff for rate limiting.
  */
-async function fetchWithBackoff(url: string, headers: Record<string, string>, retries = 3): Promise<any> {
+async function fetchWithBackoff(url: string, headers: Record<string, string>, retries = 3): Promise<Record<string, any> | undefined> {
     let delay = 2000;
     for (let i = 0; i < retries; i++) {
         try {

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Bell, Info, ShieldAlert, Zap } from "lucide-react";
 import { Button } from "@/components/Button";
-import { cn } from "@/components/cn";
 import { Select } from "@/components/Select";
 import { toast } from "@/lib/toast";
 

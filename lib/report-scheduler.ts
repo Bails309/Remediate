@@ -64,7 +64,7 @@ export function startReportScheduler() {
   }, CHECK_INTERVAL_MS);
 }
 
-async function sendWeeklyReport(config: any) {
+async function sendWeeklyReport(config: Record<string, any>) {
     const now = new Date();
     const { summary, totals } = await getWeeklyCriticalHighSummary();
 
@@ -79,7 +79,7 @@ async function sendWeeklyReport(config: any) {
 
     const subject = `Weekly Critical / High Report (${totals.critical} critical, ${totals.high} high)`;
     const text = `Weekly Critical / High Report\n\nTotal Critical: ${totals.critical}\nTotal High: ${totals.high}\n\nBreakdown by Bucket:\n${Object.entries(grouped)
-      .map(([name, counts]: [string, any]) => `${name}: ${(counts as any).critical} Critical, ${(counts as any).high} High`)
+      .map(([name, counts]) => `${name}: ${(counts as { critical: number; high: number }).critical} Critical, ${(counts as { critical: number; high: number }).high} High`)
       .join("\n")}`;
 
     const html = renderEmailLayout({
@@ -110,21 +110,23 @@ async function sendWeeklyReport(config: any) {
   <h2 style="color: #1e293b; font-size: 18px; font-weight: 700; margin: 0 0 16px 0;">Breakdown by Bucket</h2>
   <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      ${Object.entries(grouped).map(([siteName, counts]: [string, any], index, arr) => `
+      ${Object.entries(grouped).map(([siteName, counts], index, arr) => {
+        const c = counts as { critical: number; high: number };
+        return `
         <tr>
           <td style="padding: 16px 20px; border-bottom: ${index === arr.length - 1 ? 'none' : '1px solid #f1f5f9'};">
             <table border="0" cellpadding="0" cellspacing="0" width="100%">
               <tr>
                 <td style="font-weight: 600; color: #334155;">${siteName}</td>
                 <td align="right">
-                  ${(counts as { critical: number }).critical > 0 ? `
+                  ${c.critical > 0 ? `
                     <span style="display: inline-block; background-color: #fef2f2; color: #ef4444; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; margin-left: 8px;">
-                      ${(counts as { critical: number }).critical} Critical
+                      ${c.critical} Critical
                     </span>
                   ` : ""}
-                  ${(counts as { high: number }).high > 0 ? `
+                  ${c.high > 0 ? `
                     <span style="display: inline-block; background-color: #fffaf0; color: #f97316; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; margin-left: 8px;">
-                      ${(counts as { high: number }).high} High
+                      ${c.high} High
                     </span>
                   ` : ""}
                 </td>
@@ -132,13 +134,13 @@ async function sendWeeklyReport(config: any) {
             </table>
           </td>
         </tr>
-      `).join("")}
+      `}).join("")}
     </table>
   </div>
       `
     });
 
-    await sendReportEmail(config, subject, html, text);
+    await sendReportEmail(config as any, subject, html, text);
 
     const existing = await prisma.reportConfig.findFirst();
     if (existing) {
