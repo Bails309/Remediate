@@ -14,7 +14,7 @@ interface ThreatApiResponse {
     details?: string;
     aliases?: string[];
     cvssScore?: number | null;
-    affected_packages?: any;
+    affected_packages?: unknown;
     published?: string;
     modified?: string;
     database_specific?: {
@@ -81,18 +81,18 @@ export async function ingestThreat(id: string) {
             {
                 osvId: osvId || cveId || id,
                 cveId,
-                summary: (((baseData as any).summary || (baseData as any).details || "No summary available") as string).substring(0, 500),
-                details: (baseData as any).details as string,
+                summary: (baseData.summary || baseData.details || "No summary available").substring(0, 500),
+                details: baseData.details,
                 source: id.startsWith("CVE-") ? "NVD" : "OSV",
-                affectedPackages: (baseData as any).affected_packages || [],
-                publishedAt: (baseData as any).published ? new Date((baseData as any).published as string) : new Date(0), // Fallback to epoch if missing
-                modifiedAt: (baseData as any).modified ? new Date((baseData as any).modified as string) : new Date(), // Modified is "Live"
+                affectedPackages: baseData.affected_packages || [],
+                publishedAt: baseData.published ? new Date(baseData.published) : new Date(0), // Fallback to epoch if missing
+                modifiedAt: baseData.modified ? new Date(baseData.modified) : new Date(), // Modified is "Live"
             },
             {
                 cvss,
                 epss,
                 cisaKev,
-                vendorSeverity: (baseData as any).database_specific?.severity,
+                vendorSeverity: baseData.database_specific?.severity,
             }
         );
 
@@ -135,12 +135,12 @@ export async function syncAllThreats(lookbackHours = 48) {
         // 2. Fetch Recent CVEs from NVD
         console.log(`[Sync] Fetching recent CVEs from NVD (Last ${lookbackHours}h)...`);
         const nvdData = await fetchRecentNvdCves(lookbackHours);
-        const vulnerabilities = (nvdData.vulnerabilities || []) as any[];
+        const vulnerabilities = (nvdData.vulnerabilities || []) as unknown[];
         
         console.log(`[Sync] Found ${vulnerabilities.length} vulnerabilities. Queueing ingestion...`);
         
         for (const vuln of vulnerabilities) {
-            const cveId = vuln.cve?.id;
+            const cveId = (vuln as { cve?: { id: string } })?.cve?.id;
             if (cveId) {
                 await threatQueue.add("ingest", { id: cveId }, { 
                     removeOnComplete: true,
@@ -162,7 +162,7 @@ if (process.env.NODE_ENV !== "test") {
     new Worker(THREAT_QUEUE_NAME, async (job) => {
         const { id } = job.data;
         await ingestThreat(id);
-    }, { connection: redis as any });
+    }, { connection: redis as unknown as { host: string; port: number } });
 }
 
 interface NvdCveResponse {
@@ -172,7 +172,7 @@ interface NvdCveResponse {
             descriptions?: { lang: string; value: string }[];
             published: string;
             lastModified: string;
-            metrics?: Record<string, any>;
+            metrics?: Record<string, unknown>;
         };
     }[];
 }
@@ -188,6 +188,6 @@ function extractBaseDataFromNvd(nvdData: Record<string, unknown>): ThreatApiResp
         details: vuln.descriptions?.find((d) => d.lang === "en")?.value,
         published: vuln.published,
         modified: vuln.lastModified,
-        cvssScore: (vuln.metrics as any)?.cvssMetricV31?.[0]?.cvssData?.baseScore,
+        cvssScore: (vuln.metrics as Record<string, { cvssData?: { baseScore: number } }[] | undefined>)?.cvssMetricV31?.[0]?.cvssData?.baseScore,
     };
 }
