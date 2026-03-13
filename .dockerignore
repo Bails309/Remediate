@@ -10,3 +10,5 @@ coverage
 out
 build
 **/*.log
+tmp
+browser
