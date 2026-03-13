@@ -58,6 +58,13 @@ async function run() {
   // start background notification scheduler in worker process
   startNotificationScheduler();
 
+  const nvdKey = process.env.NVD_API_KEY;
+  if (nvdKey) {
+    console.log(`[Config] NVD API Key detected (Ends with: ...${nvdKey.slice(-4)})`);
+  } else {
+    console.warn("[Config] No NVD_API_KEY found. Ingestion will be subject to strict public rate limits.");
+  }
+
   const HEARTBEAT_KEY = "worker:heartbeat";
   const HEARTBEAT_INTERVAL_MS = 10_000;
   setInterval(async () => {
