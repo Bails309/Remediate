@@ -4,7 +4,7 @@ import { normalizeThreatData } from "./normalizer";
 import { Queue, Worker } from "bullmq";
 import { redis } from "@/lib/redis";
 
-export const THREAT_QUEUE_NAME = "threat-ingestion";
+export const THREAT_QUEUE_NAME = "{threat-ingestion}";
 // @ts-expect-error - version mismatch between ioredis versions
 export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis });
 
