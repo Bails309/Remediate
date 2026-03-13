@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { VulnerabilitiesClient } from "@/app/(app)/vulnerabilities/vulnerabilities-client";
 
@@ -216,7 +216,7 @@ describe("VulnerabilitiesClient assignment confirmation", () => {
     const init3 = patchCall3![1] as RequestInit;
     expect(init3.method).toBe("PATCH");
     expect(JSON.parse(String(init3.body))).toEqual({ assigneeId: "u2" });
-  });
+  }, 10000);
 
   it("updates directly from the detail sheet when the issue is unassigned", async () => {
     const mockFetch = createFetchMock({

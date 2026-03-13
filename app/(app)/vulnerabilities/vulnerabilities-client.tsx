@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
 import { Badge } from "@/components/Badge";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";

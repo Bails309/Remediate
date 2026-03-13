@@ -78,7 +78,7 @@ describe("UploadsClient SSE", () => {
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     // Spy on toast.error
-    const { toast } = await import("sonner");
+    const { toast } = await import("@/lib/toast");
     const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
     // Mock EventSource to support onerror

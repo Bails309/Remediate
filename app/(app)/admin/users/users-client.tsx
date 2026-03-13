@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";

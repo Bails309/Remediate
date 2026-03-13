@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 type OidcState = {
   clientId: string;

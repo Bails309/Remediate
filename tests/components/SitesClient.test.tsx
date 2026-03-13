@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { SitesClient } from "@/app/(app)/sites/sites-client";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 beforeEach(() => {
   vi.resetAllMocks();

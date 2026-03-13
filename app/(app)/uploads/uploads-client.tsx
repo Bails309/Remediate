@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { EmptyState } from "@/components/EmptyState";
 import { Activity, CheckCircle2, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/components/cn";
 
 type Site = { id: string; name: string };

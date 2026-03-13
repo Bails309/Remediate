@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
 import { Card } from "@/components/Card";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 const days = [
   { value: 0, label: "Sunday" },

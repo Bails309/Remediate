@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Trash2, AlertTriangle, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 
 type Site = { id: string; name: string };

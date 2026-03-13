@@ -14,7 +14,7 @@ describe("UsersClient focused error and delete flows", () => {
     // @ts-expect-error mocking global fetch
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    const { toast } = await import("sonner");
+    const { toast } = await import("@/lib/toast");
     const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
     render(<UsersClient />);
@@ -40,7 +40,7 @@ describe("UsersClient focused error and delete flows", () => {
     // @ts-expect-error mocking global fetch
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    const { toast } = await import("sonner");
+    const { toast } = await import("@/lib/toast");
     const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
     render(<UsersClient />);

@@ -6,7 +6,7 @@ import { Input } from "@/components/Input";
 import { SideSheet } from "@/components/SideSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { Inbox } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ClientDate } from "@/components/ClientDate";
 
 type DeadLetterItem = {

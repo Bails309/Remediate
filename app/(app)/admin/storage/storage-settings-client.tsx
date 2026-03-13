@@ -7,7 +7,7 @@ import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
 import { InfoTooltip } from "@/components/InfoTooltip";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 export function StorageSettingsClient() {
     const [loading, setLoading] = useState(true);

@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe("UploadsClient error handling", () => {
   it("shows toast error when startUpload called with no selection", async () => {
-    const { toast } = await import("sonner");
+    const { toast } = await import("@/lib/toast");
     const spy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
     render(<UploadsClient initialSites={[]} initialUploads={[]} />);

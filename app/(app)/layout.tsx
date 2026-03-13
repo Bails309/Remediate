@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { Providers } from "./providers";
@@ -8,10 +7,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  const nonce = (await headers()).get("x-nonce") ?? "";
 
   return (
-    <Providers nonce={nonce}>
+    <Providers>
       <div className="grid min-h-screen gap-8 p-6 lg:grid-cols-[260px_1fr]">
         <Sidebar session={session} />
         <div className="flex flex-col gap-8">
