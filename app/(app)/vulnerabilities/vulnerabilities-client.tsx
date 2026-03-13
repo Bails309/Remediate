@@ -512,6 +512,30 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     toast.success("Assignee updated");
   };
 
+  const commitDetailStatus = async (nextStatus: string) => {
+    if (!detail) return;
+
+    const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: nextStatus }),
+    });
+
+    if (!res.ok) {
+      toast.error("Failed to update status");
+      return;
+    }
+
+    const updated = await res.json();
+    if (updated.recordScope === "archived") {
+      toast.success("Vulnerability archived");
+      setDetail(null);
+    } else {
+      setDetail(updated);
+      toast.success("Status updated");
+    }
+    void fetchData();
+  };
+
   const startDetailAssignment = (nextAssigneeId: string | null) => {
     if (!detail) return;
     if (nextAssigneeId === detail.assigneeId) return;
@@ -1153,33 +1177,55 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           )}
 
           {!detailIsArchived ? (
-            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_220px]">
-              <Button
-                onClick={() => {
-                  if (session?.user?.id) {
-                    startDetailAssignment(session.user.id);
-                  } else {
-                    toast.error("Missing user session");
-                  }
-                }}
-                variant="outline"
-                className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
-              >
-                Assign to Me
-              </Button>
-              <Button
-                onClick={() => startDetailAssignment(null)}
-                variant="outline"
-                className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
-              >
-                Unassign
-              </Button>
-              <Select
-                value=""
-                onChange={(value) => startDetailAssignment(value)}
-                placeholder="Assign in detail"
-                options={users.map((user) => ({ label: user.name, value: user.id }))}
-              />
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Assignment Tools</p>
+                <div className="grid gap-3 sm:grid-cols-[1fr_1fr_220px]">
+                  <Button
+                    onClick={() => {
+                      if (session?.user?.id) {
+                        startDetailAssignment(session.user.id);
+                      } else {
+                        toast.error("Missing user session");
+                      }
+                    }}
+                    variant="outline"
+                    className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+                  >
+                    Assign to Me
+                  </Button>
+                  <Button
+                    onClick={() => startDetailAssignment(null)}
+                    variant="outline"
+                    className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+                  >
+                    Unassign
+                  </Button>
+                  <Select
+                    value=""
+                    onChange={(value) => startDetailAssignment(value)}
+                    placeholder="Select assignee..."
+                    options={users.map((user) => ({ label: user.name, value: user.id }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-6 border-t border-slate-200 dark:border-white/10">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Update Status</p>
+                <div className="max-w-[220px]">
+                  <Select
+                    value={detail?.status ?? ""}
+                    onChange={(value) => commitDetailStatus(value)}
+                    placeholder="Change status"
+                    options={[
+                      { label: "Open", value: "Open" },
+                      { label: "False Positive", value: "FalsePositive" },
+                      { label: "No Fix Available", value: "NoFixAvailable" },
+                      { label: "Remediated", value: "Remediated" },
+                    ]}
+                  />
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

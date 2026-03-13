@@ -3,19 +3,54 @@ import { redis } from "@/lib/redis";
 
 export const QUEUE_NAME = "{upload-queue}";
 
-export const uploadQueue = new Queue(QUEUE_NAME, {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  connection: redis as any,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 15000,
-    },
-    removeOnComplete: true,
-    removeOnFail: false,
+let _realQueue: Queue | undefined;
+
+function buildQueue() {
+  if (!_realQueue) {
+    _realQueue = new Queue(QUEUE_NAME, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      connection: redis as any,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 15000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    });
+  }
+  return _realQueue;
+}
+
+const queueHandler: ProxyHandler<any> = {
+  get(_, prop) {
+    const q = buildQueue();
+    const value = (q as any)[prop];
+    if (typeof value === "function") return value.bind(q);
+    return value;
   },
-});
+  set(_, prop, val) {
+    const q = buildQueue();
+    (q as any)[prop] = val;
+    return true;
+  },
+  has(_, prop) {
+    const q = buildQueue();
+    return prop in q;
+  },
+  ownKeys() {
+    const q = buildQueue();
+    return Reflect.ownKeys(q as object);
+  },
+  getOwnPropertyDescriptor(_, prop) {
+    const q = buildQueue();
+    return Object.getOwnPropertyDescriptor(q as object, prop as PropertyKey) || undefined;
+  },
+};
+
+export const uploadQueue = new Proxy({}, queueHandler) as unknown as Queue;
 
 export function getLockKey(siteId: string) {
   return `{site:${siteId}}:upload-lock`;

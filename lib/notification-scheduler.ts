@@ -29,7 +29,7 @@ export function startNotificationScheduler() {
             if (pending.length === 0) return;
 
             // Group by user
-            const userNotifications = pending.reduce((acc, n: AssignmentNotificationRecord) => {
+            const userNotifications = pending.reduce((acc: Record<string, { user?: { name?: string; email?: string }; notifications: AssignmentNotificationRecord[] }>, n: AssignmentNotificationRecord) => {
                 if (!acc[n.userId]) {
                     acc[n.userId] = {
                         user: n.user,
@@ -110,7 +110,7 @@ export function startNotificationScheduler() {
                     }).join("")}
 
             <div align="center" style="margin-top: 40px; padding-top: 32px; border-top: 1px solid #f1f5f9;">
-                <a href="${appUrl}/vulnerabilities" style="background-color: #0f172a; color: #ffffff; display: inline-block; font-size: 15px; font-weight: 700; line-height: 56px; text-align: center; text-decoration: none; width: 240px; border-radius: 14px; box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.3);">Access Command Center</a>
+                <a href="${appUrl}/vulnerabilities" style="background-color: #0f172a; color: #ffffff; display: inline-block; font-size: 15px; font-weight: 700; line-height: 56px; text-align: center; text-decoration: none; width: 240px; border-radius: 14px; box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.3);">Access Command Centre</a>
             </div>
           `
                 });
@@ -123,7 +123,7 @@ export function startNotificationScheduler() {
                     // Mark as sent
                     await prisma.assignmentNotification.updateMany({
                         where: {
-                            id: { in: notifications.map(n => n.id) }
+                            id: { in: notifications.map((n: AssignmentNotificationRecord) => n.id) }
                         },
                         data: { sentAt: new Date() }
                     });

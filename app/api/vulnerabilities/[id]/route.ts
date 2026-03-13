@@ -9,6 +9,7 @@ const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
     collaboratorIds: z.array(z.string()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
+    status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable"]).optional(),
 });
 
 export async function PATCH(
@@ -34,7 +35,7 @@ export async function PATCH(
         (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
-    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ assigneeId: string | null, collaborators: { id: string }[] } | null> }).findUnique({
+    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ siteId: string; assigneeId: string | null, collaborators: { id: string }[], createdAt: Date, pluginId: string, cve: string | null, cvssScore: number | null, risk: any, host: string, protocol: string, port: string, name: string, synopsis: string | null, description: string | null, solution: string | null, seeAlso: string | null, pluginOutput: string | null, pluginPublicationDate: Date | null, pluginModificationDate: Date | null, lastSeenAt: Date } | null> }).findUnique({
         where: { id: vulnerabilityId },
         include: { collaborators: { select: { id: true } } },
     });
@@ -49,11 +50,58 @@ export async function PATCH(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { askForHelp, collaboratorIds, assigneeId } = patchSchema.parse(await req.json());
+    const { askForHelp, collaboratorIds, assigneeId, status } = patchSchema.parse(await req.json());
+
+    if (status && status !== "Open") {
+        // Archiving logic: move to history and delete from active
+        const now = new Date();
+        const updatedAssigneeId = assigneeId !== undefined ? assigneeId : vulnerability.assigneeId;
+
+        const history = await prisma.$transaction(async (tx: any) => {
+            const h = await (tx.vulnerabilityHistory as any).create({
+                data: {
+                    id: vulnerabilityId,
+                    siteId: vulnerability.siteId,
+                    assigneeId: updatedAssigneeId,
+                    status: status,
+                    lastSeenAt: vulnerability.lastSeenAt,
+                    archivedAt: now,
+                    createdAt: vulnerability.createdAt,
+                    pluginId: vulnerability.pluginId,
+                    cve: vulnerability.cve,
+                    cvssScore: vulnerability.cvssScore,
+                    risk: vulnerability.risk,
+                    host: vulnerability.host,
+                    protocol: vulnerability.protocol,
+                    port: vulnerability.port,
+                    name: vulnerability.name,
+                    synopsis: vulnerability.synopsis,
+                    description: vulnerability.description,
+                    solution: vulnerability.solution,
+                    seeAlso: vulnerability.seeAlso,
+                    pluginOutput: vulnerability.pluginOutput,
+                    pluginPublicationDate: vulnerability.pluginPublicationDate,
+                    pluginModificationDate: vulnerability.pluginModificationDate
+                },
+                include: {
+                    assignee: { select: { id: true, name: true } },
+                }
+            });
+
+            await (tx.vulnerability as any).delete({
+                where: { id: vulnerabilityId }
+            });
+
+            return h;
+        });
+
+        return NextResponse.json({ ...history, recordScope: "archived" });
+    }
 
     const updateData: {
         askForHelp?: boolean;
         assigneeId?: string | null;
+        status?: any;
         collaborators?: {
             set: { id: string }[];
         };
@@ -66,23 +114,18 @@ export async function PATCH(
         updateData.assigneeId = assigneeId;
     }
 
+    if (status === "Open") {
+        updateData.status = "Open";
+    }
+
     if (Array.isArray(collaboratorIds)) {
         updateData.collaborators = {
             set: collaboratorIds.map((id: string) => ({ id })),
         };
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-        const u = await (tx.vulnerability as unknown as {
-            update: (opts: {
-                where: { id: string };
-                data: typeof updateData;
-                include: {
-                    assignee: { select: { id: true; name: true } };
-                    collaborators: { select: { id: true; name: true; email: true } };
-                };
-            }) => Promise<unknown>;
-        }).update({
+    const updated = await prisma.$transaction(async (tx: any) => {
+        const u = await (tx.vulnerability as any).update({
             where: { id: vulnerabilityId },
             data: updateData,
             include: {

@@ -14,7 +14,7 @@ export function Topbar() {
           {isTools ? "CyberDefend" : "Vulnerability"}
         </p>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
-          {isTools ? "Security Command" : "Remediation Command Center"}
+          {isTools ? "Security Command" : "Remediation Command Centre"}
         </h1>
       </div>
       <div className="flex items-center gap-4">

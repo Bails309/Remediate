@@ -2,10 +2,9 @@ services:
   app:
     build:
       context: .
-      target: dev
+      target: app-runner
     ports:
       - "3000:3000"
-    command: sh -c "rm -rf .next/dev/lock && npm install --legacy-peer-deps --no-audit && npm run prisma:generate && npm run migrate && npm run dev"
     env_file:
       - .env
     environment:
@@ -18,10 +17,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
+      NODE_OPTIONS: "--max-old-space-size=4096"
     depends_on:
       db:
         condition: service_healthy
@@ -34,8 +30,7 @@ services:
   worker:
     build:
       context: .
-      target: dev
-    command: sh -c "npm install --legacy-peer-deps --no-audit && npm run prisma:generate && npm run migrate && npm run optimize-db && npm run worker"
+      target: worker-runner
     env_file:
       - .env
     environment:
@@ -47,9 +42,6 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
-    volumes:
-      - .:/app
-      - /app/node_modules
     depends_on:
       db:
         condition: service_healthy

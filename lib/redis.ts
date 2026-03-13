@@ -58,38 +58,87 @@ function createRedisInstance(url: string, options?: RedisOptions) {
   }
 }
 
-export const redis =
-  (() => {
-    const rawUrl = process.env.REDIS_URL;
+// Lazy initialization: avoid creating a live Redis connection at module-import time
+// (this prevents `next build` from attempting to connect to Redis while it
+// analyzes server modules). We expose a proxy that initializes the real
+// client on first property access or method call.
+function buildRedisInstance() {
+  const rawUrl = process.env.REDIS_URL;
 
-    if (!rawUrl) {
-      console.error(`[Redis] CRITICAL: REDIS_URL is MISSING or EMPTY. Falling back to localhost.`);
+  if (!rawUrl) {
+    console.error(`[Redis] CRITICAL: REDIS_URL is MISSING or EMPTY. Falling back to localhost.`);
+  }
+
+  const url = rawUrl || DEFAULT_REDIS_URL;
+  const isTls = url.startsWith("rediss://");
+  const tlsReject = isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
+
+  // Ensure a per-URL+tls cache on globalThis
+  globalForRedis.redisMap = globalForRedis.redisMap ?? {};
+  const cacheKey = isTls ? `${url}|tls:${String(tlsReject)}` : url;
+  if (globalForRedis.redisMap[cacheKey]) return globalForRedis.redisMap[cacheKey];
+
+  const logUrl = url.replace(/:([^:@]+)@/, ":****@");
+  console.error(`[Redis] Connecting (Mode: ${isCluster ? "Cluster" : "Standard"}, URL: ${logUrl}, TLS: ${isTls}, RejectUnauthorized: ${tlsReject})`);
+
+  const inst = createRedisInstance(url, {
+    maxRetriesPerRequest: null, // Required for BullMQ
+    ...(isTls && {
+      tls: {
+        rejectUnauthorized: tlsReject,
+      },
+    }),
+  });
+  globalForRedis.redisMap[cacheKey] = inst;
+  return inst;
+}
+
+const lazyHandler: ProxyHandler<any> = {
+  get(_, prop) {
+    let real = (globalForRedis as any).__realRedis;
+    if (!real) {
+      real = (globalForRedis as any).__realRedis = buildRedisInstance();
     }
+    const value = real[prop as keyof typeof real];
+    if (typeof value === "function") return value.bind(real);
+    return value;
+  },
+  set(_, prop, val) {
+    let real = (globalForRedis as any).__realRedis;
+    if (!real) {
+      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+    }
+    (real as any)[prop] = val;
+    return true;
+  },
+  has(_, prop) {
+    let real = (globalForRedis as any).__realRedis;
+    if (!real) {
+      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+    }
+    return prop in real;
+  },
+  ownKeys() {
+    let real = (globalForRedis as any).__realRedis;
+    if (!real) {
+      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+    }
+    return Reflect.ownKeys(real as object);
+  },
+  getOwnPropertyDescriptor(_, prop) {
+    let real = (globalForRedis as any).__realRedis;
+    if (!real) {
+      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+    }
+    return Object.getOwnPropertyDescriptor(real, prop as PropertyKey) || undefined;
+  },
+};
 
-    const url = rawUrl || DEFAULT_REDIS_URL;
-    const isTls = url.startsWith("rediss://");
-    const tlsReject = isTls ? (process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false") : undefined;
+export const redis = new Proxy({}, lazyHandler) as unknown as Redis;
 
-    // Ensure a per-URL+tls cache on globalThis
-    globalForRedis.redisMap = globalForRedis.redisMap ?? {};
-    const cacheKey = isTls ? `${url}|tls:${String(tlsReject)}` : url;
-    if (globalForRedis.redisMap[cacheKey]) return globalForRedis.redisMap[cacheKey];
-
-    const logUrl = url.replace(/:([^:@]+)@/, ":****@");
-    console.error(`[Redis] Connecting (Mode: ${isCluster ? "Cluster" : "Standard"}, URL: ${logUrl}, TLS: ${isTls}, RejectUnauthorized: ${tlsReject})`);
-
-    const inst = createRedisInstance(url, {
-      maxRetriesPerRequest: null, // Required for BullMQ
-      ...(isTls && {
-        tls: {
-          rejectUnauthorized: tlsReject,
-        },
-      }),
-    });
-    globalForRedis.redisMap[cacheKey] = inst;
-    return inst;
-  })();
-
+// In non-production envs we still populate the cache key mapping to the proxy so
+// tests that inspect `globalForRedis.redisMap` see a value (the real client will
+// be created lazily on first use).
 if (process.env.NODE_ENV !== "production") {
   const _url = process.env.REDIS_URL ?? DEFAULT_REDIS_URL;
   const _isTls = _url.startsWith("rediss://");
