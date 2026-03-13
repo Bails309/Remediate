@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { Prisma, type Risk, type VulnerabilityStatus } from "@prisma/client";
+import { type Prisma, type Risk, type VulnerabilityStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
@@ -12,9 +12,29 @@ const patchSchema = z.object({
     status: z.string().optional(), // Keep as string to avoid nativeEnum issues if types are flaky
 });
 
-type VulnerabilityWithCollaborators = Prisma.VulnerabilityGetPayload<{
-    include: { collaborators: { select: { id: true } } }
-}>;
+interface VulnerabilityWithCollaborators {
+    id: string;
+    assigneeId?: string | null;
+    siteId?: string;
+    lastSeenAt?: any;
+    createdAt?: any;
+    pluginId?: string;
+    cve?: string | null;
+    cvssScore?: number | null;
+    risk?: any;
+    host?: string;
+    protocol?: string | null;
+    port?: number | null;
+    name?: string;
+    synopsis?: string | null;
+    description?: string | null;
+    solution?: string | null;
+    seeAlso?: string | null;
+    pluginOutput?: string | null;
+    pluginPublicationDate?: any;
+    pluginModificationDate?: any;
+    collaborators: { id: string }[];
+}
 
 export async function PATCH(
     req: Request,
@@ -121,7 +141,7 @@ export async function PATCH(
         };
     }
 
-    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
         const u = await tx.vulnerability.update({
             where: { id: vulnerabilityId },
             data: updateData,

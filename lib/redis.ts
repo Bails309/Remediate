@@ -93,8 +93,10 @@ function buildRedisInstance() {
   return inst;
 }
 
+type LazyRedisTarget = Redis & { __real?: Redis };
+
 const lazyHandler: ProxyHandler<Redis> = {
-  get(target: any, prop) {
+  get(target: LazyRedisTarget, prop) {
     if (prop === "$$typeof" || prop === "then" || typeof prop === "symbol") {
       return Reflect.get(target, prop);
     }
@@ -106,25 +108,25 @@ const lazyHandler: ProxyHandler<Redis> = {
     if (typeof value === "function") return value.bind(real);
     return value;
   },
-  set(target: any, prop, val) {
+  set(target: LazyRedisTarget, prop, val) {
     if (!target.__real) {
       target.__real = buildRedisInstance();
     }
     return Reflect.set(target.__real, prop, val);
   },
-  has(target: any, prop) {
+  has(target: LazyRedisTarget, prop) {
     if (!target.__real) {
       target.__real = buildRedisInstance();
     }
     return prop in target.__real;
   },
-  ownKeys(target: any) {
+  ownKeys(target: LazyRedisTarget) {
     if (!target.__real) {
       target.__real = buildRedisInstance();
     }
     return Reflect.ownKeys(target.__real as object);
   },
-  getOwnPropertyDescriptor(target: any, prop) {
+  getOwnPropertyDescriptor(target: LazyRedisTarget, prop) {
     if (!target.__real) {
       target.__real = buildRedisInstance();
     }
