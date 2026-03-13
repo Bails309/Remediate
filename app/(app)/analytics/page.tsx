@@ -204,11 +204,19 @@ export default async function AnalyticsPage({
 
     // 5. Remediation Status Overview (Logical)
     const statusRiskGroups = await prisma.$queryRawUnsafe<{ status: string; count: number }[]>(`
+        WITH all_vulns AS (
+            SELECT status, name, host, port, "pluginId", "siteId"
+            FROM "Vulnerability"
+            UNION ALL
+            SELECT status, name, host, port, "pluginId", "siteId"
+            FROM "VulnerabilityHistory"
+            WHERE "archivedAt" >= NOW() - INTERVAL '7 days'
+        )
         SELECT status::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") status
-            FROM "Vulnerability"
+            FROM all_vulns
             ${whereClause}
-            ORDER BY name, host, port, "pluginId"
+            ORDER BY name, host, port, "pluginId", status
         ) as groups
         GROUP BY status
     `, ...values);
@@ -375,7 +383,10 @@ export default async function AnalyticsPage({
                     <HeatmapTable title="" data={unassignedData} showTotal={true} />
                 </div>
                 <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
-                    <h3 className="mb-6 font-semibold text-lg">Remediation Status</h3>
+                    <div className="mb-6 flex items-center gap-2">
+                        <h3 className="font-semibold text-lg leading-none">Remediation Status</h3>
+                        <InfoTooltip text="This chart shows the current status of all open vulnerabilities, plus any vulnerabilities archived in the past 7 days to provide recent remediation context." />
+                    </div>
                     <StatusDonutChart data={statusData} />
                 </div>
             </div>
