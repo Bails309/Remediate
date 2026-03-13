@@ -51,6 +51,7 @@ model User {
   uploads       UploadHistory[]  @relation("UploadedBy")
   pentestExecutions PentestExecution[]
   assignmentNotifications AssignmentNotification[]
+  threatSubscription ThreatSubscription?
   createdAt     DateTime         @default(now())
 }
 
@@ -250,4 +251,51 @@ model AssignmentNotification {
   vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
 
   @@index([userId, sentAt])
+}
+
+model ThreatVulnerability {
+  id                     String    @id @default(uuid()) @db.Uuid
+  osvId                  String    @unique // e.g., GHSA-..., OSV-...
+  cveId                  String?   @unique // e.g., CVE-2024-...
+  summary                String
+  details                String?
+  source                 String    // e.g., NVD, OSV, CISCO
+  
+  // OSV-based relationships (simplified for mirroring)
+  affectedPackages       Json      // List of affected packages and versions
+  remediation            String?   // "Upgrade to version X"
+  
+  // Enrichment fields
+  cvssScore              Float?
+  epssScore              Float?
+  cisaKevStatus          Boolean   @default(false)
+  
+  publishedAt            DateTime
+  modifiedAt             DateTime
+  syncedAt               DateTime  @default(now())
+
+  @@index([cveId])
+  @@index([publishedAt(sort: Desc)])
+  @@index([cvssScore(sort: Desc)])
+  @@index([cisaKevStatus])
+}
+
+model ThreatSubscription {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  isSubscribed     Boolean  @default(false)
+  
+  // Alert Preferences
+  minRisk          Risk     @default(High) // Subscriber only wants High/Critical
+  cisaKevOnly      Boolean  @default(false)
+  
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt        DateTime @updatedAt
+}
+
+model ThreatFeedMetadata {
+  id            String   @id // e.g., "NVD", "OSV", "CISA_KEV"
+  lastModified  DateTime?
+  sha256Hash    String?
+  lastSyncedAt  DateTime @default(now())
 }

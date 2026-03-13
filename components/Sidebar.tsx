@@ -29,6 +29,7 @@ const adminNavItems = [
 ];
 
 const toolsNavItems = [
+  { href: "/threat-intelligence", label: "Intelligence", icon: Activity },
   { href: "/tools", label: "Tools", icon: Wrench },
 ];
 
