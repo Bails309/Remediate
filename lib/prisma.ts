@@ -45,4 +45,4 @@ const prismaHandler: ProxyHandler<PrismaClient> = {
   },
 };
 
-export const prisma = new Proxy({}, prismaHandler) as unknown as PrismaClient;
+export const prisma = new Proxy({} as unknown as PrismaClient, prismaHandler);

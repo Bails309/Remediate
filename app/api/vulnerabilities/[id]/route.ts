@@ -108,7 +108,7 @@ export async function PATCH(
     }
 
     if (assigneeId !== undefined) {
-        updateData.assigneeId = assigneeId;
+        updateData.assignee = assigneeId ? { connect: { id: assigneeId } } : { disconnect: true };
     }
 
     if (status === "Open") {

@@ -133,7 +133,7 @@ const lazyHandler: ProxyHandler<Redis> = {
   },
 };
 
-export const redis = new Proxy({}, lazyHandler) as unknown as Redis;
+export const redis = new Proxy({} as unknown as Redis, lazyHandler);
 
 // In non-production envs we still populate the cache key mapping to the proxy so
 // tests that inspect `globalForRedis.redisMap` see a value (the real client will

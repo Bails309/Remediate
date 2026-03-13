@@ -49,7 +49,7 @@ const queueHandler: ProxyHandler<Queue> = {
   },
 };
 
-export const uploadQueue = new Proxy({}, queueHandler) as unknown as Queue;
+export const uploadQueue = new Proxy({} as unknown as Queue, queueHandler);
 
 export function getLockKey(siteId: string) {
   return `{site:${siteId}}:upload-lock`;
