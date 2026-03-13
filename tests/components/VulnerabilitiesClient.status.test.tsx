@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@/lib/toast";
 
@@ -21,6 +20,7 @@ const session = {
     id: "u3",
     roles: ["web_app_admin"],
   },
+  expires: new Date(Date.now() + 3600 * 1000).toISOString(),
 };
 
 function createFetchMock(item: {
@@ -104,7 +104,7 @@ describe("VulnerabilitiesClient Status Change", () => {
   it("should update status and keep detail open if not archived", async () => {
     global.fetch = createFetchMock(mockVulnerability);
 
-    render(<VulnerabilitiesClient session={session} initialUsers={baseUsers} />);
+    render(<VulnerabilitiesClient sites={[]} users={baseUsers} session={session} />);
 
     // Click on the row to open detail
     const row = await screen.findByText("Test Vuln");
@@ -122,7 +122,7 @@ describe("VulnerabilitiesClient Status Change", () => {
   it("should archive and close detail if status set to Remediated", async () => {
     global.fetch = createFetchMock(mockVulnerability);
 
-    render(<VulnerabilitiesClient session={session} initialUsers={baseUsers} />);
+    render(<VulnerabilitiesClient sites={[]} users={baseUsers} session={session} />);
 
     const row = await screen.findByText("Test Vuln");
     fireEvent.click(row);

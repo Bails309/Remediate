@@ -20,7 +20,7 @@ function buildPrismaInstance() {
   return _realPrisma;
 }
 
-const prismaHandler: ProxyHandler<any> = {
+const prismaHandler: ProxyHandler<PrismaClient> = {
   get(_, prop) {
     const real = _realPrisma ?? buildPrismaInstance();
     const value = (real as any)[prop];

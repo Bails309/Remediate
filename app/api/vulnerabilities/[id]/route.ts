@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
-// email/reporting helpers removed from this route to avoid unused imports
 
 const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
@@ -11,6 +11,10 @@ const patchSchema = z.object({
     assigneeId: z.string().uuid().nullable().optional(),
     status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable"]).optional(),
 });
+
+type VulnerabilityWithCollaborators = Prisma.VulnerabilityGetPayload<{
+    include: { collaborators: { select: { id: true } } }
+}>;
 
 export async function PATCH(
     req: Request,
@@ -22,7 +26,7 @@ export async function PATCH(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await (prisma.user as unknown as { findUnique: (a: unknown) => Promise<{ id: string, roles: string[] } | null> }).findUnique({
+    const user = await prisma.user.findUnique({
         where: { email: session.user.email },
         select: { id: true, roles: true }
     });
@@ -35,10 +39,10 @@ export async function PATCH(
         (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
-    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ siteId: string; assigneeId: string | null, collaborators: { id: string }[], createdAt: Date, pluginId: string, cve: string | null, cvssScore: number | null, risk: any, host: string, protocol: string, port: string, name: string, synopsis: string | null, description: string | null, solution: string | null, seeAlso: string | null, pluginOutput: string | null, pluginPublicationDate: Date | null, pluginModificationDate: Date | null, lastSeenAt: Date } | null> }).findUnique({
+    const vulnerability = await prisma.vulnerability.findUnique({
         where: { id: vulnerabilityId },
         include: { collaborators: { select: { id: true } } },
-    });
+    }) as VulnerabilityWithCollaborators | null;
 
     if (!vulnerability) {
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
@@ -57,8 +61,8 @@ export async function PATCH(
         const now = new Date();
         const updatedAssigneeId = assigneeId !== undefined ? assigneeId : vulnerability.assigneeId;
 
-        const history = await prisma.$transaction(async (tx: any) => {
-            const h = await (tx.vulnerabilityHistory as any).create({
+        const history = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const h = await tx.vulnerabilityHistory.create({
                 data: {
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
@@ -70,7 +74,7 @@ export async function PATCH(
                     pluginId: vulnerability.pluginId,
                     cve: vulnerability.cve,
                     cvssScore: vulnerability.cvssScore,
-                    risk: vulnerability.risk,
+                    risk: vulnerability.risk as string,
                     host: vulnerability.host,
                     protocol: vulnerability.protocol,
                     port: vulnerability.port,
@@ -88,7 +92,7 @@ export async function PATCH(
                 }
             });
 
-            await (tx.vulnerability as any).delete({
+            await tx.vulnerability.delete({
                 where: { id: vulnerabilityId }
             });
 
@@ -98,14 +102,7 @@ export async function PATCH(
         return NextResponse.json({ ...history, recordScope: "archived" });
     }
 
-    const updateData: {
-        askForHelp?: boolean;
-        assigneeId?: string | null;
-        status?: any;
-        collaborators?: {
-            set: { id: string }[];
-        };
-    } = {};
+    const updateData: Prisma.VulnerabilityUpdateInput = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
     }
@@ -124,8 +121,8 @@ export async function PATCH(
         };
     }
 
-    const updated = await prisma.$transaction(async (tx: any) => {
-        const u = await (tx.vulnerability as any).update({
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const u = await tx.vulnerability.update({
             where: { id: vulnerabilityId },
             data: updateData,
             include: {
@@ -139,9 +136,7 @@ export async function PATCH(
             const newCollaboratorIds = collaboratorIds.filter((id: string) => !existingCollaboratorIds.includes(id));
 
             if (newCollaboratorIds.length > 0) {
-                await (tx.assignmentNotification as unknown as {
-                    createMany: (opts: { data: { userId: string; vulnerabilityId: string }[] }) => Promise<unknown>;
-                }).createMany({
+                await tx.assignmentNotification.createMany({
                     data: newCollaboratorIds.map(userId => ({
                         userId,
                         vulnerabilityId
@@ -151,9 +146,7 @@ export async function PATCH(
         }
 
         if (assigneeId && assigneeId !== vulnerability.assigneeId) {
-            await (tx.assignmentNotification as unknown as {
-                create: (opts: { data: { userId: string; vulnerabilityId: string } }) => Promise<unknown>;
-            }).create({
+            await tx.assignmentNotification.create({
                 data: {
                     userId: assigneeId,
                     vulnerabilityId,

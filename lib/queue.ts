@@ -24,7 +24,7 @@ function buildQueue() {
   return _realQueue;
 }
 
-const queueHandler: ProxyHandler<any> = {
+const queueHandler: ProxyHandler<Queue> = {
   get(_, prop) {
     const q = buildQueue();
     const value = (q as any)[prop];

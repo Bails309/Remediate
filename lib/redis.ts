@@ -93,42 +93,42 @@ function buildRedisInstance() {
   return inst;
 }
 
-const lazyHandler: ProxyHandler<any> = {
+const lazyHandler: ProxyHandler<Redis> = {
   get(_, prop) {
-    let real = (globalForRedis as any).__realRedis;
+    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
     if (!real) {
-      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
-    const value = real[prop as keyof typeof real];
+    const value = (real as any)[prop];
     if (typeof value === "function") return value.bind(real);
     return value;
   },
   set(_, prop, val) {
-    let real = (globalForRedis as any).__realRedis;
+    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
     if (!real) {
-      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
     (real as any)[prop] = val;
     return true;
   },
   has(_, prop) {
-    let real = (globalForRedis as any).__realRedis;
+    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
     if (!real) {
-      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
     return prop in real;
   },
   ownKeys() {
-    let real = (globalForRedis as any).__realRedis;
+    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
     if (!real) {
-      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
     return Reflect.ownKeys(real as object);
   },
   getOwnPropertyDescriptor(_, prop) {
-    let real = (globalForRedis as any).__realRedis;
+    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
     if (!real) {
-      real = (globalForRedis as any).__realRedis = buildRedisInstance();
+      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
     return Object.getOwnPropertyDescriptor(real, prop as PropertyKey) || undefined;
   },
