@@ -1,4 +1,4 @@
-import { Risk } from "@prisma/client";
+import { Risk, type Prisma } from "@prisma/client";
 
 export interface NormalizedThreat {
     osvId: string;
@@ -6,7 +6,7 @@ export interface NormalizedThreat {
     summary: string;
     details?: string | null;
     source: string;
-    affectedPackages: Record<string, unknown>[];
+    affectedPackages: Prisma.InputJsonValue;
     publishedAt: Date;
     modifiedAt: Date;
     cvssScore?: number | null;

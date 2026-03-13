@@ -14,7 +14,7 @@ interface ThreatApiResponse {
     details?: string;
     aliases?: string[];
     cvssScore?: number | null;
-    affected_packages?: Record<string, unknown>[];
+    affected_packages?: any[];
     published?: string;
     modified?: string;
     database_specific?: {
@@ -84,7 +84,7 @@ export async function ingestThreat(id: string) {
                 summary: (baseData.summary || baseData.details || "No summary available").substring(0, 500),
                 details: baseData.details,
                 source: id.startsWith("CVE-") ? "NVD" : "OSV",
-                affectedPackages: (baseData.affected_packages || []) as Record<string, unknown>[],
+                affectedPackages: (baseData.affected_packages || []) as any[],
                 publishedAt: baseData.published ? new Date(baseData.published) : new Date(0), // Fallback to epoch if missing
                 modifiedAt: baseData.modified ? new Date(baseData.modified) : new Date(), // Modified is "Live"
             },
