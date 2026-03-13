@@ -12,7 +12,7 @@ function parseValidDate(value?: string | null) {
   const s = value.toString().trim();
 
   // Try common numeric date formats like dd/MM/yyyy or d/M/yyyy (prefer UK-style)
-  const formats = ["dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd", "MMM d, yyyy", "MMMM d, yyyy"];
+  const formats = ["dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd", "yyyy/MM/dd", "MMM d, yyyy", "MMMM d, yyyy"];
   for (const fmt of formats) {
     const parsed = parse(s, fmt, new Date());
     if (isValid(parsed)) {
@@ -77,15 +77,15 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     const filteredRows = rows.filter((row: NessusRow) => {
       if (normalizeRisk(row.risk) === Risk.None) return false;
 
-      if (gracePeriodDays > 0 && row.pluginPublicationDate) {
-        const pubDate = parseValidDate(row.pluginPublicationDate);
+      if (gracePeriodDays > 0) {
+        const pubDateStr = row.pluginPublicationDate;
+        const pubDate = pubDateStr ? parseValidDate(pubDateStr) : null;
+
+        // Only exclude if publication date exists and is within the grace period
         if (pubDate) {
           const diffTime = Math.abs(now.getTime() - pubDate.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          if (diffDays <= gracePeriodDays) {
-            return false;
-          }
+          if (diffDays <= gracePeriodDays) return false;
         }
       }
 
