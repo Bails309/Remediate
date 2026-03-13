@@ -90,7 +90,7 @@ export default async function DashboardPage({
             </h3>
             <div className="space-y-3">
               {latestUploads.length === 0 && <p className="text-xs opacity-50 italic">No activity yet recorded.</p>}
-              {latestUploads.map((upload: any) => (
+              {latestUploads.map((upload: { id: string; site: { name: string }; status: string; uploadDate: Date }) => (
                 <div key={upload.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 transition-all hover:bg-white/[0.04]">
                   <div className="flex items-center gap-3">
                     <div className={cn(
