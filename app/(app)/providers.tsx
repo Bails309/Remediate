@@ -10,8 +10,10 @@ const NextAuthProvider = dynamic(() => import("./next-auth-provider"), {
 
 export function Providers({
   children,
+  nonce,
 }: {
   children: React.ReactNode;
+  nonce?: string;
 }) {
   return (
     <NextAuthProvider>

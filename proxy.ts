@@ -6,6 +6,10 @@ import type { Session } from "next-auth";
 
 const { auth } = NextAuth(authConfig);
 
+function isPassThroughResponse(response: Response | NextResponse) {
+    return response.status === 200 && !response.headers.has("location") && !response.headers.has("x-middleware-rewrite");
+}
+
 interface AuthRequest extends NextRequest {
     auth: Session | null;
 }
@@ -39,8 +43,55 @@ const proxyHandler = auth((req: AuthRequest) => {
     return NextResponse.next();
 });
 
-export function proxy(...args: Parameters<typeof proxyHandler>) {
-    return proxyHandler(...args);
+export async function proxy(...args: Parameters<typeof proxyHandler>) {
+    const [req] = args;
+    const nonce = btoa(globalThis.crypto.randomUUID());
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-nonce", nonce);
+
+    let response = await proxyHandler(...args);
+    if (!response) return response;
+
+    const forwardedProto = req.headers.get('x-forwarded-proto');
+    const isHttps = forwardedProto === 'https' || req.url.startsWith('https://');
+
+    if (isPassThroughResponse(response)) {
+        const nextResponse = NextResponse.next({
+            request: {
+                headers: requestHeaders,
+            },
+        });
+
+        response.headers.forEach((value, key) => {
+            nextResponse.headers.set(key, value);
+        });
+
+        response = nextResponse;
+    }
+
+    // Add baseline security headers
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.headers.set('x-nonce', nonce);
+
+    // Development tooling injects styles without a nonce. In dev we allow inline styles;
+    // in production we keep a nonce-based style policy.
+    const styleSrc = process.env.NODE_ENV === 'production'
+        ? ["'self'", `'nonce-${nonce}'`]
+        : ["'self'", "'unsafe-inline'"];
+
+    let csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src ${styleSrc.join(" ")}; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`;
+
+    if (isHttps) {
+        response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+        csp += " upgrade-insecure-requests;";
+    }
+
+    response.headers.set('Content-Security-Policy', csp);
+
+    return response;
 }
 
 export const config = {
