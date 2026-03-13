@@ -1,4 +1,4 @@
-import { NormalizedThreat } from "./normalizer";
+
 
 const FETCH_TIMEOUT = 15000;
 
@@ -52,7 +52,7 @@ export async function fetchCisaKev(): Promise<Record<string, unknown>> {
 /**
  * Generic fetch with exponential backoff for rate limiting.
  */
-async function fetchWithBackoff(url: string, headers: Record<string, string>, retries = 3): Promise<Record<string, any> | undefined> {
+async function fetchWithBackoff(url: string, headers: Record<string, string>, retries = 3): Promise<Record<string, unknown> | undefined> {
     let delay = 2000;
     for (let i = 0; i < retries; i++) {
         try {

@@ -1,13 +1,14 @@
 import { renderEmailLayout } from "../email";
 
-interface ThreatItem {
+export interface ThreatItem {
     osvId: string;
     cveId?: string | null;
     summary: string;
     cvssScore?: number | null;
+    cisaKevStatus?: boolean;
 }
 
-interface ThreatGroup {
+export interface ThreatGroup {
     cisaKev: ThreatItem[];
     criticalHigh: ThreatItem[];
     standard: ThreatItem[];

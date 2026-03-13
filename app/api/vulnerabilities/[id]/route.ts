@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { type Prisma, type Risk, type VulnerabilityStatus } from "@prisma/client";
+import { Prisma, Risk, VulnerabilityStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";

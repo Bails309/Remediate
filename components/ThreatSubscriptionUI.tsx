@@ -51,7 +51,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
             } else {
                 toast.error("Failed to update preferences. Please try again.");
             }
-        } catch (error) {
+        } catch (_error) {
             toast.error("A network error occurred while saving preferences.");
         } finally {
             setIsSaving(false);

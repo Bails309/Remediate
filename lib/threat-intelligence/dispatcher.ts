@@ -3,6 +3,7 @@ import { renderThreatEmail } from "./email-template";
 import { sendEmail } from "../email";
 import { getReportConfig } from "../reports";
 import { Risk } from "@prisma/client";
+import { ThreatItem, ThreatGroup } from "./email-template";
 
 /**
  * Aggregates threats from the last 24 hours.
@@ -72,10 +73,10 @@ export async function dispatchDailyDigests() {
     }
 }
 
-function filterThreatsForUser(threats: any[], sub: { minRisk: Risk; cisaKevOnly: boolean }) {
-    const cisaKev: any[] = [];
-    const criticalHigh: any[] = [];
-    const standard: any[] = [];
+function filterThreatsForUser(threats: ThreatItem[], sub: { minRisk: Risk; cisaKevOnly: boolean }): ThreatGroup {
+    const cisaKev: ThreatItem[] = [];
+    const criticalHigh: ThreatItem[] = [];
+    const standard: ThreatItem[] = [];
 
     const minRiskValue = riskToValue(sub.minRisk);
 

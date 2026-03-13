@@ -5,8 +5,22 @@ import { Queue, Worker } from "bullmq";
 import { redis } from "@/lib/redis";
 
 export const THREAT_QUEUE_NAME = "threat-ingestion";
-// @ts-ignore - version mismatch between ioredis versions
+// @ts-expect-error - version mismatch between ioredis versions
 export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis });
+
+interface ThreatApiResponse {
+    id: string;
+    summary?: string;
+    details?: string;
+    aliases?: string[];
+    cvssScore?: number | null;
+    affected_packages?: any;
+    published?: string;
+    modified?: string;
+    database_specific?: {
+        severity?: string;
+    };
+}
 
 /**
  * Ingests a threat by its ID (CVE or OSV ID).
@@ -14,7 +28,7 @@ export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis });
  */
 export async function ingestThreat(id: string) {
     try {
-        let baseData: Record<string, any> | null = null;
+        let baseData: ThreatApiResponse | null = null;
         let cveId: string | null = null;
         let osvId: string | null = null;
 
@@ -22,7 +36,7 @@ export async function ingestThreat(id: string) {
             cveId = id;
             // For CVEs, we first try OSV for ecosystem context
             try {
-                baseData = await fetchOsvById(id);
+                baseData = (await fetchOsvById(id)) as unknown as ThreatApiResponse;
                 osvId = baseData.id;
             } catch {
                 const nvdData = await fetchNvdCve(id);
@@ -31,7 +45,7 @@ export async function ingestThreat(id: string) {
         } else {
             osvId = id;
             try {
-                baseData = await fetchOsvById(id);
+                baseData = (await fetchOsvById(id)) as unknown as ThreatApiResponse;
                 cveId = baseData.aliases?.find((a: string) => a.startsWith("CVE-")) || null;
             } catch {
                 console.warn(`OSV fetch failed for ${id}, skipping...`);
@@ -49,14 +63,14 @@ export async function ingestThreat(id: string) {
         // If it has a CVE ID, enrich with CISA KEV and EPSS
         if (cveId) {
             const kevList = await fetchCisaKev();
-            const vulnerabilities = kevList.vulnerabilities as any[];
-            cisaKev = vulnerabilities?.some((v: any) => v.cveID === cveId);
+            const vulnerabilities = (kevList.vulnerabilities || []) as { cveID: string }[];
+            cisaKev = vulnerabilities.some((v) => v.cveID === cveId);
             
             if (cvss === null) {
                 try {
                     const nvdData = await fetchNvdCve(cveId);
-                    const vulns = nvdData.vulnerabilities as any[];
-                    cvss = vulns?.[0]?.cve?.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore || null;
+                    const vulns = (nvdData.vulnerabilities || []) as { cve?: { metrics?: { cvssMetricV31?: { cvssData?: { baseScore: number } }[] } } }[];
+                    cvss = vulns[0]?.cve?.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore || null;
                 } catch {
                     // Fallback to vendor in normalizer
                 }
@@ -67,18 +81,18 @@ export async function ingestThreat(id: string) {
             {
                 osvId: osvId || cveId || id,
                 cveId,
-                summary: (baseData.summary || baseData.details || "No summary available").substring(0, 500),
-                details: baseData.details,
+                summary: (((baseData as any).summary || (baseData as any).details || "No summary available") as string).substring(0, 500),
+                details: (baseData as any).details as string,
                 source: id.startsWith("CVE-") ? "NVD" : "OSV",
-                affectedPackages: baseData.affected_packages || [],
-                publishedAt: baseData.published ? new Date(baseData.published) : new Date(0), // Fallback to epoch if missing
-                modifiedAt: baseData.modified ? new Date(baseData.modified) : new Date(), // Modified is "Live"
+                affectedPackages: (baseData as any).affected_packages || [],
+                publishedAt: (baseData as any).published ? new Date((baseData as any).published as string) : new Date(0), // Fallback to epoch if missing
+                modifiedAt: (baseData as any).modified ? new Date((baseData as any).modified as string) : new Date(), // Modified is "Live"
             },
             {
                 cvss,
                 epss,
                 cisaKev,
-                vendorSeverity: baseData.database_specific?.severity,
+                vendorSeverity: (baseData as any).database_specific?.severity,
             }
         );
 
@@ -151,15 +165,29 @@ if (process.env.NODE_ENV !== "test") {
     }, { connection: redis as any });
 }
 
-function extractBaseDataFromNvd(nvdData: Record<string, any>) {
-    const vuln = nvdData.vulnerabilities?.[0]?.cve;
+interface NvdCveResponse {
+    vulnerabilities?: {
+        cve: {
+            id: string;
+            descriptions?: { lang: string; value: string }[];
+            published: string;
+            lastModified: string;
+            metrics?: Record<string, any>;
+        };
+    }[];
+}
+
+function extractBaseDataFromNvd(nvdData: Record<string, unknown>): ThreatApiResponse | null {
+    const data = nvdData as unknown as NvdCveResponse;
+    const vuln = data.vulnerabilities?.[0]?.cve;
     if (!vuln) return null;
 
     return {
-        summary: vuln.descriptions?.find((d: any) => d.lang === "en")?.value,
-        details: vuln.descriptions?.find((d: any) => d.lang === "en")?.value,
+        id: vuln.id,
+        summary: vuln.descriptions?.find((d) => d.lang === "en")?.value,
+        details: vuln.descriptions?.find((d) => d.lang === "en")?.value,
         published: vuln.published,
         modified: vuln.lastModified,
-        cvssScore: vuln.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore,
+        cvssScore: (vuln.metrics as any)?.cvssMetricV31?.[0]?.cvssData?.baseScore,
     };
 }

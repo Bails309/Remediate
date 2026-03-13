@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getReportConfig } from "@/lib/reports";
+import { getReportConfig, type ReportSettings } from "@/lib/reports";
 import { getWeeklyCriticalHighSummary } from "@/lib/report-analytics";
 import { sendReportEmail, renderEmailLayout } from "@/lib/email";
 import { syncAllThreats } from "./threat-intelligence/worker";
@@ -64,7 +64,7 @@ export function startReportScheduler() {
   }, CHECK_INTERVAL_MS);
 }
 
-async function sendWeeklyReport(config: Record<string, any>) {
+async function sendWeeklyReport(config: { recipients: string; timezone: string }) {
     const now = new Date();
     const { summary, totals } = await getWeeklyCriticalHighSummary();
 
@@ -140,7 +140,7 @@ async function sendWeeklyReport(config: Record<string, any>) {
       `
     });
 
-    await sendReportEmail(config as any, subject, html, text);
+    await sendReportEmail(config as ReportSettings, subject, html, text);
 
     const existing = await prisma.reportConfig.findFirst();
     if (existing) {
