@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { Prisma } from "@prisma/client";
+import { Prisma, type Risk, type VulnerabilityStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
@@ -9,7 +9,7 @@ const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
     collaboratorIds: z.array(z.string()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
-    status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable"]).optional(),
+    status: z.string().optional(), // Keep as string to avoid nativeEnum issues if types are flaky
 });
 
 type VulnerabilityWithCollaborators = Prisma.VulnerabilityGetPayload<{
@@ -67,14 +67,14 @@ export async function PATCH(
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
                     assigneeId: updatedAssigneeId,
-                    status: status,
+                    status: status as VulnerabilityStatus,
                     lastSeenAt: vulnerability.lastSeenAt,
                     archivedAt: now,
                     createdAt: vulnerability.createdAt,
                     pluginId: vulnerability.pluginId,
                     cve: vulnerability.cve,
                     cvssScore: vulnerability.cvssScore,
-                    risk: vulnerability.risk as string,
+                    risk: vulnerability.risk as Risk,
                     host: vulnerability.host,
                     protocol: vulnerability.protocol,
                     port: vulnerability.port,

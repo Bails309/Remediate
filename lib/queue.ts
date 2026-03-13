@@ -27,14 +27,13 @@ function buildQueue() {
 const queueHandler: ProxyHandler<Queue> = {
   get(_, prop) {
     const q = buildQueue();
-    const value = (q as any)[prop];
+    const value = Reflect.get(q, prop);
     if (typeof value === "function") return value.bind(q);
     return value;
   },
   set(_, prop, val) {
     const q = buildQueue();
-    (q as any)[prop] = val;
-    return true;
+    return Reflect.set(q, prop, val);
   },
   has(_, prop) {
     const q = buildQueue();

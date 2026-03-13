@@ -99,7 +99,7 @@ const lazyHandler: ProxyHandler<Redis> = {
     if (!real) {
       real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
-    const value = (real as any)[prop];
+    const value = Reflect.get(real, prop);
     if (typeof value === "function") return value.bind(real);
     return value;
   },
@@ -108,8 +108,7 @@ const lazyHandler: ProxyHandler<Redis> = {
     if (!real) {
       real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
     }
-    (real as any)[prop] = val;
-    return true;
+    return Reflect.set(real, prop, val);
   },
   has(_, prop) {
     let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;

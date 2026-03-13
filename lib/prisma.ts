@@ -23,14 +23,13 @@ function buildPrismaInstance() {
 const prismaHandler: ProxyHandler<PrismaClient> = {
   get(_, prop) {
     const real = _realPrisma ?? buildPrismaInstance();
-    const value = (real as any)[prop];
+    const value = Reflect.get(real, prop);
     if (typeof value === "function") return value.bind(real);
     return value;
   },
   set(_, prop, val) {
     const real = _realPrisma ?? buildPrismaInstance();
-    (real as any)[prop] = val;
-    return true;
+    return Reflect.set(real, prop, val);
   },
   has(_, prop) {
     const real = _realPrisma ?? buildPrismaInstance();
