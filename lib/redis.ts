@@ -94,42 +94,41 @@ function buildRedisInstance() {
 }
 
 const lazyHandler: ProxyHandler<Redis> = {
-  get(_, prop) {
-    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
-    if (!real) {
-      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
+  get(target: any, prop) {
+    if (prop === "$$typeof" || prop === "then" || typeof prop === "symbol") {
+      return Reflect.get(target, prop);
     }
+    if (!target.__real) {
+      target.__real = buildRedisInstance();
+    }
+    const real = target.__real;
     const value = Reflect.get(real, prop);
     if (typeof value === "function") return value.bind(real);
     return value;
   },
-  set(_, prop, val) {
-    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
-    if (!real) {
-      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
+  set(target: any, prop, val) {
+    if (!target.__real) {
+      target.__real = buildRedisInstance();
     }
-    return Reflect.set(real, prop, val);
+    return Reflect.set(target.__real, prop, val);
   },
-  has(_, prop) {
-    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
-    if (!real) {
-      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
+  has(target: any, prop) {
+    if (!target.__real) {
+      target.__real = buildRedisInstance();
     }
-    return prop in real;
+    return prop in target.__real;
   },
-  ownKeys() {
-    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
-    if (!real) {
-      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
+  ownKeys(target: any) {
+    if (!target.__real) {
+      target.__real = buildRedisInstance();
     }
-    return Reflect.ownKeys(real as object);
+    return Reflect.ownKeys(target.__real as object);
   },
-  getOwnPropertyDescriptor(_, prop) {
-    let real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis;
-    if (!real) {
-      real = (globalForRedis as typeof globalForRedis & { __realRedis?: Redis }).__realRedis = buildRedisInstance();
+  getOwnPropertyDescriptor(target: any, prop) {
+    if (!target.__real) {
+      target.__real = buildRedisInstance();
     }
-    return Object.getOwnPropertyDescriptor(real, prop as PropertyKey) || undefined;
+    return Reflect.getOwnPropertyDescriptor(target.__real, prop);
   },
 };
 

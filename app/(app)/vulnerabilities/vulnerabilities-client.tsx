@@ -1288,7 +1288,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Comments</h3>
 
           <div className="space-y-4">
-            {comments.map((comment) => (
+            {Array.isArray(comments) && comments.map((comment) => (
               <div key={comment.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
                 <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold">{comment.author.name}</span>

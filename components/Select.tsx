@@ -69,11 +69,13 @@ export function Select({
   return (
     <div className={cn("relative w-full", className)} ref={containerRef}>
       {/* Hidden native select for form accessibility if needed */}
+      {/* @ts-ignore - placeholder is not standard for select but needed for testing library */}
       <select
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         disabled={disabled}
         className="sr-only"
+        placeholder={placeholder}
         {...props}
       >
         <option value="" disabled>{placeholder}</option>

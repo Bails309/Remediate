@@ -85,7 +85,7 @@ function createFetchMock(item: {
 
     return {
       ok: true,
-      json: async () => ({}),
+      json: async () => ([]),
     } as Response;
   });
 }
