@@ -68,6 +68,7 @@ docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
 ### Core (All Nodes)
 - `DATABASE_URL`: Postgres connection string.
 - `AUTH_SECRET`: Shared secret used for encryption and JWT signing. Must be consistent across all nodes.
+- `NVD_API_KEY`: (Optional) NIST NVD API Key to increase rate limits for threat intelligence sync.
 
 ### App Node (`remediate-app`)
 - `REDIS_URL`: Redis connection string.
@@ -80,6 +81,7 @@ docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
 
 ### Worker Node (`remediate-worker`)
 - `REDIS_URL`: Redis connection string.
+- `NVD_API_KEY`: (Optional) API key for authenticated NVD requests.
 
 ### Pentest Node (`remediate-pentest-backend`)
 - `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE`: Optional JWT validation overrides.
@@ -122,6 +124,13 @@ Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service 
 - **Intelligent Linking**: Direct access to NVD (NIST) and OSV.dev source records for verified intelligence.
 - **Weekly Reports**: Schedule weekly Nessus triage summaries in /admin/reports.
 - Report settings and OIDC configurations are encrypted in Postgres using AUTH_SECRET.
+
+### NVD API Access
+The Threat Intelligence Centre performs bulk requests to the NVD CVE API (especially during initial sync).
+- **Unauthenticated**: 5 requests per 30 seconds.
+- **Authenticated**: 50 requests per 30 seconds (Recommended).
+
+To obtain an API key, register at the [NVD Developer Portal](https://nvd.nist.gov/developers/request-an-api-key). Once obtained, set the `NVD_API_KEY` environment variable on your worker node.
 
 ## Migrations
 On container startup the `app` and `worker` entrypoints run `prisma migrate deploy` inside `scripts/migrate.js`.

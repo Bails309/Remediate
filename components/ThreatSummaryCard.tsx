@@ -106,14 +106,20 @@ export function ThreatSummaryCard() {
         )}
       </div>
 
-      <div className="mt-8 flex justify-end">
-        <Link 
-          href="/threat-intelligence" 
-          className="flex items-center gap-2 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group/link p-2"
-        >
-          View Intelligence Centre
-          <ChevronRight className="h-3 w-3 transition-transform group-hover/link:translate-x-1" />
-        </Link>
+      <div className="mt-8 pt-4 border-t border-white/5 flex flex-col gap-3">
+        <div className="flex justify-between items-center text-[9px] opacity-30 italic px-2">
+          <span>Source: NVD, OSV.dev</span>
+          <span>Not NVD endorsed.</span>
+        </div>
+        <div className="flex justify-end">
+          <Link 
+            href="/threat-intelligence" 
+            className="flex items-center gap-2 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors group/link p-2"
+          >
+            View Intelligence Centre
+            <ChevronRight className="h-3 w-3 transition-transform group-hover/link:translate-x-1" />
+          </Link>
+        </div>
       </div>
     </div>
   );

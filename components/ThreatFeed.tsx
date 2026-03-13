@@ -141,9 +141,12 @@ export function ThreatFeed() {
         )}
       </div>
 
-      <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between text-[10px] opacity-40">
-        <p>Source Attribution: NVD, OSV.dev, MSFT, CISA</p>
-        <p>Managed by Remediate Intelligence</p>
+      <div className="mt-6 pt-6 border-t border-white/5 flex flex-col gap-2 text-[10px] opacity-40">
+        <div className="flex items-center justify-between">
+          <p>Source Attribution: NVD, OSV.dev, MSFT, CISA</p>
+          <p>Managed by Remediate Intelligence</p>
+        </div>
+        <p className="italic text-center">This product uses the NVD API but is not endorsed or certified by the NVD.</p>
       </div>
     </div>
   );
