@@ -43,7 +43,13 @@ export function ThreatFeed() {
   if (loading) {
     return (
       <div className="glass glass-edge rounded-[28px] p-8 animate-pulse text-[color:var(--color-foreground)]">
-        <div className="h-6 w-48 bg-slate-200 dark:bg-white/10 rounded mb-6"></div>
+        <div className="mb-6">
+          <h3 className="text-xl font-bold flex items-center gap-2 opacity-20">
+            <ShieldAlert className="h-6 w-6" />
+            Live Threat Intelligence
+          </h3>
+          <div className="h-4 w-64 bg-slate-200 dark:bg-white/10 rounded mt-2 opacity-20"></div>
+        </div>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-20 bg-slate-100 dark:bg-white/5 rounded-xl"></div>
