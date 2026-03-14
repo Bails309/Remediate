@@ -91,9 +91,9 @@ function renderThreatCards(items: ThreatItem[], accentColor: string) {
                 </span>
             </div>
             <div style="font-size: 14px; color: #334155; line-height: 1.6; font-weight: 500;">${item.summary}</div>
-            <div style="margin-top: 16px; font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">
-                Source: ${item.osvId.startsWith("CVE") ? "NVD/CISA" : "OSV.dev"}
-            </div>
+            <div style="margin-top: 16px; font-size: 11px; color: ${accentColor}; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">
+                    Source: ${item.osvId.startsWith("CVE") ? "NVD/CISA" : "OSV.dev"}
+                </div>
         </div>
         `;
     }).join("");

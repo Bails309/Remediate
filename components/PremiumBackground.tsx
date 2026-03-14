@@ -8,12 +8,7 @@ interface PremiumBackgroundProps {
 }
 
 export function PremiumBackground({ imageUrl }: PremiumBackgroundProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  const [mounted] = useState<boolean>(typeof window !== "undefined");
   if (!mounted) return null;
 
   return createPortal(
