@@ -10,7 +10,7 @@ export function Topbar() {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500 mb-0.5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[color:var(--color-accent-2)] mb-0.5">
           {isTools ? "CyberDefend" : "Vulnerability"}
         </p>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">

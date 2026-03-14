@@ -42,6 +42,7 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/next-env.d.ts ./next-env.d.ts
+COPY --from=builder /app/auth.ts /app/auth.config.ts /app/proxy.ts /app/middleware.ts* ./
 RUN chmod +x /app/scripts/app-entrypoint.sh /app/scripts/worker-entrypoint.sh
 
 # Target for Main Application

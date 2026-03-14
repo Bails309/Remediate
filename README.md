@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 1.4.0 (2026-03-13)</p>
+  <p><strong>Version:</strong> 1.5.0 (2026-03-14)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -221,6 +221,11 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+- **v1.5.0 — 2026-03-14**
+  - Feature: Premium Intelligence Background (Command Centre topographic design).
+  - Architecture: Portaled background implementation for full-viewport coverage.
+  - Fix: Emergency system recovery for Docker environment and build integrity.
 
 - **v1.4.0 — 2026-03-13**
   - Feature: Intelligent Vulnerability Linking (Dynamic NIST/OSV redirects).

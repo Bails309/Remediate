@@ -432,7 +432,7 @@ export function ToolsClient({ session }: { session: Session }) {
       <div className="relative z-10 flex flex-col gap-8 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500">Toolkit</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[color:var(--color-accent-2)]">Toolkit</p>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Execute Secure Tools</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               Run curated scans from the isolated tools container with role-based access controls.

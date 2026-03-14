@@ -11,12 +11,6 @@ services:
       DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
       REDIS_URL: redis://redis:6379
       PENTEST_BACKEND_URL: ${PENTEST_BACKEND_URL:-http://pentest-backend:8000}
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      AUTH_URL: ${AUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
       NODE_OPTIONS: "--max-old-space-size=4096"
     depends_on:
       db:
@@ -36,12 +30,6 @@ services:
     environment:
       DATABASE_URL: postgresql://remediate:remediate_password@db:5432/remediate?schema=public
       REDIS_URL: redis://redis:6379
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      AUTH_URL: ${AUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
     depends_on:
       db:
         condition: service_healthy
