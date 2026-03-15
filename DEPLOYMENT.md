@@ -4,7 +4,7 @@ This document summarizes recommended deployment patterns for Remediate.
 
 ## Modes
 - CI-driven (recommended for production): run migrations and DB optimizations in CI before updating containers. See `.github/workflows/migrations.yml`.
-- Runtime fallback: containers run `scripts/migrate.js` on startup (advisory-lock protected) to apply any missing migrations.
+- Runtime fallback: containers run `scripts/migrate.js` on startup (advisory-lock protected) to apply any missing migrations and regenerate the Prisma Client. If migration deploy fails, the container startup fails rather than continuing on a partial schema.
 
 ## CI (GitHub Actions) - recommended
 1. Add `DATABASE_URL` to repository secrets.
@@ -165,7 +165,8 @@ docker build --target worker-runner -t <REGISTRY>/remediate-worker:latest .
 
 ## Local dev (docker-compose)
 - `docker compose up -d --build` will start `db`, `redis`, then `app` and `worker`.
-- `app`/`worker` run `npx prisma generate && node /app/scripts/migrate.js && npx tsx /app/scripts/optimize-db.ts` on start.
+- `app` runs `node /app/scripts/migrate.js` on start, then starts Next.js.
+- `worker` runs `node /app/scripts/migrate.js`, then `npx tsx /app/scripts/optimize-db.ts` on start.
 
 ## Rollback considerations
 - Migrations are not automatically reversible. Test migrations in staging and create explicit rollback strategies (data exports, revert deployments).

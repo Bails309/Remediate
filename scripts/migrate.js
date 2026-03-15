@@ -101,20 +101,13 @@
         console.log("[Migrate] Initializing Migration Engine...");
         await checkAndFixMigrations(prisma);
 
-        console.log("[Migrate] Triggering Prisma Migrate Deploy (Re-entrant Rollup)...");
-        try {
-          execSync("npm run prisma migrate deploy", { stdio: "pipe" });
-        } catch (e) {
-          const stderr = e.stderr ? e.stderr.toString() : (e.message || "");
-          if (stderr.includes("already exists")) {
-            console.warn("[Migrate] Detected partially-applied migration (relation already exists). Skipping migrate deploy to allow app startup.");
-            // Intentionally continue without rethrowing so the app can start.
-          } else {
-            throw e;
-          }
-        }
+        console.log("[Migrate] Triggering Prisma Migrate Deploy...");
+        execSync("npx prisma migrate deploy", { stdio: "inherit" });
 
-        console.log("[Migrate] Database is now up to date.");
+        console.log("[Migrate] Regenerating Prisma Client...");
+        execSync("npx prisma generate", { stdio: "inherit" });
+
+        console.log("[Migrate] Database and Prisma Client are now up to date.");
       } finally {
         try {
           await prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock(${LOCK_ID})`);
