@@ -14,7 +14,10 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

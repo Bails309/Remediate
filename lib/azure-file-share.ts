@@ -1,7 +1,7 @@
 import { 
   ShareServiceClient, 
   StorageSharedKeyCredential, 
-  ShareFileClient 
+  ShareDirectoryClient,
 } from "@azure/storage-file-share";
 import { prisma } from "./prisma";
 import { decrypt } from "./crypto";
@@ -55,7 +55,7 @@ export class AzureFileShareService {
     }
   }
 
-  private static matchSite(filename: string, sites: any[]) {
+  private static matchSite(filename: string, sites: Array<{ name: string; importAliases: string[]; importPattern?: string | null }>) {
     const cleanFilename = this.normalize(filename.replace(/\.csv$/i, ""));
 
     // 1. Exact Match (Normalized)
@@ -84,9 +84,9 @@ export class AzureFileShareService {
   }
 
   private static async processFile(
-    filename: string, 
-    siteId: string, 
-    directoryClient: any, 
+    filename: string,
+    siteId: string,
+    directoryClient: ShareDirectoryClient,
     deleteAfter: boolean
   ) {
     const fileClient = directoryClient.getFileClient(filename);
@@ -95,7 +95,7 @@ export class AzureFileShareService {
 
     // Create upload history record
     const uploadId = crypto.randomUUID();
-    const upload = await prisma.uploadHistory.create({
+    await prisma.uploadHistory.create({
       data: {
         id: uploadId,
         siteId,
@@ -119,7 +119,7 @@ export class AzureFileShareService {
     }
   }
 
-  static async validateConfig(config: any) {
+  static async validateConfig(config: unknown) {
     try {
       const shareClient = await this.getShareClient(config);
       await shareClient.getProperties();
@@ -131,29 +131,32 @@ export class AzureFileShareService {
       }
       
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      if (error instanceof Error) return { success: false, error: error.message };
+      return { success: false, error: String(error) };
     }
   }
 
-  private static async getShareClient(config: any) {
+  private static async getShareClient(config: unknown) {
     let serviceClient: ShareServiceClient;
 
     // Support both encrypted (DB) and raw (test API) credentials
-    const connectionString = config.connectionString || (config.connectionStringEnc ? decrypt(config.connectionStringEnc) : null);
-    const accountKey = config.accountKey || (config.accountKeyEnc ? decrypt(config.accountKeyEnc) : null);
-    const sasToken = config.sasToken || (config.sasTokenEnc ? decrypt(config.sasTokenEnc) : null);
+    const cfg = config as Record<string, unknown> | null;
+    const connectionString = cfg?.connectionString || (cfg?.connectionStringEnc ? decrypt(String(cfg.connectionStringEnc)) : null);
+    const accountKey = cfg?.accountKey || (cfg?.accountKeyEnc ? decrypt(String(cfg.accountKeyEnc)) : null);
+    const sasToken = cfg?.sasToken || (cfg?.sasTokenEnc ? decrypt(String(cfg.sasTokenEnc)) : null);
 
     if (connectionString) {
       serviceClient = ShareServiceClient.fromConnectionString(connectionString);
     } else if (config.accountName && accountKey) {
-      const credential = new StorageSharedKeyCredential(config.accountName, accountKey);
+      const cfgAccount = cfg ?? {};
+      const credential = new StorageSharedKeyCredential(String(cfgAccount.accountName), String(accountKey));
       serviceClient = new ShareServiceClient(
-        `https://${config.accountName}.file.core.windows.net`,
+        `https://${String(cfg?.accountName)}.file.core.windows.net`,
         credential
       );
     } else if (config.accountName && sasToken) {
-      const url = `https://${config.accountName}.file.core.windows.net?${sasToken}`;
+      const url = `https://${String(cfg?.accountName)}.file.core.windows.net?${String(sasToken)}`;
       serviceClient = new ShareServiceClient(url);
     } else {
       throw new Error("Missing Azure File Share credentials");
@@ -164,8 +167,8 @@ export class AzureFileShareService {
 
   private static async streamToString(readableStream: NodeJS.ReadableStream): Promise<string> {
     return new Promise((resolve, reject) => {
-      const chunks: any[] = [];
-      readableStream.on("data", (data) => {
+      const chunks: Buffer[] = [];
+      readableStream.on("data", (data: Buffer | Uint8Array | string) => {
         chunks.push(data instanceof Buffer ? data : Buffer.from(data));
       });
       readableStream.on("end", () => {

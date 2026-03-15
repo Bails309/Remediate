@@ -5,7 +5,7 @@ import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { EmptyState } from "@/components/EmptyState";
 import { Input } from "@/components/Input";
-import { Trash2, AlertTriangle, Settings, Cloud, Upload, Plus, Activity, CheckCircle2, AlertCircle, X, Save, Zap, Database } from "lucide-react";
+import { Settings, Cloud, Upload, Activity, CheckCircle2, AlertCircle, X, Save, Zap, Database } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { toast } from "@/lib/toast";
 import { cn } from "@/components/cn";
@@ -67,8 +67,8 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     updatedAt: new Date().toISOString(),
   });
   const [connectionString, setConnectionString] = useState(azureConfig.connectionStringEnc ? "****" : "");
-  const [accountKey, setAccountKey] = useState(azureConfig.accountKeyEnc ? "****" : "");
-  const [sasToken, setSasToken] = useState(azureConfig.sasTokenEnc ? "****" : "");
+  const [accountKey, _setAccountKey] = useState(azureConfig.accountKeyEnc ? "****" : "");
+  const [sasToken, _setSasToken] = useState(azureConfig.sasTokenEnc ? "****" : "");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
@@ -122,8 +122,12 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       });
       if (!resp.ok) throw new Error("Failed to save config");
       toast.success("Configuration updated");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error(String(err));
+      }
     } finally {
       setIsSavingConfig(false);
     }
@@ -145,8 +149,12 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Connection failed");
       toast.success(data.message || "Connection successful");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error(String(err));
+      }
     } finally {
       setIsTestingConnection(false);
     }
@@ -177,7 +185,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       } else {
         toast.error(data.error || "Failed to trigger poll");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to run automation");
     } finally {
       setIsRunningPoll(false);
@@ -217,8 +225,12 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       setSiteImportAliases([]);
       setSiteImportPattern("");
       toast.success("Site mapping updated");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error(String(err));
+      }
     }
   };
 

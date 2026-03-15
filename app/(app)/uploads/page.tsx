@@ -13,10 +13,13 @@ export default async function UploadsPage() {
     prisma.azureFileShareConfig.findUnique({ where: { id: "singleton" } }),
   ]);
 
-  const mappedUploads = uploads.map((u: any) => ({
-    ...u,
-    uploadDate: u.uploadDate.toISOString()
-  }));
+  const mappedUploads = uploads.map((u) => {
+    const uu = u as { uploadDate: Date } & Record<string, unknown>;
+    return {
+      ...uu,
+      uploadDate: uu.uploadDate.toISOString(),
+    };
+  });
 
   const mappedAzureConfig = azureConfig ? {
     ...azureConfig,

@@ -33,7 +33,19 @@ export async function POST(request: Request) {
   await requireAdmin();
   const data = await request.json();
 
-  const updateData: any = {
+  type UpdateData = Partial<{
+    enabled: boolean;
+    accountName: string | null;
+    shareName: string | null;
+    directoryPath: string | null;
+    pollIntervalMinutes: number;
+    deleteAfterImport: boolean;
+    connectionStringEnc?: string | null;
+    accountKeyEnc?: string | null;
+    sasTokenEnc?: string | null;
+  }>;
+
+  const updateData: UpdateData = {
     enabled: data.enabled,
     accountName: data.accountName,
     shareName: data.shareName,

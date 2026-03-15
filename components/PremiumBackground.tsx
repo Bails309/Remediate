@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface PremiumBackgroundProps {
   imageUrl: string;
