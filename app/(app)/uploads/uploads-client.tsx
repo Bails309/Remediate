@@ -67,8 +67,8 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     updatedAt: new Date().toISOString(),
   });
   const [connectionString, setConnectionString] = useState(azureConfig.connectionStringEnc ? "****" : "");
-  const [accountKey, _setAccountKey] = useState(azureConfig.accountKeyEnc ? "****" : "");
-  const [sasToken, _setSasToken] = useState(azureConfig.sasTokenEnc ? "****" : "");
+  const [accountKey] = useState(azureConfig.accountKeyEnc ? "****" : "");
+  const [sasToken] = useState(azureConfig.sasTokenEnc ? "****" : "");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
