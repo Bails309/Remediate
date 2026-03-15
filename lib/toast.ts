@@ -1,4 +1,4 @@
-export type ToastVariant = "success" | "error";
+export type ToastVariant = "success" | "error" | "info";
 
 export interface ToastRecord {
   id: string;
@@ -59,6 +59,9 @@ export const toast = {
   },
   error(message: string) {
     return enqueue("error", message);
+  },
+  info(message: string) {
+    return enqueue("info", message);
   },
   dismiss,
 };

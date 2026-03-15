@@ -153,20 +153,40 @@ async function sendWeeklyReport(config: { recipients: string; timezone: string }
 
 async function handleDailyThreatIntelligence() {
     const now = new Date();
+    const currentDayStr = now.toISOString().split('T')[0];
     const hour = now.getUTCHours();
     const minute = now.getUTCMinutes();
 
-    // 1. Daily Full Sync at 7:30 AM UTC (48-hour window for safety)
-    if (hour === 7 && minute === 30) {
-        await syncAllThreats(48);
+    const config = await prisma.reportConfig.findFirst();
+    if (!config) return;
+
+    // 1. Daily Full Sync at 7:30 AM UTC or later if not already synced today
+    const lastSyncDay = config.lastThreatDigestAt ? config.lastThreatDigestAt.toISOString().split('T')[0] : null;
+    
+    // We use lastThreatDigestAt as a proxy for the daily cycle completion.
+    // However, the sync is a prerequisite. Let's add a log for better debugging.
+    
+    if (hour >= 7 && (lastSyncDay !== currentDayStr)) {
+        if (hour > 7 || (hour === 7 && minute >= 30)) {
+            console.log(`[Scheduler] ${currentDayStr} 07:30 UTC window reached. Triggering daily full sync...`);
+            await syncAllThreats(48);
+        }
     }
 
-    // 2. Daily Dispatch at 8:00 AM UTC
-    if (hour === 8 && minute === 0) {
-        await dispatchDailyDigests();
+    // 2. Daily Dispatch at 8:00 AM UTC or later if not already sent today
+    if (hour >= 8 && (lastSyncDay !== currentDayStr)) {
+        console.log(`[Scheduler] ${currentDayStr} 08:00 UTC window reached. Triggering daily digest dispatch...`);
+        const success = await dispatchDailyDigests();
+        if (success) {
+            await prisma.reportConfig.update({
+                where: { id: config.id },
+                data: { lastThreatDigestAt: now }
+            });
+            console.log(`[Scheduler] Daily digest completed and state updated for ${currentDayStr}.`);
+        }
     }
 
-    // 3. Hourly Delta Sync at :45 of every hour (3-hour window to cover gaps)
+    // 3. Hourly Delta Sync at :45 of every hour
     if (minute === 45) {
         await syncAllThreats(3);
     }

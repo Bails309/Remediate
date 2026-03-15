@@ -26,7 +26,7 @@ export default async function DashboardPage({
   const bucketId = params.bucketId;
 
   // Get counts of logical issues (unique groups) per risk
-  const conditions: string[] = [`status = 'Open'`];
+  const conditions: string[] = [`status IN ('Open', 'InProgress', 'InProgressWithCR')`];
   const values: (string | number)[] = [];
   if (bucketId) {
     conditions.push(`"siteId" = $1::uuid`);
@@ -36,7 +36,7 @@ export default async function DashboardPage({
 
   const [buckets, riskGroups, latestUploads] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
-    prisma.$queryRawUnsafe<{ risk: string; count: number }[]>(`
+    (prisma as any).$queryRawUnsafe<{ risk: string; count: number }[]>(`
       SELECT risk::text, count(*)::int as count FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") risk
         FROM "Vulnerability"
@@ -52,7 +52,7 @@ export default async function DashboardPage({
     })
   ]);
 
-  const counts = new Map(riskGroups.map((g) => [g.risk, g.count]));
+  const counts = new Map(riskGroups.map((g: any) => [g.risk, g.count]));
 
   return (
     <div className="space-y-10">

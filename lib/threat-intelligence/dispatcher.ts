@@ -21,55 +21,66 @@ export async function aggregateThreats(since?: Date) {
 
 /**
  * Dispatches personalized daily digests to all subscribed users.
+ * Returns true if the process completed successfully (even if no emails were sent due to no threats).
  */
-export async function dispatchDailyDigests() {
-    console.log("Starting daily threat digest dispatch...");
+export async function dispatchDailyDigests(): Promise<boolean> {
+    console.log("[Dispatcher] Starting daily threat digest dispatch...");
     
-    const settings = await getReportConfig(true);
-    if (!settings || !settings.enabled) {
-        console.warn("Email settings not configured or disabled. Skipping dispatch.");
-        return;
-    }
-
-    const subscribers = await prisma.threatSubscription.findMany({
-        where: { isSubscribed: true },
-        include: { user: true }
-    });
-
-    if (subscribers.length === 0) {
-        console.log("No subscribers found for daily digest.");
-        return;
-    }
-
-    const allThreats = await aggregateThreats();
-    if (allThreats.length === 0) {
-        console.log("No new threats to report in the last 24 hours.");
-        return;
-    }
-
-    for (const sub of subscribers) {
-        try {
-            const filtered = filterThreatsForUser(allThreats, sub);
-            
-            if (filtered.cisaKev.length === 0 && filtered.criticalHigh.length === 0 && filtered.standard.length === 0) {
-                continue;
-            }
-
-            const html = renderThreatEmail(filtered);
-            const text = `Daily Threat intelligence Summary: Found ${filtered.cisaKev.length + filtered.criticalHigh.length + filtered.standard.length} items.`;
-            
-            await sendEmail(
-                settings, 
-                sub.user.email,
-                "Daily Threat Intelligence Digest",
-                html,
-                text
-            );
-            
-            console.log(`✓ Sent digest to ${sub.user.email}`);
-        } catch (err) {
-            console.error(`Failed to send digest to ${sub.user.email}:`, err);
+    try {
+        const settings = await getReportConfig(true);
+        if (!settings || !settings.enabled) {
+            console.warn("[Dispatcher] Email settings not configured or disabled. Skipping dispatch.");
+            return false;
         }
+
+        const subscribers = await prisma.threatSubscription.findMany({
+            where: { isSubscribed: true },
+            include: { user: true }
+        });
+
+        if (subscribers.length === 0) {
+            console.log("[Dispatcher] No subscribers found for daily digest.");
+            return true;
+        }
+
+        const allThreats = await aggregateThreats();
+        if (allThreats.length === 0) {
+            console.log("[Dispatcher] No new threats to report in the last 24 hours.");
+            return true;
+        }
+
+        let sentCount = 0;
+        for (const sub of subscribers) {
+            try {
+                const filtered = filterThreatsForUser(allThreats, sub);
+                
+                if (filtered.cisaKev.length === 0 && filtered.criticalHigh.length === 0 && filtered.standard.length === 0) {
+                    continue;
+                }
+
+                const html = renderThreatEmail(filtered);
+                const text = `Daily Threat intelligence Summary: Found ${filtered.cisaKev.length + filtered.criticalHigh.length + filtered.standard.length} items.`;
+                
+                await sendEmail(
+                    settings, 
+                    sub.user.email,
+                    "Daily Threat Intelligence Digest",
+                    html,
+                    text
+                );
+                
+                console.log(`✓ [Dispatcher] Sent digest to ${sub.user.email}`);
+                sentCount++;
+            } catch (err) {
+                console.error(`[Dispatcher] Failed to send digest to ${sub.user.email}:`, err);
+            }
+        }
+        
+        console.log(`[Dispatcher] Dispatch cycle complete. Sent ${sentCount} digest(s).`);
+        return true;
+    } catch (err) {
+        console.error("[Dispatcher] Critical dispatch failure:", err);
+        return false;
     }
 }
 

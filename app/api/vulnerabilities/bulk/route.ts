@@ -7,9 +7,11 @@ import type { NextRequest } from "next/server";
 
 const bulkSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
-  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable"]).optional(),
+  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR"]).optional(),
   assigneeId: z.string().uuid().nullable().optional(),
 });
+
+const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
 
 export async function POST(request: NextRequest) {
   const rate = await enforceRateLimit(request);
@@ -28,8 +30,8 @@ export async function POST(request: NextRequest) {
     updateData.assigneeId = payload.assigneeId;
   }
 
-  await prisma.$transaction(async (tx) => {
-    if (payload.status && payload.status !== "Open") {
+  await prisma.$transaction(async (tx: any) => {
+    if (payload.status && !ACTIVE_STATUSES.includes(payload.status)) {
       // Archiving logic: move to history and delete from active
       const victims = await tx.vulnerability.findMany({
         where: { id: { in: payload.ids } }
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       if (victims.length > 0) {
         const now = new Date();
         await tx.vulnerabilityHistory.createMany({
-          data: victims.map(v => ({
+          data: victims.map((v: any) => ({
             id: v.id,
             siteId: v.siteId,
             assigneeId: payload.assigneeId !== undefined ? payload.assigneeId : v.assigneeId,
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
         });
 
         await tx.vulnerability.deleteMany({
-          where: { id: { in: victims.map(v => v.id) } }
+          where: { id: { in: victims.map((v: any) => v.id) } }
         });
       }
     } else {

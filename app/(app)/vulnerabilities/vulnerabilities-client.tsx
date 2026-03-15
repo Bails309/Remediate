@@ -11,6 +11,7 @@ import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -25,6 +26,8 @@ const statusDotMap: Record<string, string> = {
   Remediated: "bg-emerald-500",
   FalsePositive: "bg-amber-500",
   NoFixAvailable: "bg-slate-400",
+  InProgress: "bg-blue-500",
+  InProgressWithCR: "bg-indigo-500",
 };
 
 type Site = { id: string; name: string };
@@ -81,6 +84,7 @@ type Vulnerability = {
   askForHelp: boolean;
   collaborators: { id: string; name: string }[];
   archivedAt?: string | null;
+  crNumber?: string | null;
   recordScope?: ViewScope;
 };
 
@@ -512,16 +516,17 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     toast.success("Assignee updated");
   };
 
-  const commitDetailStatus = async (nextStatus: string) => {
+  const commitDetailUpdate = async (update: Partial<Vulnerability>) => {
     if (!detail) return;
 
     const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: nextStatus }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
     });
 
     if (!res.ok) {
-      toast.error("Failed to update status");
+      toast.error("Update failed");
       return;
     }
 
@@ -531,9 +536,19 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       setDetail(null);
     } else {
       setDetail(updated);
-      toast.success("Status updated");
+      toast.success("Updated successfully");
     }
     void fetchData();
+  };
+
+  const handleStatusChange = (nextStatus: string) => {
+    if (!detail) return;
+    if (nextStatus === "InProgressWithCR" && !detail.crNumber) {
+      setDetail({ ...detail, status: nextStatus });
+      toast.info("Please enter a CR Number to complete this status update");
+    } else {
+      commitDetailUpdate({ status: nextStatus });
+    }
   };
 
   const startDetailAssignment = (nextAssigneeId: string | null) => {
@@ -563,6 +578,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     : [
       { label: "All status", value: "" },
       { label: "Open", value: "Open" },
+      { label: "In Progress", value: "InProgress" },
+      { label: "In Progress with CR", value: "InProgressWithCR" },
       { label: "False Positive", value: "FalsePositive" },
       { label: "No Fix", value: "NoFixAvailable" },
       { label: "Remediated", value: "Remediated" },
@@ -884,6 +901,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 direction="up"
                 options={[
                   { label: "Open", value: "Open" },
+                  { label: "In Progress", value: "InProgress" },
+                  { label: "In Progress with CR", value: "InProgressWithCR" },
                   { label: "False Positive", value: "FalsePositive" },
                   { label: "No Fix", value: "NoFixAvailable" },
                   { label: "Remediated", value: "Remediated" },
@@ -1215,16 +1234,56 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 <div className="max-w-[220px]">
                   <Select
                     value={detail?.status ?? ""}
-                    onChange={(value) => commitDetailStatus(value)}
+                    onChange={(value) => handleStatusChange(value)}
                     placeholder="Change status"
                     options={[
                       { label: "Open", value: "Open" },
+                      { label: "In Progress", value: "InProgress" },
+                      { label: "In Progress with CR", value: "InProgressWithCR" },
                       { label: "False Positive", value: "FalsePositive" },
                       { label: "No Fix Available", value: "NoFixAvailable" },
                       { label: "Remediated", value: "Remediated" },
                     ]}
                   />
                 </div>
+
+                {detail?.status === "InProgressWithCR" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-center">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">CR Number</p>
+                      <InfoTooltip text="This field is for the change request number" />
+                    </div>
+                    <div className="max-w-[220px]">
+                      <Input
+                        value={detail.crNumber ?? ""}
+                        placeholder="e.g. 12345"
+                        onChange={(e) => {
+                           // Keep only numbers as requested
+                           const val = e.target.value.replace(/[^0-9]/g, "");
+                           setDetail({ ...detail, crNumber: val });
+                        }}
+                        onBlur={(e) => {
+                           if (detail.status === "InProgressWithCR") {
+                             if (!e.target.value) {
+                               toast.error("CR Number is required for this status");
+                               return;
+                             }
+                             void commitDetailUpdate({ 
+                               status: "InProgressWithCR",
+                               crNumber: e.target.value 
+                             });
+                           } else if (detail.crNumber !== e.target.value) {
+                             void commitDetailUpdate({ crNumber: e.target.value });
+                           }
+                        }}
+                        className={cn(
+                          "bg-white/50 dark:bg-black/20",
+                          detail.status === "InProgressWithCR" && !detail.crNumber && "border-red-500 focus:border-red-500"
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}

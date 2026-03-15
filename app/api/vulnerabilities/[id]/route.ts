@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { Prisma, Risk, VulnerabilityStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
@@ -9,8 +8,22 @@ const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
     collaboratorIds: z.array(z.string()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
-    status: z.string().optional(), // Keep as string to avoid nativeEnum issues if types are flaky
+    status: z.string().optional(),
+    crNumber: z.string().optional(),
+}).refine(data => {
+    // If transitioning to InProgressWithCR, a CR number must be provided in the payload
+    // or if the status is already InProgressWithCR, a CR number must be provided if changing status.
+    // However, if they are ONLY updating crNumber, status will be undefined in the payload.
+    if (data.status === "InProgressWithCR" && !data.crNumber) {
+        return false;
+    }
+    return true;
+}, {
+    message: "CR Number is required for 'In Progress with CR' status",
+    path: ["crNumber"]
 });
+
+const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
 
 interface VulnerabilityWithCollaborators {
     id: string;
@@ -21,7 +34,7 @@ interface VulnerabilityWithCollaborators {
     pluginId: string;
     cve: string | null;
     cvssScore: number | null;
-    risk: Risk;
+    risk: any;
     host: string;
     protocol: string;
     port: string;
@@ -33,6 +46,7 @@ interface VulnerabilityWithCollaborators {
     pluginOutput: string | null;
     pluginPublicationDate: Date | null;
     pluginModificationDate: Date | null;
+    crNumber: string | null;
     collaborators: { id: string }[];
 }
 
@@ -74,20 +88,20 @@ export async function PATCH(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { askForHelp, collaboratorIds, assigneeId, status } = patchSchema.parse(await req.json());
+    const { askForHelp, collaboratorIds, assigneeId, status, crNumber } = patchSchema.parse(await req.json());
 
-    if (status && status !== "Open") {
+    if (status && !ACTIVE_STATUSES.includes(status)) {
         // Archiving logic: move to history and delete from active
         const now = new Date();
         const updatedAssigneeId = assigneeId !== undefined ? assigneeId : vulnerability.assigneeId;
 
-        const history = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const history = await prisma.$transaction(async (tx: any) => {
             const h = await tx.vulnerabilityHistory.create({
                 data: {
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
                     assigneeId: updatedAssigneeId,
-                    status: status as VulnerabilityStatus,
+                    status: status as any,
                     lastSeenAt: vulnerability.lastSeenAt,
                     archivedAt: now,
                     createdAt: vulnerability.createdAt,
@@ -105,7 +119,8 @@ export async function PATCH(
                     seeAlso: vulnerability.seeAlso,
                     pluginOutput: vulnerability.pluginOutput,
                     pluginPublicationDate: vulnerability.pluginPublicationDate,
-                    pluginModificationDate: vulnerability.pluginModificationDate
+                    pluginModificationDate: vulnerability.pluginModificationDate,
+                    crNumber: crNumber !== undefined ? crNumber : vulnerability.crNumber,
                 },
                 include: {
                     assignee: { select: { id: true, name: true } },
@@ -122,7 +137,7 @@ export async function PATCH(
         return NextResponse.json({ ...history, recordScope: "archived" });
     }
 
-    const updateData: Prisma.VulnerabilityUpdateInput = {};
+    const updateData: any = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
     }
@@ -131,8 +146,12 @@ export async function PATCH(
         updateData.assignee = assigneeId ? { connect: { id: assigneeId } } : { disconnect: true };
     }
 
-    if (status === "Open") {
-        updateData.status = "Open";
+    if (status && ACTIVE_STATUSES.includes(status)) {
+        updateData.status = status;
+    }
+
+    if (crNumber !== undefined) {
+        updateData.crNumber = crNumber;
     }
 
     if (Array.isArray(collaboratorIds)) {
@@ -141,7 +160,7 @@ export async function PATCH(
         };
     }
 
-    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
         const u = await tx.vulnerability.update({
             where: { id: vulnerabilityId },
             data: updateData,

@@ -10,13 +10,13 @@ import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { signOut } from "next-auth/react";
 
-const baseNav = [
+export const baseNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/analytics", label: "Analytics", icon: PieChart },
   { href: "/vulnerabilities", label: "Vulnerabilities", icon: Bug },
 ];
 
-const adminNavItems = [
+export const adminNavItems = [
   { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage CSV uploads and processing" },
   { href: "/sites", label: "Buckets", icon: Shield, title: "Manage tracked buckets and their settings" },
   { href: "/admin/oidc", label: "Auth Settings", icon: Settings, title: "Configure SSO / OIDC providers and callback URLs" },
@@ -28,7 +28,7 @@ const adminNavItems = [
   { href: "/admin/users", label: "Users", icon: Users, title: "Manage application users and roles" },
 ];
 
-const toolsNavItems = [
+export const toolsNavItems = [
   { href: "/threat-intelligence", label: "Intelligence", icon: Activity },
   { href: "/tools", label: "Tools", icon: Wrench },
 ];

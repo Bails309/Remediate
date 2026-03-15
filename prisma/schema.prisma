@@ -22,6 +22,8 @@ enum VulnerabilityStatus {
   Remediated
   FalsePositive
   NoFixAvailable
+  InProgress
+  InProgressWithCR
 }
 
 enum Risk {
@@ -90,6 +92,7 @@ model Vulnerability {
   pluginOutput             String?
   pluginPublicationDate    DateTime?
   pluginModificationDate   DateTime?
+  crNumber                 String?
   
   askForHelp               Boolean              @default(false)
   collaborators            User[]               @relation("Collaborators")
@@ -124,6 +127,7 @@ model ReportConfig {
   minute         Int      @default(0)
   timezone       String   @default("UTC")
   lastSentAt     DateTime?
+  lastThreatDigestAt DateTime?
   smtpHostEnc    String
   smtpPortEnc    String
   smtpUserEnc    String?
@@ -235,6 +239,7 @@ model VulnerabilityHistory {
   pluginOutput             String?
   pluginPublicationDate    DateTime?
   pluginModificationDate   DateTime?
+  crNumber                 String?
 
   site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation(fields: [assigneeId], references: [id])
