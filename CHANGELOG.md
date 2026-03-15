@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.7.0] - 2026-03-15
+### Added
+- **Managed Vulnerability Statuses**: Introduced `InProgress` and `InProgressWithCR` statuses to support active remediation workflows.
+- **Change Request Tracking**: Implemented mandatory CR number tracking for findings in the "In Progress with CR" state, including real-time numeric validation and UI feedback.
+- **Reporting & Analytics Refinement**: Full integration of new statuses into Dashboard counters, historical trend charts, and remediation distribution (donut charts).
+- **Mobile Side Navigation**: Added a dedicated, glassmorphic side navigation menu for mobile viewports to ensure parity with the desktop experience.
+- **Automation Health Checks**: Added "Test Connection" functionality for Azure File Share ingestion to proactively validate credentials and path availability.
+
+### Fixed
+- **Notification Scheduler Stability**: Resolved regressions in the daily email digest scheduler to ensure consistent delivery of 8 AM intelligence summaries.
+- **Dashboard Count Discrepancy**: Corrected the logic in the "Remediation Command Centre" to accurately include "In Progress" vulnerabilities in risk summaries.
+- **Type Safety**: Addressed multiple TypeScript linting issues across the analytics and dashboard modules.
+
 ## [1.6.0] - 2026-03-15
 ### Added
 - **Automated Azure File Share Ingestion**: Comprehensive background worker service for polling Azure File Shares and matching CSV data to sites via regex and aliases.

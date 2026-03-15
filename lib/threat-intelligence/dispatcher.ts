@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { renderThreatEmail } from "./email-template";
 import { sendEmail } from "../email";
 import { getReportConfig } from "../reports";
-import { Risk } from "@prisma/client";
+const Risk = {
+    Critical: 'Critical',
+    High: 'High',
+    Medium: 'Medium',
+    Low: 'Low'
+} as any;
+type Risk = any;
 import { ThreatItem, ThreatGroup } from "./email-template";
 
 /**

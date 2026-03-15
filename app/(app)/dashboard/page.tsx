@@ -36,7 +36,7 @@ export default async function DashboardPage({
 
   const [buckets, riskGroups, latestUploads] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
-    (prisma as any).$queryRawUnsafe<{ risk: string; count: number }[]>(`
+    (prisma as any).$queryRawUnsafe(`
       SELECT risk::text, count(*)::int as count FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") risk
         FROM "Vulnerability"
@@ -44,7 +44,7 @@ export default async function DashboardPage({
         ORDER BY name, host, port, "pluginId", risk ASC
       ) as groups
       GROUP BY risk
-    `, ...values),
+    `, ...values) as Promise<{ risk: string; count: number }[]>,
     prisma.uploadHistory.findMany({
       include: { site: true },
       orderBy: { uploadDate: "desc" },
