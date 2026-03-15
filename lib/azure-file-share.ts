@@ -24,8 +24,16 @@ export class AzureFileShareService {
 
     try {
       const shareClient = await this.getShareClient(config);
+      await this.ensureShareExists(shareClient);
+
       const targetPath = (config.directoryPath || "").replace(/^\/+|\/+$/g, "");
-      const directoryClient = shareClient.getDirectoryClient(targetPath);
+      const directoryClient = targetPath
+        ? shareClient.getDirectoryClient(targetPath)
+        : shareClient.rootDirectoryClient;
+
+      if (targetPath) {
+        await directoryClient.createIfNotExists();
+      }
       
       const sites = await prisma.site.findMany({
         where: { autoImportEnabled: true }
@@ -51,7 +59,25 @@ export class AzureFileShareService {
         data: { lastPollAt: new Date() }
       });
     } catch (error) {
-      console.error("[AzureFileShare] Error during polling:", error);
+      if (this.isShareNotFoundError(error)) {
+        console.error(
+          `[AzureFileShare] Share \"${config.shareName || "security-scans"}\" was not found and could not be auto-created. Check Azure File Share configuration and permissions.`,
+        );
+      } else {
+        console.error("[AzureFileShare] Error during polling:", error);
+      }
+    }
+  }
+
+  private static async ensureShareExists(shareClient: ReturnType<ShareServiceClient["getShareClient"]>) {
+    try {
+      await shareClient.createIfNotExists();
+    } catch (error) {
+      if (this.isShareNotFoundError(error)) {
+        throw error;
+      }
+
+      throw error;
     }
   }
 
@@ -122,13 +148,13 @@ export class AzureFileShareService {
   static async validateConfig(config: unknown) {
     try {
       const shareClient = await this.getShareClient(config);
-      await shareClient.getProperties();
+      await shareClient.createIfNotExists();
       const cfg = config as Record<string, unknown> | null;
 
       // Also check directory if specified
       if (cfg?.directoryPath && typeof cfg.directoryPath === "string" && cfg.directoryPath !== "/") {
         const directoryClient = shareClient.getDirectoryClient(String(cfg.directoryPath));
-        await directoryClient.getProperties();
+        await directoryClient.createIfNotExists();
       }
       
       return { success: true };
@@ -193,5 +219,14 @@ export class AzureFileShareService {
       });
       readableStream.on("error", reject);
     });
+  }
+
+  private static isShareNotFoundError(error: unknown): boolean {
+    return Boolean(
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "ShareNotFound",
+    );
   }
 }

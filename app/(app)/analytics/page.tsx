@@ -275,8 +275,7 @@ export default async function AnalyticsPage({
         SELECT host::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
             FROM "Vulnerability"
-            ${whereClause}
-            AND status IN ('Open', 'InProgress', 'InProgressWithCR')
+            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR')" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')"}
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY host, risk
@@ -305,8 +304,7 @@ export default async function AnalyticsPage({
         SELECT name::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
             FROM "Vulnerability"
-            ${whereClause}
-            AND status IN ('Open', 'InProgress', 'InProgressWithCR')
+            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR')" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')"}
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY name, risk
