@@ -3,7 +3,7 @@ import { getReportConfig, type ReportSettings } from "@/lib/reports";
 import { getWeeklyCriticalHighSummary } from "@/lib/report-analytics";
 import { sendReportEmail, renderEmailLayout } from "@/lib/email";
 import { syncAllThreats } from "./threat-intelligence/worker";
-import { dispatchDailyDigests } from "./threat-intelligence/dispatcher";
+import { dispatchDailyThreatDigest } from "./threat-intelligence/dispatcher";
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 
@@ -176,13 +176,15 @@ async function handleDailyThreatIntelligence() {
     // 2. Daily Dispatch at 8:00 AM UTC or later if not already sent today
     if (hour >= 8 && (lastSyncDay !== currentDayStr)) {
         console.log(`[Scheduler] ${currentDayStr} 08:00 UTC window reached. Triggering daily digest dispatch...`);
-        const success = await dispatchDailyDigests();
-        if (success) {
-            await prisma.reportConfig.update({
-                where: { id: config.id },
-                data: { lastThreatDigestAt: now }
-            });
-            console.log(`[Scheduler] Daily digest completed and state updated for ${currentDayStr}.`);
+        try {
+          await dispatchDailyThreatDigest();
+          await prisma.reportConfig.update({
+            where: { id: config.id },
+            data: { lastThreatDigestAt: now }
+          });
+          console.log(`[Scheduler] Daily digest completed and state updated for ${currentDayStr}.`);
+        } catch (err) {
+          console.error("[Scheduler] Daily digest failed:", err);
         }
     }
 

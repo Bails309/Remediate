@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { Prisma, Vulnerability } from "@prisma/client";
+import { Prisma, Vulnerability, VulnerabilityStatus } from "@prisma/client";
 import { requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
             id: v.id,
             siteId: v.siteId,
             assigneeId: payload.assigneeId !== undefined ? payload.assigneeId : v.assigneeId,
-            status: payload.status!,
+            status: payload.status! as VulnerabilityStatus,
             lastSeenAt: v.lastSeenAt,
             archivedAt: now,
             createdAt: v.createdAt,

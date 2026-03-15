@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma, Vulnerability, User, VulnerabilityStatus } from "@prisma/client";
+import { Prisma, Vulnerability, User, VulnerabilityStatus, Risk } from "@prisma/client";
 import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
 
@@ -35,7 +35,7 @@ interface VulnerabilityWithCollaborators {
     pluginId: string;
     cve: string | null;
     cvssScore: number | null;
-    risk: string;
+    risk: Risk;
     host: string;
     protocol: string;
     port: string;
@@ -102,7 +102,7 @@ export async function PATCH(
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
                     assigneeId: updatedAssigneeId,
-                    status: status as string,
+                    status: status as VulnerabilityStatus,
                     lastSeenAt: vulnerability.lastSeenAt,
                     archivedAt: now,
                     createdAt: vulnerability.createdAt,
@@ -148,7 +148,7 @@ export async function PATCH(
     }
 
     if (status && ACTIVE_STATUSES.includes(status)) {
-        updateData.status = status;
+        updateData.status = status as VulnerabilityStatus;
     }
 
     if (crNumber !== undefined) {

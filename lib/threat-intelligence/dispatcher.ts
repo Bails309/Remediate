@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { renderThreatEmail, ThreatGroup, ThreatItem } from "./email-template";
 import { sendEmail } from "../email";
+import { getReportConfig } from "@/lib/reports";
 import { Vulnerability, User, VulnerabilityStatus } from "@prisma/client";
 
 interface RiskBridge {
@@ -27,8 +28,7 @@ export async function dispatchDailyThreatDigest() {
         // 1. Get all users who have daily digest enabled
         const users = await prisma.user.findMany({
             where: {
-                dailyDigestEnabled: true,
-                email: { not: null }
+                threatSubscription: { is: { isSubscribed: true } }
             }
         });
 
@@ -83,6 +83,12 @@ export async function dispatchDailyThreatDigest() {
         });
 
         // 4. Send email to each user
+        const settings = await getReportConfig(true);
+        if (!settings) {
+            console.log("Dispatcher: No report SMTP settings configured; skipping email dispatch.");
+            return;
+        }
+
         let sentCount = 0;
         for (const user of users) {
             if (!user.email) continue;
@@ -91,11 +97,7 @@ export async function dispatchDailyThreatDigest() {
 
             const totalCount = threatGroup.cisaKev.length + threatGroup.criticalHigh.length + threatGroup.standard.length;
 
-            await sendEmail({
-                to: user.email,
-                subject: `Daily Threat Intelligence: ${totalCount} Found`,
-                html: emailHtml
-            });
+            await sendEmail(settings, user.email, `Daily Threat Intelligence: ${totalCount} Found`, emailHtml, "");
             sentCount++;
         }
 
