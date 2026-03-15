@@ -10,7 +10,7 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { toast } from "@/lib/toast";
 import { cn } from "@/components/cn";
 
-type Site = { 
+export type Site = { 
   id: string; 
   name: string;
   importPattern?: string | null;
@@ -18,7 +18,7 @@ type Site = {
   autoImportEnabled: boolean;
 };
 
-type AzureConfig = {
+export type AzureConfig = {
   enabled: boolean;
   accountName: string | null;
   shareName: string | null;
@@ -32,7 +32,7 @@ type AzureConfig = {
   updatedAt: string;
 };
 
-type Upload = {
+export type Upload = {
   id: string;
   status: string;
   uploadDate: string;
@@ -41,7 +41,7 @@ type Upload = {
   site: Site;
 };
 
-type Props = {
+export type Props = {
   initialSites: Site[];
   initialUploads: Upload[];
   initialAzureConfig: AzureConfig | null;

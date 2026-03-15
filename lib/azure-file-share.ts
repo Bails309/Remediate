@@ -55,7 +55,7 @@ export class AzureFileShareService {
     }
   }
 
-  private static matchSite(filename: string, sites: Array<{ name: string; importAliases: string[]; importPattern?: string | null }>) {
+  private static matchSite(filename: string, sites: Array<{ id: string; name: string; importAliases: string[]; importPattern?: string | null; autoImportEnabled: boolean }>) {
     const cleanFilename = this.normalize(filename.replace(/\.csv$/i, ""));
 
     // 1. Exact Match (Normalized)
@@ -123,10 +123,11 @@ export class AzureFileShareService {
     try {
       const shareClient = await this.getShareClient(config);
       await shareClient.getProperties();
-      
+      const cfg = config as Record<string, unknown> | null;
+
       // Also check directory if specified
-      if (config.directoryPath && config.directoryPath !== "/") {
-        const directoryClient = shareClient.getDirectoryClient(config.directoryPath);
+      if (cfg?.directoryPath && typeof cfg.directoryPath === "string" && cfg.directoryPath !== "/") {
+        const directoryClient = shareClient.getDirectoryClient(String(cfg.directoryPath));
         await directoryClient.getProperties();
       }
       
@@ -142,27 +143,43 @@ export class AzureFileShareService {
 
     // Support both encrypted (DB) and raw (test API) credentials
     const cfg = config as Record<string, unknown> | null;
-    const connectionString = cfg?.connectionString || (cfg?.connectionStringEnc ? decrypt(String(cfg.connectionStringEnc)) : null);
-    const accountKey = cfg?.accountKey || (cfg?.accountKeyEnc ? decrypt(String(cfg.accountKeyEnc)) : null);
-    const sasToken = cfg?.sasToken || (cfg?.sasTokenEnc ? decrypt(String(cfg.sasTokenEnc)) : null);
+    let connectionString: string | null = null;
+    if (cfg && typeof cfg.connectionString === "string" && cfg.connectionString.trim() !== "") {
+      connectionString = cfg.connectionString;
+    } else if (cfg?.connectionStringEnc) {
+      connectionString = decrypt(String(cfg.connectionStringEnc));
+    }
+
+    let accountKey: string | null = null;
+    if (cfg && typeof cfg.accountKey === "string" && cfg.accountKey.trim() !== "") {
+      accountKey = cfg.accountKey;
+    } else if (cfg?.accountKeyEnc) {
+      accountKey = decrypt(String(cfg.accountKeyEnc));
+    }
+
+    let sasToken: string | null = null;
+    if (cfg && typeof cfg.sasToken === "string" && cfg.sasToken.trim() !== "") {
+      sasToken = cfg.sasToken;
+    } else if (cfg?.sasTokenEnc) {
+      sasToken = decrypt(String(cfg.sasTokenEnc));
+    }
 
     if (connectionString) {
-      serviceClient = ShareServiceClient.fromConnectionString(connectionString);
-    } else if (config.accountName && accountKey) {
-      const cfgAccount = cfg ?? {};
-      const credential = new StorageSharedKeyCredential(String(cfgAccount.accountName), String(accountKey));
+      serviceClient = ShareServiceClient.fromConnectionString(String(connectionString));
+    } else if (cfg?.accountName && accountKey) {
+      const credential = new StorageSharedKeyCredential(String(cfg.accountName), String(accountKey));
       serviceClient = new ShareServiceClient(
-        `https://${String(cfg?.accountName)}.file.core.windows.net`,
+        `https://${String(cfg.accountName)}.file.core.windows.net`,
         credential
       );
-    } else if (config.accountName && sasToken) {
-      const url = `https://${String(cfg?.accountName)}.file.core.windows.net?${String(sasToken)}`;
+    } else if (cfg?.accountName && sasToken) {
+      const url = `https://${String(cfg.accountName)}.file.core.windows.net?${String(sasToken)}`;
       serviceClient = new ShareServiceClient(url);
     } else {
       throw new Error("Missing Azure File Share credentials");
     }
 
-    return serviceClient.getShareClient(config.shareName || "security-scans");
+    return serviceClient.getShareClient(String(cfg?.shareName || "security-scans"));
   }
 
   private static async streamToString(readableStream: NodeJS.ReadableStream): Promise<string> {

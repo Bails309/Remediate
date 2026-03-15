@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
+import type { Upload } from "@/app/(app)/uploads/uploads-client";
 
 export default async function UploadsPage() {
   const [sites, uploads, azureConfig] = await Promise.all([
@@ -13,12 +14,21 @@ export default async function UploadsPage() {
     prisma.azureFileShareConfig.findUnique({ where: { id: "singleton" } }),
   ]);
 
-  const mappedUploads = uploads.map((u) => {
-    const uu = u as { uploadDate: Date } & Record<string, unknown>;
+  const mappedUploads: Upload[] = uploads.map((u) => {
     return {
-      ...uu,
-      uploadDate: uu.uploadDate.toISOString(),
-    };
+      id: u.id,
+      status: u.status,
+      uploadDate: (u.uploadDate as Date).toISOString(),
+      fileName: u.fileName ?? null,
+      rowCount: u.rowCount ?? null,
+      site: {
+        id: u.site.id,
+        name: u.site.name,
+        importPattern: u.site.importPattern ?? null,
+        importAliases: u.site.importAliases ?? [],
+        autoImportEnabled: u.site.autoImportEnabled,
+      },
+    } as Upload;
   });
 
   const mappedAzureConfig = azureConfig ? {
