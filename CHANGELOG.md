@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.6.0] - 2026-03-15
+### Added
+- **Automated Azure File Share Ingestion**: Comprehensive background worker service for polling Azure File Shares and matching CSV data to sites via regex and aliases.
+- **Enterprise Automation UI**: New "Automation" tab in the Buckets interface featuring real-time poll countdowns, last-poll timestamps, and manual "Run Now" triggers.
+- **Improved Date Robustness**: Enhanced CSV ingestion logic to handle multiple publication date header variations and robust date format parsing (ISO, UK, US formats).
+
+### Fixed
+- **Database Schema Hardening**: Resolved foreign key constraint violations for automated system imports by making `uploadedBy` optional.
+- **Azure Path Sanitization**: Implemented automatic sanitization for relative paths to prevent Azure SDK `InvalidResourceName` errors.
+- **UI Consistency**: Fixed bugs where bucket aliases were leaking across different bucket configurations.
+- **Type Safety**: Improved server-to-client serialisation of Date objects for automation metadata.
+
 ## [1.5.1] - 2026-03-14
 ### Fixed
 - **Build determinism & resilience**: Prevented build-time network side-effects by deferring creation of runtime clients. Converted top-level instantiation of Redis, BullMQ queues, and `PrismaClient` to lazy-initializers so `next build` runs without attempting external connections.

@@ -1,14 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { EmptyState } from "@/components/EmptyState";
-import { Activity, CheckCircle2, AlertCircle } from "lucide-react";
+import { Input } from "@/components/Input";
+import { Trash2, AlertTriangle, Settings, Cloud, Upload, Plus, Activity, CheckCircle2, AlertCircle, X, Save, Zap, Database } from "lucide-react";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { toast } from "@/lib/toast";
 import { cn } from "@/components/cn";
 
-type Site = { id: string; name: string };
+type Site = { 
+  id: string; 
+  name: string;
+  importPattern?: string | null;
+  importAliases: string[];
+  autoImportEnabled: boolean;
+};
+
+type AzureConfig = {
+  enabled: boolean;
+  accountName: string | null;
+  shareName: string | null;
+  directoryPath: string | null;
+  pollIntervalMinutes: number;
+  deleteAfterImport: boolean;
+  connectionStringEnc: string | null;
+  accountKeyEnc: string | null;
+  sasTokenEnc: string | null;
+  lastPollAt: string | null;
+  updatedAt: string;
+};
 
 type Upload = {
   id: string;
@@ -22,14 +44,194 @@ type Upload = {
 type Props = {
   initialSites: Site[];
   initialUploads: Upload[];
+  initialAzureConfig: AzureConfig | null;
 };
 
-export function UploadsClient({ initialSites, initialUploads }: Props) {
-  const [sites] = useState(initialSites);
+export function UploadsClient({ initialSites, initialUploads, initialAzureConfig }: Props) {
+  const [sites, setSites] = useState(initialSites);
+  const [activeTab, setActiveTab] = useState<"manual" | "automation">("manual");
   const [uploads, setUploads] = useState(initialUploads);
+  
+  // Azure Config Form
+  const [azureConfig, setAzureConfig] = useState<AzureConfig>(initialAzureConfig ?? {
+    enabled: false,
+    accountName: "",
+    shareName: "security-scans",
+    directoryPath: "/",
+    pollIntervalMinutes: 60,
+    deleteAfterImport: true,
+    connectionStringEnc: null,
+    accountKeyEnc: null,
+    sasTokenEnc: null,
+    lastPollAt: null,
+    updatedAt: new Date().toISOString(),
+  });
+  const [connectionString, setConnectionString] = useState(azureConfig.connectionStringEnc ? "****" : "");
+  const [accountKey, setAccountKey] = useState(azureConfig.accountKeyEnc ? "****" : "");
+  const [sasToken, setSasToken] = useState(azureConfig.sasTokenEnc ? "****" : "");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+
+  // Site matching state
+  const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
+  const [siteImportPattern, setSiteImportPattern] = useState("");
+  const [siteImportAliases, setSiteImportAliases] = useState<string[]>([]);
+  const [newAlias, setNewAlias] = useState("");
   const [siteId, setSiteId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<{ step: string; progress: number } | null>(null);
+  const [nextPollCountdown, setNextPollCountdown] = useState<string>("");
+  const [isRunningPoll, setIsRunningPoll] = useState(false);
+
+  useEffect(() => {
+    if (!azureConfig.enabled || !azureConfig.lastPollAt) {
+      setNextPollCountdown("");
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const last = new Date(azureConfig.lastPollAt!).getTime();
+      const next = last + azureConfig.pollIntervalMinutes * 60 * 1000;
+      const now = new Date().getTime();
+      const diff = next - now;
+
+      if (diff <= 0) {
+        setNextPollCountdown("Polling now...");
+      } else {
+        const mins = Math.floor(diff / 1000 / 60);
+        const secs = Math.floor((diff / 1000) % 60);
+        setNextPollCountdown(`${mins}m ${secs}s`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [azureConfig.enabled, azureConfig.lastPollAt, azureConfig.pollIntervalMinutes]);
+
+  const saveAzureConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      const resp = await fetch("/api/admin/azure-file-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...azureConfig,
+          connectionString,
+          accountKey,
+          sasToken,
+        }),
+      });
+      if (!resp.ok) throw new Error("Failed to save config");
+      toast.success("Configuration updated");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      const resp = await fetch("/api/admin/azure-file-share/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...azureConfig,
+          connectionString: connectionString === "****" ? null : connectionString,
+          accountKey: accountKey === "****" ? null : accountKey,
+          sasToken: sasToken === "****" ? null : sasToken,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Connection failed");
+      toast.success(data.message || "Connection successful");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const startEditingSite = (site: Site) => {
+    if (editingSiteId === site.id) {
+      setEditingSiteId(null);
+      return;
+    }
+    setEditingSiteId(site.id);
+    setSiteImportPattern(site.importPattern || "");
+    setSiteImportAliases([...(site.importAliases || [])]);
+    setNewAlias("");
+  };
+  const triggerManualPoll = async () => {
+    setIsRunningPoll(true);
+    try {
+      const res = await fetch("/api/admin/azure-file-share/poll", { method: "POST" });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Manual poll completed successfully");
+        // Refresh config to get new lastPollAt
+        const configRes = await fetch("/api/admin/azure-file-share");
+        const configData = await configRes.json();
+        setAzureConfig(configData);
+      } else {
+        toast.error(data.error || "Failed to trigger poll");
+      }
+    } catch (err) {
+      toast.error("Failed to run automation");
+    } finally {
+      setIsRunningPoll(false);
+    }
+  };
+
+  const saveSiteMatching = async () => {
+    if (!editingSiteId) return;
+    try {
+      const site = sites.find(s => s.id === editingSiteId);
+      if (!site) return;
+
+      const finalAliases = [...siteImportAliases];
+      if (newAlias.trim() && !finalAliases.includes(newAlias.trim())) {
+        finalAliases.push(newAlias.trim());
+      }
+
+      const resp = await fetch(`/api/sites/${editingSiteId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: site.name,
+          importPattern: siteImportPattern,
+          importAliases: finalAliases,
+          autoImportEnabled: site.autoImportEnabled
+        }),
+      });
+      if (!resp.ok) throw new Error("Failed to update site matching");
+      
+      setSites(prev => prev.map(s => s.id === editingSiteId ? {
+        ...s,
+        importPattern: siteImportPattern,
+        importAliases: finalAliases
+      } : s));
+      
+      setEditingSiteId(null);
+      setSiteImportAliases([]);
+      setSiteImportPattern("");
+      toast.success("Site mapping updated");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const addAlias = () => {
+    if (!newAlias.trim()) return;
+    if (siteImportAliases.includes(newAlias.trim())) return;
+    setSiteImportAliases([...siteImportAliases, newAlias.trim()]);
+    setNewAlias("");
+  };
+
+  const removeAlias = (alias: string) => {
+    setSiteImportAliases(siteImportAliases.filter(a => a !== alias));
+  };
 
   const startUpload = async () => {
     if (!siteId || !file) {
@@ -157,58 +359,361 @@ export function UploadsClient({ initialSites, initialUploads }: Props) {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h2 className="text-2xl font-semibold">CSV Uploads</h2>
-        <p className="text-sm opacity-70">Upload security remediation CSVs by bucket.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold">CSV Uploads</h2>
+          <p className="text-sm opacity-70">Manage security remediation CSVs and automation.</p>
+        </div>
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+              activeTab === "manual" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            )}
+          >
+            <Upload className="h-4 w-4" />
+            Manual
+          </button>
+          <button
+            onClick={() => setActiveTab("automation")}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+              activeTab === "automation" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            Automation
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-6">
-          <div className="space-y-4">
-            <Select
-              value={siteId}
-              onChange={setSiteId}
-              placeholder="Select bucket"
-              options={[
-                ...sites.map((site) => ({ label: site.name, value: site.id }))
-              ]}
-            />
+      {activeTab === "manual" ? (
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-6">
+            <div className="space-y-4">
+              <Select
+                value={siteId}
+                onChange={setSiteId}
+                placeholder="Select bucket"
+                options={[
+                  ...sites.map((site) => ({ label: site.name, value: site.id }))
+                ]}
+              />
 
-            <label
-              className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
-              title="Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
-            >
-              <input type="file" accept=".csv" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-              {file ? file.name : "Drop or select CSV file"}
-            </label>
+              <label
+                className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
+                title="Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
+              >
+                <input type="file" accept=".csv" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+                {file ? file.name : "Drop or select CSV file"}
+              </label>
 
-            <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen bucket">Start Upload</Button>
+              <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen bucket">Start Upload</Button>
+            </div>
           </div>
-        </div>
 
-        <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
-          <h3 className="text-lg font-semibold">Progress</h3>
-          {progress ? (
-            <>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--color-muted)]">
-                <div
-                  className="h-full bg-[color:var(--color-accent)] transition-all"
-                  style={{ width: `${progress.progress}%` }}
+          <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
+            <h3 className="text-lg font-semibold text-[color:var(--color-accent)]">Live Progress</h3>
+            {progress ? (
+              <>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--color-muted)] shadow-inner">
+                  <div
+                    className="h-full bg-gradient-to-r from-[color:var(--color-accent)] to-indigo-500 transition-all duration-1000"
+                    style={{ width: `${progress.progress}%` }}
+                  />
+                </div>
+                <p className="mt-4 text-xs font-black uppercase tracking-wider opacity-40">{progress.step}</p>
+              </>
+            ) : (
+              <div className="mt-4">
+                <EmptyState
+                  title="No upload in progress"
+                  description="Start a CSV upload to see live progress here."
+                  icon={<Activity className="h-8 w-8" />}
                 />
               </div>
-              <p className="mt-3 text-sm opacity-70">{progress.step}</p>
-            </>
-          ) : (
-            <div className="mt-4">
-              <EmptyState
-                title="No upload in progress"
-                description="Start a CSV upload to see live progress here."
-                icon={<Activity className="h-8 w-8" />}
-              />
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-8 lg:grid-cols-[1fr_1.5fr] animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-8 space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cloud className="h-5 w-5 text-blue-500 shrink-0" />
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-xl font-bold leading-none">Azure File Share</h3>
+                  {azureConfig.enabled ? (
+                    <div className="flex items-center gap-3">
+                      {azureConfig.lastPollAt ? (
+                        <p className="text-[11px] text-blue-500/80 font-semibold flex items-center gap-1.5">
+                          <Activity className="w-3 h-3 text-blue-400" />
+                          Next poll in {nextPollCountdown || "calculating..."}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500/80 font-medium flex items-center gap-1.5">
+                          <Activity className="w-3 h-3 opacity-30" />
+                          Waiting for first poll...
+                        </p>
+                      )}
+                      <div className="w-[1px] h-3 bg-blue-500/20" />
+                      <button
+                        onClick={triggerManualPoll}
+                        disabled={isRunningPoll}
+                        className="group flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-all active:scale-95"
+                      >
+                        <Zap className={cn("w-3 h-3 transition-transform group-hover:scale-110", isRunningPoll && "animate-pulse text-yellow-400")} />
+                        Run now
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500/50 font-medium">Automation disabled</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={() => setAzureConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ring-offset-2 ring-2 ring-transparent",
+                    azureConfig.enabled ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"
+                  )}
+                >
+                  <span className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                    azureConfig.enabled ? "translate-x-6" : "translate-x-1"
+                  )} />
+                </button>
+                <span className="text-[9px] font-mono text-slate-400">
+                  Last: {azureConfig.lastPollAt ? new Date(azureConfig.lastPollAt).toLocaleTimeString() : "Never"}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Account Name</label>
+                <Input
+                  value={azureConfig.accountName || ""}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAzureConfig({ ...azureConfig, accountName: e.target.value })}
+                  placeholder="e.g. remediate-storage"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Connection String</label>
+                <Input
+                  type="password"
+                  value={connectionString}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConnectionString(e.target.value)}
+                  placeholder="DefaultEndpointsProtocol=..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Share Name</label>
+                  <Input
+                    value={azureConfig.shareName || ""}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAzureConfig({ ...azureConfig, shareName: e.target.value })}
+                    placeholder="security-scans"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Poll (Mins)</label>
+                  <Input
+                    type="number"
+                    value={azureConfig.pollIntervalMinutes}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAzureConfig({ ...azureConfig, pollIntervalMinutes: parseInt(e.target.value) || 60 })}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50">
+                <input
+                  type="checkbox"
+                  id="deleteAfter"
+                  checked={azureConfig.deleteAfterImport}
+                  onChange={e => setAzureConfig({ ...azureConfig, deleteAfterImport: e.target.checked })}
+                  className="rounded border-slate-300 dark:border-slate-600"
+                />
+                <label htmlFor="deleteAfter" className="text-sm font-semibold opacity-70">
+                  Delete CSV after successful import
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant="outline"
+                  onClick={testConnection} 
+                  loading={isTestingConnection}
+                  className="w-full h-11"
+                >
+                  <Zap size={16} className="mr-2" />
+                  Test Connection
+                </Button>
+                <Button 
+                  onClick={saveAzureConfig} 
+                  loading={isSavingConfig}
+                  className="w-full h-11"
+                >
+                  <Save size={16} className="mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-8">
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <Settings className="h-5 w-5 text-indigo-500" />
+              Bucket Mappings
+            </h3>
+            
+            <div className="grid gap-4">
+              {sites.length === 0 ? (
+                <EmptyState
+                  title="No buckets found"
+                  description="Create buckets in the Settings page to configure automated mappings."
+                  icon={<Database className="h-8 w-8" />}
+                />
+              ) : (
+                sites.map(site => (
+                  <div key={site.id} className="relative group">
+                    <div className={cn(
+                      "p-4 rounded-[22px] border transition-all",
+                      editingSiteId === site.id ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/20" : "border-[color:var(--color-border)] hover:border-slate-400 dark:hover:border-slate-600 bg-white dark:bg-slate-900/50"
+                    )}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-xs">
+                            {site.name[0]}
+                          </div>
+                          <div>
+                            <p className="font-bold">{site.name}</p>
+                            {!site.autoImportEnabled && (
+                              <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter bg-rose-500/10 px-1.5 py-0.5 rounded">Auto-Import Disabled</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={async () => {
+                              const newStatus = !site.autoImportEnabled;
+                              try {
+                                await fetch(`/api/sites/${site.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ name: site.name, autoImportEnabled: newStatus })
+                                });
+                                setSites(prev => prev.map(s => s.id === site.id ? { ...s, autoImportEnabled: newStatus } : s));
+                                toast.success(newStatus ? "Auto-import enabled" : "Auto-import disabled");
+                              } catch {
+                                toast.error("Failed to update status");
+                              }
+                            }}
+                            className={cn(
+                              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ring-offset-2 ring-1 ring-transparent",
+                              site.autoImportEnabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"
+                            )}
+                            title={site.autoImportEnabled ? "Disable automated mapping for this bucket" : "Enable automated mapping for this bucket"}
+                          >
+                            <span className={cn(
+                              "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
+                              site.autoImportEnabled ? "translate-x-4.5" : "translate-x-1"
+                            )} />
+                          </button>
+                          <button
+                            onClick={() => startEditingSite(site)}
+                            className="text-[10px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            {editingSiteId === site.id ? "CANCEL" : "CONFIGURE"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {editingSiteId === site.id ? (
+                        <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-300">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Regex Pattern</label>
+                              <InfoTooltip text="A regular expression used to match CSV filenames. For example, 'azure.*\.csv' will match any file starting with 'azure' and ending in '.csv'." />
+                            </div>
+                            <Input
+                              value={siteImportPattern}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSiteImportPattern(e.target.value)}
+                              placeholder="e.g. azure.*\.csv"
+                            />
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-1">
+                              <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Aliases</label>
+                              <InfoTooltip text="Aliases are alternative names used to match CSV files to this bucket (e.g., if the filename is 'mansfield.csv', adding 'mansfield' as an alias will map it to this 'Mansfield' bucket)." />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {siteImportAliases.map(alias => (
+                                <span key={alias} className="flex items-center gap-1 px-3 py-1 bg-indigo-500/10 text-indigo-500 rounded-full text-xs font-bold border border-indigo-500/20">
+                                  {alias}
+                                  <button onClick={() => removeAlias(alias)}>
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              ))}
+                              <div className="flex items-center gap-2">
+                                <input
+                                  value={newAlias}
+                                  onChange={e => setNewAlias(e.target.value)}
+                                  className="bg-transparent border-b border-indigo-500/30 text-xs px-2 py-1 focus:outline-none focus:border-indigo-500 w-24"
+                                  placeholder="Add alias..."
+                                  onKeyDown={e => e.key === "Enter" && addAlias()}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <Button 
+                              className="flex-1" 
+                              size="sm"
+                              onClick={saveSiteMatching}
+                            >
+                              <Save size={14} className="mr-2" />
+                              Save Mapping
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setEditingSiteId(null)}
+                            >
+                              Close
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex gap-2">
+                          {site.importPattern && (
+                            <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
+                              /{site.importPattern}/
+                            </span>
+                          )}
+                          {site.importAliases.length > 0 && (
+                            <span className="text-[10px] text-indigo-500 font-bold">
+                              {site.importAliases.length} Aliases
+                            </span>
+                          )}
+                          {!site.importPattern && site.importAliases.length === 0 && (
+                            <span className="text-[10px] opacity-40 italic">Default matching only</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
         <h3 className="text-lg font-semibold">Recent Uploads</h3>

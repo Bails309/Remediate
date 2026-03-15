@@ -6,6 +6,7 @@ import { processNessusUpload } from "../lib/ingest";
 // Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
 import { startNotificationScheduler } from "../lib/notification-scheduler";
+import { startAzureFileShareScheduler } from "../lib/azure-file-share-scheduler";
 import { Worker, Job } from "bullmq";
 
 async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
@@ -57,6 +58,9 @@ async function run() {
   startReportScheduler();
   // start background notification scheduler in worker process
   startNotificationScheduler();
+  startAzureFileShareScheduler().catch(err => {
+    console.error("[AzureFileShare] Failed to start scheduler", err);
+  });
 
   const nvdKey = process.env.NVD_API_KEY;
   if (nvdKey) {

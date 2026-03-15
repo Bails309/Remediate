@@ -12,7 +12,13 @@ function parseValidDate(value?: string | null) {
   const s = value.toString().trim();
 
   // Try common numeric date formats like dd/MM/yyyy or d/M/yyyy (prefer UK-style)
-  const formats = ["dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", "yyyy-MM-dd", "yyyy/MM/dd", "MMM d, yyyy", "MMMM d, yyyy"];
+  const formats = [
+    "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy", 
+    "yyyy-MM-dd", "yyyy/MM/dd", 
+    "MMM d, yyyy", "MMMM d, yyyy", "MMM dd, yyyy",
+    "d MMM yyyy", "dd MMM yyyy",
+    "yyyy/MM/dd HH:mm:ss", "MM/dd/yyyy HH:mm:ss"
+  ];
   for (const fmt of formats) {
     const parsed = parse(s, fmt, new Date());
     if (isValid(parsed)) {
@@ -22,7 +28,10 @@ function parseValidDate(value?: string | null) {
 
   // Fallback to native for ISO/other formats, but check validity strictly
   const d = new Date(s);
-  if (!isNaN(d.getTime()) && s.includes(d.getFullYear().toString())) return d;
+  if (!isNaN(d.getTime()) && s.includes(d.getFullYear().toString())) {
+    console.warn(`[Ingest] Date parsing fell back to native constructor for: "${s}" -> ${d.toISOString()}`);
+    return d;
+  }
 
   return null;
 }
@@ -70,6 +79,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       where: { id: "singleton" },
     });
     const gracePeriodDays = config?.pluginGracePeriodDays ?? 0;
+    console.log(`[Ingest] Grace period configured: ${gracePeriodDays} days`);
 
     const rows = parseNessusCsv(text);
     const now = new Date();
@@ -81,11 +91,17 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
         const pubDateStr = row.pluginPublicationDate;
         const pubDate = pubDateStr ? parseValidDate(pubDateStr) : null;
 
-        // Only exclude if publication date exists and is within the grace period
         if (pubDate) {
           const diffTime = Math.abs(now.getTime() - pubDate.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          if (diffDays <= gracePeriodDays) return false;
+          const isWithinGrace = diffDays <= gracePeriodDays;
+          
+          if (isWithinGrace) {
+            console.log(`[Ingest] Filtering out ${row.pluginId} (Published: ${pubDateStr}, Age: ${diffDays} days)`);
+            return false;
+          }
+        } else if (pubDateStr) {
+          console.warn(`[Ingest] Failed to parse publication date: "${pubDateStr}" for plugin ${row.pluginId}`);
         }
       }
 

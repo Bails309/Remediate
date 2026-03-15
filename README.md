@@ -6,14 +6,14 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 1.5.0 (2026-03-14)</p>
+  <p><strong>Version:</strong> 1.6.0 (2026-03-15)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
 ## Overview
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
 
-The platform now includes a comprehensive **Threat Intelligence Centre**. This module synchronises hourly with NVD (CVE), OSV.dev (GHSA/PyPI/etc.), and CISA KEV to provide a real-time global vulnerability feed, complete with automated daily email digests tailored to user risk preferences.
+The platform now includes **Enterprise Azure File Share Automation**, allowing for scheduled polling and ingestion of security scans directly from your cloud infrastructure. It also features a comprehensive **Threat Intelligence Centre** which synchronises hourly with NVD, OSV.dev, and CISA KEV.
 
 Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
 
@@ -221,6 +221,12 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+- **v1.6.0 — 2026-03-15**
+  - Feature: Enterprise Azure File Share Automation (Polling, Ingestion, & Site Mapping).
+  - UI: Real-time automation dashboard with live poll countdowns and manual triggers.
+  - Fix: Database schema hardening for automated system imports (Optional `uploadedBy`).
+  - Fix: Robust CSV header mapping and date format parsing for diverse report versions.
 
 - **v1.5.0 — 2026-03-14**
   - Feature: Premium Intelligence Background (Command Centre topographic design).

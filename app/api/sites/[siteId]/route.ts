@@ -7,6 +7,9 @@ import type { NextRequest } from "next/server";
 
 const updateSchema = z.object({
   name: z.string().min(2),
+  importPattern: z.string().optional().nullable(),
+  importAliases: z.array(z.string()).optional(),
+  autoImportEnabled: z.boolean().optional(),
 });
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ siteId: string }> }) {

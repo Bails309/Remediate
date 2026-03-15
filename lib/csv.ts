@@ -35,11 +35,14 @@ const headers = new Map([
   ["see also", "seeAlso"],
   ["plugin output", "pluginOutput"],
   ["plugin publication date", "pluginPublicationDate"],
+  ["plugin publication", "pluginPublicationDate"],
+  ["publication date", "pluginPublicationDate"],
   ["plugin modification date", "pluginModificationDate"],
 ]);
 
 function normalizeHeader(value: string) {
-  return value.replace(/^\uFEFF/, "").toLowerCase().trim();
+  // Remove BOM, lowercase, trim, and remove any non-alphanumeric characters except spaces
+  return value.replace(/^\uFEFF/, "").toLowerCase().trim().replace(/[^a-z0-9 ]/g, "");
 }
 
 const requiredKeys = ["pluginId", "host", "port"];
@@ -73,8 +76,14 @@ export function parseNessusCsv(input: string) {
   const results: NessusRow[] = [];
   for (const record of records) {
     const normalized: Record<string, string> = {};
+    const rawKeys = Object.keys(record);
+    if (results.length === 0) {
+      console.log(`[CSV] Row 1 raw headers: ${JSON.stringify(rawKeys)}`);
+    }
+    
     for (const [key, value] of Object.entries(record)) {
-      const mapped = headers.get(normalizeHeader(key)) ?? key;
+      const norm = normalizeHeader(key);
+      const mapped = headers.get(norm) ?? norm;
       normalized[mapped] = value;
     }
 

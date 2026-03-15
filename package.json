@@ -1,6 +1,6 @@
 {
   "name": "app",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -25,6 +25,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@azure/storage-blob": "^12.26.0",
+    "@azure/storage-file-share": "^12.26.0",
     "@prisma/client": "^6.19.2",
     "bullmq": "^5.41.0",
     "csv-parse": "^6.1.0",
