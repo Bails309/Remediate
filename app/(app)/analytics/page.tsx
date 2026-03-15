@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { PrismaClient } from "@prisma/client";
 import { BucketFilter } from "@/components/BucketFilter";
 import { TrendChart } from "@/components/analytics/TrendChart";
 import { TrendRangeFilter } from "@/components/analytics/TrendRangeFilter";

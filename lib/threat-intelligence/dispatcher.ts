@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { renderThreatEmail, ThreatGroup, ThreatItem } from "./email-template";
 import { sendEmail } from "../email";
 import { getReportConfig } from "@/lib/reports";
-import { Vulnerability, User, VulnerabilityStatus } from "@prisma/client";
 
 interface RiskBridge {
     Critical: string;

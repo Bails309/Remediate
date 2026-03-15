@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma, Vulnerability, User, VulnerabilityStatus, Risk } from "@prisma/client";
-import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { Prisma, VulnerabilityStatus, Risk } from "@prisma/client";
+import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
 
 const patchSchema = z.object({
