@@ -1,3 +1,0 @@
-Plugin ID,CVE,CVSS v2.0 Base Score,Risk,Host,Protocol,Port,Name,Synopsis,Description,Solution,See Also,Plugin Publication Date,Plugin Modification Date,Metasploit,Core Impact,CANVAS
-12345,CVE-2021-1234,7.5,High,127.0.0.1,tcp,80,Test Vuln,Test Synopsis,Test Description,Test Solution,http://example.com,2021/01/01,2021/01/02,False,False,False
-67890,CVE-2024-5678,9.8,Critical,127.0.0.1,tcp,443,Recent Vuln,Recent Synopsis,Recent Description,Recent Solution,http://example.com,2026/03/01,2026/03/02,False,False,False

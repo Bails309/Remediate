@@ -18,10 +18,7 @@ export function MobileNav({ session }: { session?: Session | null }) {
 
   const [isAdminExpanded, setIsAdminExpanded] = useState(false);
 
-  // Close menu when pathname changes
-  useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
+  // Close menu when pathname changes - removed to avoid setState in effect
 
   // Prevent body scroll when menu is open
   useEffect(() => {
@@ -92,6 +89,7 @@ export function MobileNav({ session }: { session?: Session | null }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => setIsOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
                       active
@@ -121,6 +119,7 @@ export function MobileNav({ session }: { session?: Session | null }) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setIsOpen(false)}
                       className={cn(
                         "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
                         active
@@ -160,6 +159,7 @@ export function MobileNav({ session }: { session?: Session | null }) {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={() => setIsOpen(false)}
                         className={cn(
                           "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
                           active

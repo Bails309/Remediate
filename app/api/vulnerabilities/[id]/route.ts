@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { Prisma, Vulnerability, User, VulnerabilityStatus } from "@prisma/client";
+import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
 
 const patchSchema = z.object({
@@ -34,7 +35,7 @@ interface VulnerabilityWithCollaborators {
     pluginId: string;
     cve: string | null;
     cvssScore: number | null;
-    risk: any;
+    risk: string;
     host: string;
     protocol: string;
     port: string;
@@ -95,13 +96,13 @@ export async function PATCH(
         const now = new Date();
         const updatedAssigneeId = assigneeId !== undefined ? assigneeId : vulnerability.assigneeId;
 
-        const history = await prisma.$transaction(async (tx: any) => {
+        const history = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const h = await tx.vulnerabilityHistory.create({
                 data: {
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
                     assigneeId: updatedAssigneeId,
-                    status: status as any,
+                    status: status as string,
                     lastSeenAt: vulnerability.lastSeenAt,
                     archivedAt: now,
                     createdAt: vulnerability.createdAt,
@@ -137,7 +138,7 @@ export async function PATCH(
         return NextResponse.json({ ...history, recordScope: "archived" });
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.VulnerabilityUpdateInput = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
     }
@@ -160,7 +161,7 @@ export async function PATCH(
         };
     }
 
-    const updated = await prisma.$transaction(async (tx: any) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const u = await tx.vulnerability.update({
             where: { id: vulnerabilityId },
             data: updateData,
@@ -209,7 +210,7 @@ export async function GET(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<unknown> }).findUnique({
+    const vulnerability = await prisma.vulnerability.findUnique({
         where: { id: vulnerabilityId },
         include: {
             assignee: { select: { id: true, name: true } },

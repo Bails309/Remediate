@@ -1,143 +1,108 @@
 import { prisma } from "@/lib/prisma";
-import { renderThreatEmail } from "./email-template";
+import { renderThreatEmail, ThreatGroup, ThreatItem } from "./email-template";
 import { sendEmail } from "../email";
-import { getReportConfig } from "../reports";
-const Risk = {
-    Critical: 'Critical',
-    High: 'High',
-    Medium: 'Medium',
-    Low: 'Low'
-} as any;
-type Risk = any;
-import { ThreatItem, ThreatGroup } from "./email-template";
+import { Vulnerability, User, VulnerabilityStatus } from "@prisma/client";
 
-/**
- * Aggregates threats from the last 24 hours.
- */
-export async function aggregateThreats(since?: Date) {
-    const startTime = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
-    return prisma.threatVulnerability.findMany({
-        where: {
-            publishedAt: { gte: startTime }
-        },
-        orderBy: { cvssScore: 'desc' }
-    });
+interface RiskBridge {
+    Critical: string;
+    High: string;
+    Medium: string;
+    Low: string;
 }
 
-/**
- * Dispatches personalized daily digests to all subscribed users.
- * Returns true if the process completed successfully (even if no emails were sent due to no threats).
- */
-export async function dispatchDailyDigests(): Promise<boolean> {
-    console.log("[Dispatcher] Starting daily threat digest dispatch...");
-    
-    try {
-        const settings = await getReportConfig(true);
-        if (!settings || !settings.enabled) {
-            console.warn("[Dispatcher] Email settings not configured or disabled. Skipping dispatch.");
-            return false;
-        }
+const Risk: RiskBridge = {
+    Critical: "Critical",
+    High: "High",
+    Medium: "Medium",
+    Low: "Low"
+};
 
-        const subscribers = await prisma.threatSubscription.findMany({
-            where: { isSubscribed: true },
-            include: { user: true }
+/**
+ * Dispatches daily threat intelligence digest emails to all users who have it enabled.
+ */
+export async function dispatchDailyThreatDigest() {
+    console.log("Dispatcher: Starting daily threat digest cycle...");
+
+    try {
+        // 1. Get all users who have daily digest enabled
+        const users = await prisma.user.findMany({
+            where: {
+                dailyDigestEnabled: true,
+                email: { not: null }
+            }
         });
 
-        if (subscribers.length === 0) {
-            console.log("[Dispatcher] No subscribers found for daily digest.");
-            return true;
+        if (users.length === 0) {
+            console.log("Dispatcher: No users have daily digest enabled. Skipping cycle.");
+            return;
         }
 
-        const allThreats = await aggregateThreats();
-        if (allThreats.length === 0) {
-            console.log("[Dispatcher] No new threats to report in the last 24 hours.");
-            return true;
-        }
+        // 2. Get today's threat items (newly seen today)
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
 
-        let sentCount = 0;
-        for (const sub of subscribers) {
-            try {
-                const filtered = filterThreatsForUser(allThreats, sub);
-                
-                if (filtered.cisaKev.length === 0 && filtered.criticalHigh.length === 0 && filtered.standard.length === 0) {
-                    continue;
+        const newThreats = await prisma.vulnerability.findMany({
+            where: {
+                lastSeenAt: {
+                    gte: startOfToday
                 }
-
-                const html = renderThreatEmail(filtered);
-                const text = `Daily Threat intelligence Summary: Found ${filtered.cisaKev.length + filtered.criticalHigh.length + filtered.standard.length} items.`;
-                
-                await sendEmail(
-                    settings, 
-                    sub.user.email,
-                    "Daily Threat Intelligence Digest",
-                    html,
-                    text
-                );
-                
-                console.log(`✓ [Dispatcher] Sent digest to ${sub.user.email}`);
-                sentCount++;
-            } catch (err) {
-                console.error(`[Dispatcher] Failed to send digest to ${sub.user.email}:`, err);
+            },
+            include: {
+                site: true
             }
-        }
-        
-        console.log(`[Dispatcher] Dispatch cycle complete. Sent ${sentCount} digest(s).`);
-        return true;
-    } catch (err) {
-        console.error("[Dispatcher] Critical dispatch failure:", err);
-        return false;
-    }
-}
+        });
 
-function filterThreatsForUser(threats: ThreatItem[], sub: { minRisk: Risk; cisaKevOnly: boolean }): ThreatGroup {
-    const cisaKev: ThreatItem[] = [];
-    const criticalHigh: ThreatItem[] = [];
-    const standard: ThreatItem[] = [];
-
-    const minRiskValue = riskToValue(sub.minRisk);
-
-    for (const t of threats) {
-        const risk = scoreToRisk(t.cvssScore);
-        const riskValue = riskToValue(risk);
-
-        // 1. CISA KEV (Always include if user didn't explicitly say only KEV and it's not KEV)
-        if (t.cisaKevStatus) {
-            cisaKev.push(t);
-            continue;
+        if (newThreats.length === 0) {
+            console.log("Dispatcher: No new threats detected today. Skipping email dispatch.");
+            return;
         }
 
-        if (sub.cisaKevOnly) continue;
+        // 3. Group threats for the digest
+        const threatGroup: ThreatGroup = {
+            cisaKev: [],
+            criticalHigh: [],
+            standard: []
+        };
 
-        // 2. Risk threshold
-        if (riskValue < minRiskValue) continue;
+        newThreats.forEach(t => {
+            const item: ThreatItem = {
+                osvId: t.id,
+                cveId: t.cve,
+                summary: t.name,
+                cvssScore: t.cvssScore,
+                cisaKevStatus: t.description?.includes("CISA KEV") || false
+            };
 
-        if (risk === Risk.Critical || risk === Risk.High) {
-            criticalHigh.push(t);
-        } else {
-            standard.push(t);
+            if (item.cisaKevStatus) {
+                threatGroup.cisaKev.push(item);
+            } else if (t.risk === Risk.Critical || t.risk === Risk.High) {
+                threatGroup.criticalHigh.push(item);
+            } else {
+                threatGroup.standard.push(item);
+            }
+        });
+
+        // 4. Send email to each user
+        let sentCount = 0;
+        for (const user of users) {
+            if (!user.email) continue;
+
+            const emailHtml = renderThreatEmail(threatGroup);
+
+            const totalCount = threatGroup.cisaKev.length + threatGroup.criticalHigh.length + threatGroup.standard.length;
+
+            await sendEmail({
+                to: user.email,
+                subject: `Daily Threat Intelligence: ${totalCount} Found`,
+                html: emailHtml
+            });
+            sentCount++;
         }
+
+        console.log(`Dispatcher: Sent digest to ${sentCount} users.`);
+        console.log("Dispatcher: Dispatch cycle complete.");
+
+    } catch (error) {
+        console.error("Dispatcher: Failed to send digest:", error);
     }
-
-    return { cisaKev, criticalHigh, standard };
-}
-
-function riskToValue(risk: Risk): number {
-    switch (risk) {
-        case Risk.Critical: return 4;
-        case Risk.High: return 3;
-        case Risk.Medium: return 2;
-        case Risk.Low: return 1;
-        case Risk.None: return 0;
-        default: return 0;
-    }
-}
-
-function scoreToRisk(score?: number | null): Risk {
-    if (score === null || score === undefined) return Risk.None;
-    if (score >= 9.0) return Risk.Critical;
-    if (score >= 7.0) return Risk.High;
-    if (score >= 4.0) return Risk.Medium;
-    if (score >= 0.1) return Risk.Low;
-    return Risk.None;
 }

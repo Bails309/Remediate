@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 import { StatCard } from "@/components/StatCard";
 import { BucketFilter } from "@/components/BucketFilter";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
 import { ThreatSummaryCard } from "@/components/ThreatSummaryCard";
-import { Activity, Upload } from "lucide-react";
+import { Activity, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/components/cn";
 
 export const metadata: Metadata = {
@@ -16,6 +17,9 @@ const riskOrder = ["Critical", "High", "Medium", "Low"] as const;
 
 export const dynamic = "force-dynamic";
 
+interface DashboardCount {
+  count: number;
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -34,9 +38,11 @@ export default async function DashboardPage({
   }
   const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
-  const [buckets, riskGroups, latestUploads] = await Promise.all([
+  interface RiskGroupRow { risk: string; count: number }
+
+  const [buckets, riskGroups, latestUploads, activeVulnerabilitiesResult, vulnerabilities] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
-    (prisma as any).$queryRawUnsafe(`
+    (prisma as PrismaClient).$queryRawUnsafe(`
       SELECT risk::text, count(*)::int as count FROM (
         SELECT DISTINCT ON (name, host, port, "pluginId") risk
         FROM "Vulnerability"
@@ -44,15 +50,44 @@ export default async function DashboardPage({
         ORDER BY name, host, port, "pluginId", risk ASC
       ) as groups
       GROUP BY risk
-    `, ...values) as Promise<{ risk: string; count: number }[]>,
+    `, ...values) as Promise<RiskGroupRow[]>,
     prisma.uploadHistory.findMany({
       include: { site: true },
       orderBy: { uploadDate: "desc" },
       take: 5,
-    })
+    }),
+    (prisma as PrismaClient).$queryRawUnsafe(`
+        SELECT count(*)::int as count FROM (
+            SELECT DISTINCT ON (name, host, port, "pluginId") risk
+            FROM "Vulnerability"
+            ${whereClause}
+        ) as groups
+    `, ...values) as Promise<DashboardCount[]>,
+    prisma.vulnerability.findMany({
+      where: bucketId ? { siteId: bucketId } : {},
+      select: { risk: true },
+    }),
   ]);
 
-  const counts = new Map(riskGroups.map((g: any) => [g.risk, g.count]));
+  const activeVulnerabilities = activeVulnerabilitiesResult[0]?.count || 0;
+  const counts = new Map(riskGroups.map((g: RiskGroupRow) => [g.risk, g.count]));
+
+  const stats = [
+    {
+      label: "Active Findings",
+      value: activeVulnerabilities,
+      icon: AlertTriangle,
+      color: "text-red-500",
+      bg: "bg-red-500/10",
+    },
+    {
+      label: "Critical Risks",
+      value: vulnerabilities.filter((v: { risk: string }) => v.risk === "Critical").length,
+      icon: ShieldAlert,
+      color: "text-orange-500",
+      bg: "bg-orange-500/10",
+    },
+  ];
 
   return (
     <div className="space-y-10">
@@ -78,6 +113,17 @@ export default async function DashboardPage({
             tone={risk.toLowerCase() as "critical" | "high" | "medium" | "low" | "neutral"}
           />
         ))}
+        {stats.map((stat) => (
+          <StatCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            icon={stat.icon}
+            iconColor={stat.color}
+            iconBg={stat.bg}
+            tone="neutral"
+          />
+        ))}
       </div>
 
       {/* Secondary Row: Activity & Intelligence */}
@@ -95,7 +141,7 @@ export default async function DashboardPage({
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "h-10 w-10 rounded-xl flex items-center justify-center ring-1 ring-inset",
-                      upload.status === "Completed" ? "bg-green-500/10 text-green-500 ring-green-500/20" : 
+                      upload.status === "Completed" ? "bg-green-500/10 text-green-500 ring-green-500/20" :
                       upload.status === "Failed" ? "bg-red-500/10 text-red-500 ring-red-500/20" : "bg-blue-500/10 text-blue-500 ring-blue-500/20"
                     )}>
                       <Upload size={16} />
@@ -108,7 +154,7 @@ export default async function DashboardPage({
                       />
                     </div>
                   </div>
-                  <Badge tone={upload.status === "Failed" ? "critical" : upload.status === "Completed" ? "low" : "medium"} 
+                  <Badge tone={upload.status === "Failed" ? "critical" : upload.status === "Completed" ? "low" : "medium"}
                     className="text-[8px] py-0 px-1.5 h-4 border-none opacity-80 uppercase font-black tracking-tighter">
                     {upload.status}
                   </Badge>
@@ -121,7 +167,7 @@ export default async function DashboardPage({
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] opacity-40 mb-4">Operational Tips</h3>
             <ul className="space-y-3 text-xs opacity-60">
               <li className="flex gap-2">
-                <span className="text-blue-400 select-none items-center">•</span>
+                <span className="text-blue-400 select-none">•</span>
                 <span>Assign owners early to reduce dwell time.</span>
               </li>
               <li className="flex gap-2">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { Prisma, Vulnerability } from "@prisma/client";
 import { requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     updateData.assigneeId = payload.assigneeId;
   }
 
-  await prisma.$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (payload.status && !ACTIVE_STATUSES.includes(payload.status)) {
       // Archiving logic: move to history and delete from active
       const victims = await tx.vulnerability.findMany({
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       if (victims.length > 0) {
         const now = new Date();
         await tx.vulnerabilityHistory.createMany({
-          data: victims.map((v: any) => ({
+          data: victims.map((v: Vulnerability) => ({
             id: v.id,
             siteId: v.siteId,
             assigneeId: payload.assigneeId !== undefined ? payload.assigneeId : v.assigneeId,
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         });
 
         await tx.vulnerability.deleteMany({
-          where: { id: { in: victims.map((v: any) => v.id) } }
+          where: { id: { in: victims.map((v: Vulnerability) => v.id) } }
         });
       }
     } else {
