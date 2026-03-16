@@ -112,7 +112,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">Min Risk Level</label>
                                 <Select 
                                     value={minRisk}
-                                    onChange={(val: any) => setMinRisk(val)}
+                                    onChange={(val: string) => setMinRisk(val)}
                                     options={riskOptions}
                                     className="!h-10 !rounded-xl !text-[10px] uppercase font-bold tracking-widest text-[#00A3CC] dark:text-[#00C8FF]"
                                 />
@@ -135,13 +135,13 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                             <div className="grid grid-cols-2 gap-3">
                                 <Select 
                                     value={scheduledHour}
-                                    onChange={(val: any) => setScheduledHour(val)}
+                                    onChange={(val: string) => setScheduledHour(val)}
                                     options={hourOptions}
                                     className="!h-10 !rounded-xl !text-[11px] font-mono tracking-widest"
                                 />
                                 <Select 
                                     value={scheduledMinute}
-                                    onChange={(val: any) => setScheduledMinute(val)}
+                                    onChange={(val: string) => setScheduledMinute(val)}
                                     options={minuteOptions}
                                     className="!h-10 !rounded-xl !text-[11px] font-mono tracking-widest"
                                 />

@@ -3,24 +3,32 @@ import { renderThreatEmail, ThreatGroup, ThreatItem } from "./email-template";
 import { sendEmail } from "../email";
 import { getReportConfig } from "@/lib/reports";
 
-interface RiskBridge {
-    Critical: string;
-    High: string;
-    Medium: string;
-    Low: string;
+
+
+interface ThreatSubscription {
+    id: string;
+    isSubscribed: boolean;
+    minRisk: string;
+    cisaKevOnly: boolean;
 }
 
-const Risk: RiskBridge = {
-    Critical: "Critical",
-    High: "High",
-    Medium: "Medium",
-    Low: "Low"
-};
+interface DispatcherUser {
+    email: string;
+    threatSubscription: ThreatSubscription | null;
+}
+
+interface DBThreat {
+    osvId: string;
+    cveId: string | null;
+    summary: string;
+    cvssScore: number | null;
+    cisaKevStatus: boolean;
+}
 
 /**
  * Dispatches daily threat intelligence digest emails to a specific user.
  */
-export async function dispatchDailyThreatDigest(user: any) {
+export async function dispatchDailyThreatDigest(user: DispatcherUser) {
     console.log(`Dispatcher: Starting threat digest cycle for ${user.email}...`);
 
     try {
@@ -47,7 +55,7 @@ export async function dispatchDailyThreatDigest(user: any) {
             orderBy: {
                 cvssScore: "desc"
             }
-        });
+        }) as DBThreat[];
 
         if (newThreats.length === 0) {
             console.log(`Dispatcher: No new threats for ${user.email} since ${twentyFourHoursAgo.toISOString()}. Skipping email.`);
@@ -61,7 +69,7 @@ export async function dispatchDailyThreatDigest(user: any) {
             standard: []
         };
 
-        newThreats.forEach((t: any) => {
+        newThreats.forEach((t: DBThreat) => {
             const item: ThreatItem = {
                 osvId: t.osvId,
                 cveId: t.cveId,
