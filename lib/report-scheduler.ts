@@ -163,28 +163,41 @@ async function handleDailyThreatIntelligence() {
     // 1. Daily Full Sync at 7:30 AM UTC or later if not already synced today
     const lastSyncDay = config.lastThreatDigestAt ? config.lastThreatDigestAt.toISOString().split('T')[0] : null;
     
-    // We use lastThreatDigestAt as a proxy for the daily cycle completion.
-    // However, the sync is a prerequisite. Let's add a log for better debugging.
-    
     if (hour >= 7 && (lastSyncDay !== currentDayStr)) {
         if (hour > 7 || (hour === 7 && minute >= 30)) {
             console.log(`[Scheduler] ${currentDayStr} 07:30 UTC window reached. Triggering daily full sync...`);
             await syncAllThreats(48);
+            await prisma.reportConfig.update({
+                where: { id: config.id },
+                data: { lastThreatDigestAt: now }
+            });
         }
     }
 
-    // 2. Daily Dispatch at 8:00 AM UTC or later if not already sent today
-    if (hour >= 8 && (lastSyncDay !== currentDayStr)) {
-        console.log(`[Scheduler] ${currentDayStr} 08:00 UTC window reached. Triggering daily digest dispatch...`);
-        try {
-          await dispatchDailyThreatDigest();
-          await prisma.reportConfig.update({
-            where: { id: config.id },
-            data: { lastThreatDigestAt: now }
-          });
-          console.log(`[Scheduler] Daily digest completed and state updated for ${currentDayStr}.`);
-        } catch (err) {
-          console.error("[Scheduler] Daily digest failed:", err);
+    // 2. Individual User Dispatches based on their custom schedules
+    const subscribers = await prisma.user.findMany({
+        where: {
+            threatSubscription: { isSubscribed: true }
+        },
+        include: {
+            threatSubscription: true
+        }
+    });
+
+    for (const user of subscribers) {
+        const sub = user.threatSubscription;
+        if (!sub) continue;
+
+        // Check if it's time to send for this user
+        // We ensure we don't send twice on the same day by checking lastSentAt
+        const lastSentDay = sub.lastSentAt ? sub.lastSentAt.toISOString().split('T')[0] : null;
+        
+        if (lastSentDay !== currentDayStr) {
+            // Check if we've reached the user's scheduled time
+            if (hour > sub.scheduledHour || (hour === sub.scheduledHour && minute >= sub.scheduledMinute)) {
+                console.log(`[Scheduler] Time reached for ${user.email} (${sub.scheduledHour}:${sub.scheduledMinute}). Dispatching digest...`);
+                await dispatchDailyThreatDigest(user);
+            }
         }
     }
 

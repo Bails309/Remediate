@@ -103,7 +103,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* Main Stats Row */}
+      {/* Operational Posture Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {riskOrder.map((risk) => (
           <StatCard
@@ -113,17 +113,27 @@ export default async function DashboardPage({
             tone={risk.toLowerCase() as "critical" | "high" | "medium" | "low" | "neutral"}
           />
         ))}
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.label}
-            label={stat.label}
-            value={stat.value}
-            icon={stat.icon}
-            iconColor={stat.color}
-            iconBg={stat.bg}
-            tone="neutral"
-          />
-        ))}
+      </div>
+
+      {/* Global Threat Intelligence Summary */}
+      <div className="space-y-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-40 flex items-center gap-2 px-1">
+          <ShieldAlert className="h-3 w-3" />
+          Global Threat Intelligence Summary
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.label}
+              label={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              iconColor={stat.color}
+              iconBg={stat.bg}
+              tone="neutral"
+            />
+          ))}
+        </div>
       </div>
 
       {/* Secondary Row: Activity & Intelligence */}

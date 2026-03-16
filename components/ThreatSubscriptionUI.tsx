@@ -10,6 +10,8 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [minRisk, setMinRisk] = useState("High");
     const [cisaKevOnly, setCisaKevOnly] = useState(false);
+    const [scheduledHour, setScheduledHour] = useState("08");
+    const [scheduledMinute, setScheduledMinute] = useState("00");
     const [isSaving, setIsSaving] = useState(false);
 
     const riskOptions = [
@@ -17,6 +19,18 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
         { label: "High & Above", value: "High" },
         { label: "Medium & Above", value: "Medium" },
         { label: "Low (All Features)", value: "Low" },
+    ];
+
+    const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+        label: `${i.toString().padStart(2, "0")}:00`,
+        value: i.toString().padStart(2, "0")
+    }));
+
+    const minuteOptions = [
+        { label: "00", value: "00" },
+        { label: "15", value: "15" },
+        { label: "30", value: "30" },
+        { label: "45", value: "45" },
     ];
 
     useEffect(() => {
@@ -28,6 +42,8 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                     setIsSubscribed(data.isSubscribed);
                     setMinRisk(data.minRisk);
                     setCisaKevOnly(data.cisaKevOnly);
+                    setScheduledHour(data.scheduledHour.toString().padStart(2, "0"));
+                    setScheduledMinute(data.scheduledMinute.toString().padStart(2, "0"));
                 }
             });
     }, [userId]);
@@ -42,7 +58,9 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                     userId,
                     isSubscribed,
                     minRisk,
-                    cisaKevOnly
+                    cisaKevOnly,
+                    scheduledHour: parseInt(scheduledHour, 10),
+                    scheduledMinute: parseInt(scheduledMinute, 10)
                 })
             });
             
@@ -74,7 +92,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                 <div className="flex items-center justify-between p-4 bg-slate-100/50 dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/5">
                     <div className="flex items-center gap-3">
                         <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Daily 8:00 AM Email</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Daily Digest Email</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                         <input 
@@ -94,7 +112,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">Min Risk Level</label>
                                 <Select 
                                     value={minRisk}
-                                    onChange={(val) => setMinRisk(val)}
+                                    onChange={(val: any) => setMinRisk(val)}
                                     options={riskOptions}
                                     className="!h-10 !rounded-xl !text-[10px] uppercase font-bold tracking-widest text-[#00A3CC] dark:text-[#00C8FF]"
                                 />
@@ -109,6 +127,24 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                                     />
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">CISA KEV Only</span>
                                 </label>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">Dispatch Time (UTC)</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Select 
+                                    value={scheduledHour}
+                                    onChange={(val: any) => setScheduledHour(val)}
+                                    options={hourOptions}
+                                    className="!h-10 !rounded-xl !text-[11px] font-mono tracking-widest"
+                                />
+                                <Select 
+                                    value={scheduledMinute}
+                                    onChange={(val: any) => setScheduledMinute(val)}
+                                    options={minuteOptions}
+                                    className="!h-10 !rounded-xl !text-[11px] font-mono tracking-widest"
+                                />
                             </div>
                         </div>
 

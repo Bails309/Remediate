@@ -2,7 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.7.0] - 2026-03-15
+
+## [1.8.0] - 2026-03-16
+### Added
+- **Custom Intelligence Scheduling**: Empowered users to configure personalized delivery times (Hour/Minute UTC) for their Daily Threat Intelligence Digest.
+- **Enhanced Scheduling Logic**: Transitioned from a global fixed schedule to a per-user delivery model with tracking for the last sent timestamp.
+- **Intelligence Context Grouping**: Refined the Dashboard to group "Active Findings" and "Critical Risks" under a dedicated "Global Threat Intelligence Summary" section.
+
+### Fixed
+- **Dashboard Layout Optimization**: Eliminated wasted space on the "Remediation Command Centre" by transitioning intelligence summary cards to a full-width 2-column layout.
+- **Digest Data Integrity**: Corrected the data source for the Intelligence Digest to query the global `ThreatVulnerability` feed instead of internal scan findings.
+- **24-Hour Lookback Window**: Fixed a logic error where the digest only included findings since midnight; it now correctly spans the preceding 24 hours.
 ### Added
 - **Managed Vulnerability Statuses**: Introduced `InProgress` and `InProgressWithCR` statuses to support active remediation workflows.
 - **Change Request Tracking**: Implemented mandatory CR number tracking for findings in the "In Progress with CR" state, including real-time numeric validation and UI feedback.

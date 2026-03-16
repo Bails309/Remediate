@@ -312,6 +312,11 @@ model ThreatSubscription {
   minRisk          Risk     @default(High) // Subscriber only wants High/Critical
   cisaKevOnly      Boolean  @default(false)
   
+  // Custom Schedule (UTC)
+  scheduledHour    Int      @default(8)
+  scheduledMinute  Int      @default(0)
+  lastSentAt       DateTime?
+
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   updatedAt        DateTime @updatedAt
 }

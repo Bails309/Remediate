@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     const body = await request.json();
-    const { userId, isSubscribed, minRisk, cisaKevOnly } = body;
+    const { userId, isSubscribed, minRisk, cisaKevOnly, scheduledHour, scheduledMinute } = body;
 
     if (!userId) {
         return NextResponse.json({ error: "Missing userId" }, { status: 400 });
@@ -29,13 +29,17 @@ export async function POST(request: Request) {
         update: {
             isSubscribed,
             minRisk,
-            cisaKevOnly
+            cisaKevOnly,
+            scheduledHour,
+            scheduledMinute
         },
         create: {
             userId,
             isSubscribed,
             minRisk,
-            cisaKevOnly
+            cisaKevOnly,
+            scheduledHour,
+            scheduledMinute
         }
     });
 
