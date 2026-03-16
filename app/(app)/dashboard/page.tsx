@@ -74,14 +74,14 @@ export default async function DashboardPage({
 
   const stats = [
     {
-      label: "Active Findings",
+      label: "Active Environment Findings",
       value: activeVulnerabilities,
       icon: AlertTriangle,
       color: "text-red-500",
       bg: "bg-red-500/10",
     },
     {
-      label: "Critical Risks",
+      label: "Critical Exposure Risks",
       value: vulnerabilities.filter((v: { risk: string }) => v.risk === "Critical").length,
       icon: ShieldAlert,
       color: "text-orange-500",
@@ -115,11 +115,11 @@ export default async function DashboardPage({
         ))}
       </div>
 
-      {/* Global Threat Intelligence Summary */}
+      {/* Intelligence Correlation Summary */}
       <div className="space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-40 flex items-center gap-2 px-1">
           <ShieldAlert className="h-3 w-3" />
-          Global Threat Intelligence Summary
+          Environment Intelligence Correlation
         </h3>
         <div className="grid gap-4 md:grid-cols-2">
           {stats.map((stat) => (
