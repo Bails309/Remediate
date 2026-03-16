@@ -1373,7 +1373,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 onClick={addComment}
                 disabled={isSubmittingComment || !commentText.trim()}
                 loading={isSubmittingComment}
-                className="bg-[#00C8FF] text-white hover:bg-[#00C8FF]/90"
+                className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950"
               >
                 Post Comment
               </Button>

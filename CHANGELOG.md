@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 
 
+## [1.8.1] - 2026-03-16
+### Fixed
+- **Production Migration Integrity**: Resolved a "column does not exist" error by manually generating the missing Prisma migration for `ThreatSubscription` scheduling fields (`scheduledHour`, `scheduledMinute`, `lastSentAt`).
+- **Status Validation Logic**: Refactored the vulnerability update API to be context-aware, allowing users to toggle between 'In Progress' and 'In Progress with CR' without being forced to re-enter an existing CR number.
+- **UI Contrast Optimization**: Enhanced the accessibility and readability of the "Post Comment" button in dark mode by implementing high-contrast slate text against the cyan background.
+
 ## [1.8.0] - 2026-03-16
 ### Added
 - **Custom Intelligence Scheduling**: Empowered users to configure personalized delivery times (Hour/Minute UTC) for their Daily Threat Intelligence Digest.

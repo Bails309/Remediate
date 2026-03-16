@@ -11,17 +11,6 @@ const patchSchema = z.object({
     assigneeId: z.string().uuid().nullable().optional(),
     status: z.string().optional(),
     crNumber: z.string().optional(),
-}).refine(data => {
-    // If transitioning to InProgressWithCR, a CR number must be provided in the payload
-    // or if the status is already InProgressWithCR, a CR number must be provided if changing status.
-    // However, if they are ONLY updating crNumber, status will be undefined in the payload.
-    if (data.status === "InProgressWithCR" && !data.crNumber) {
-        return false;
-    }
-    return true;
-}, {
-    message: "CR Number is required for 'In Progress with CR' status",
-    path: ["crNumber"]
 });
 
 const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
@@ -47,6 +36,7 @@ interface VulnerabilityWithCollaborators {
     pluginOutput: string | null;
     pluginPublicationDate: Date | null;
     pluginModificationDate: Date | null;
+    status: VulnerabilityStatus;
     crNumber: string | null;
     collaborators: { id: string }[];
 }
@@ -89,7 +79,23 @@ export async function PATCH(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { askForHelp, collaboratorIds, assigneeId, status, crNumber } = patchSchema.parse(await req.json());
+    const body = await req.json();
+    const result = patchSchema.safeParse(body);
+    if (!result.success) {
+        return NextResponse.json({ error: result.error.format() }, { status: 400 });
+    }
+    const { askForHelp, collaboratorIds, assigneeId, status, crNumber } = result.data;
+
+    // Manual validation that respects existing database state
+    const effectiveStatus = status || vulnerability.status;
+    const effectiveCr = crNumber !== undefined ? crNumber : vulnerability.crNumber;
+
+    if (effectiveStatus === "InProgressWithCR" && !effectiveCr) {
+        return NextResponse.json({ 
+            error: "CR Number is required for 'In Progress with CR' status",
+            path: ["crNumber"] 
+        }, { status: 400 });
+    }
 
     if (status && !ACTIVE_STATUSES.includes(status)) {
         // Archiving logic: move to history and delete from active
