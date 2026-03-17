@@ -8,7 +8,6 @@ import { ClientDate } from "@/components/ClientDate";
 import { ThreatSummaryCard } from "@/components/ThreatSummaryCard";
 import { Activity, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/components/cn";
-import { auth } from "@/auth";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -27,7 +26,6 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ bucketId?: string }>;
 }) {
-  const session = await auth();
   const params = await searchParams;
   const bucketId = params.bucketId;
 
@@ -42,7 +40,7 @@ export default async function DashboardPage({
 
   interface RiskGroupRow { risk: string; count: number }
 
-  const [buckets, riskGroups, latestUploads, activeVulnerabilitiesResult, vulnerabilities, dbUser] = await Promise.all([
+  const [buckets, riskGroups, latestUploads, activeVulnerabilitiesResult, vulnerabilities] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
     (prisma as PrismaClient).$queryRawUnsafe(`
       SELECT risk::text, count(*)::int as count FROM (
@@ -69,12 +67,6 @@ export default async function DashboardPage({
       where: bucketId ? { siteId: bucketId } : {},
       select: { risk: true },
     }),
-    session?.user?.email 
-      ? prisma.user.findUnique({ 
-          where: { email: session.user.email },
-          select: { isNewUser: true, completedTours: true }
-        })
-      : Promise.resolve(null)
   ]);
 
   const activeVulnerabilities = activeVulnerabilitiesResult[0]?.count || 0;

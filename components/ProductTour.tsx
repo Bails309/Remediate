@@ -4,7 +4,27 @@ import { useEffect, useRef } from "react";
 import Shepherd from "shepherd.js";
 import type { Tour } from "shepherd.js";
 import { usePathname, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Shield, AlertTriangle, Activity, Database, Upload, Users, Settings, LogOut, Search, Map, ChevronLeft, ChevronRight, Menu, X, BarChart2, Zap, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
+
+
+interface StepOptions {
+  id: string;
+  title?: string;
+  text: string;
+  classes?: string;
+  attachTo?: {
+    element: string | HTMLElement;
+    on: string;
+  };
+  buttons?: Array<{
+    text: string;
+    classes?: string;
+    action: () => void;
+  }>;
+  beforeShowPromise?: () => Promise<void>;
+  when?: Record<string, () => void>;
+  canClickTarget?: boolean;
+  modalOverlayOpeningPadding?: number;
+}
 
 interface Props {
   completedTours: string[];
@@ -59,11 +79,11 @@ export function ProductTour({ completedTours }: Props) {
     // Definitively cleanup any stray instances
     if (tourRef.current) {
       console.error("[ProductTour] Cleanup prior instance.");
-      try { tourRef.current.complete(); } catch(e) {}
+      try { tourRef.current.complete(); } catch { /* ignore */ }
       tourRef.current = null;
     }
 
-    const stepsMap: Record<string, any[]> = {
+    const stepsMap: Record<string, StepOptions[]> = {
       "/dashboard": [
         {
           id: "dashboard-1",
@@ -350,7 +370,7 @@ export function ProductTour({ completedTours }: Props) {
         }
       }
     }
-  }, [pathname, isDebug]);
+  }, [pathname, isDebug, completedTours, completedToursStr]);
 
   // Handle component lifecycle separately
   useEffect(() => {

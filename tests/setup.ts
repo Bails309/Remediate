@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import path from "path";
 
 // Set required environment variables for tests
 process.env.AUTH_SECRET = "test-secret-at-least-32-characters-long-123";

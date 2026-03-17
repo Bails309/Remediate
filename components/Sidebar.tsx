@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { LayoutDashboard, Shield, AlertTriangle, Activity, Database, Upload, Users, Settings, LogOut, Search, Map, ChevronLeft, ChevronRight, Menu, X, BarChart2, Zap, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
+import { Shield, Activity, Upload, Users, Settings, LogOut, ChevronRight, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
