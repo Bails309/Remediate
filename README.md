@@ -6,14 +6,16 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 1.7.0 (2026-03-15)</p>
+  <p><strong>Version:</strong> 2.0.0 (2026-03-17)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
 ## Overview
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
 
-The platform now includes **Enterprise Azure File Share Automation**, allowing for scheduled polling and ingestion of security scans directly from your cloud infrastructure. It also features a comprehensive **Threat Intelligence Centre** with real-time analytics and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states with integrated Change Request tracking.
+The platform now features **Organizational Buckets** (formerly Sites), providing a more flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation**, a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
+
+Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
 Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
 
@@ -48,7 +50,7 @@ Additionally, Remediate features an isolated pentest toolkit service. The main a
   ```
 
 ## Seed Data
-Seed an admin user and a sample site:
+Seed an admin user and a sample bucket:
 ```bash
 docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
 ```
@@ -115,14 +117,14 @@ Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service 
 - Uploads are queued in Redis and processed by the `worker` service.
 - The API stores CSV payloads in Redis temporarily (2-hour TTL) for the worker to consume.
 - Failed uploads retry up to 3 times with exponential backoff before landing in a dead-letter queue.
-- Admins can requeue failed uploads from /admin/dead-letter.
+- Admins can requeue failed uploads from **Operations > Dead Letters**.
 
 ## Threat Intelligence & Reports
 - **Live Feed**: View real-time vulnerability data from NVD, OSV, and CISA KEV in the Intelligence Centre.
 - **Daily Digest**: Configure SMTP and schedule daily vulnerability summaries (08:00 AM) in /dashboard.
 - **Risk Filtering**: Set minimum risk thresholds (Critical/High/etc.) to filter notification noise.
 - **Intelligent Linking**: Direct access to NVD (NIST) and OSV.dev source records for verified intelligence.
-- **Weekly Reports**: Schedule weekly Nessus triage summaries in /admin/reports.
+- **Weekly Reports**: Schedule weekly Nessus triage summaries in **Settings > Reports**.
 - Report settings and OIDC configurations are encrypted in Postgres using AUTH_SECRET.
 
 ### NVD API Access
@@ -154,7 +156,7 @@ npx prisma migrate deploy
 ```
 
 ## Authentication
-- Keycloak OIDC is configured via .env or the Admin UI.
+- OIDC is configured via .env or the **Settings > Authentication** UI.
 - If you prefer UI configuration, set the values in the Admin page and redeploy or restart to pick them up.
 
 To create a portal tile (for example Microsoft MyApplications) that immediately starts SSO when clicked, point the tile at your app's NextAuth provider signin URL. Example:
@@ -222,6 +224,12 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 
 ## Release notes
 
+- **v2.0.0 — 2026-03-17**
+  - **Rebranding**: Complete migration from "Sites" to "Buckets" for organizational scoping.
+  - **Admin Consolidation**: Redesigned administrative menu into unified **Settings** and **Operations** hubs.
+  - **Stability**: Full test suite stabilization (152/152 tests passing).
+  - **Documentation**: Comprehensive upgrade of README and internal walkthroughs.
+
 - **v1.7.0 — 2026-03-15**
   - Feature: Managed Vulnerability Lifecycle (`InProgress` & `InProgressWithCR` statuses).
   - Feature: CR Tracking (Mandatory numeric validation for Change Requests).
@@ -234,30 +242,3 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
   - UI: Real-time automation dashboard with live poll countdowns and manual triggers.
   - Fix: Database schema hardening for automated system imports (Optional `uploadedBy`).
   - Fix: Robust CSV header mapping and date format parsing for diverse report versions.
-
-- **v1.5.0 — 2026-03-14**
-  - Feature: Premium Intelligence Background (Command Centre topographic design).
-  - Architecture: Portaled background implementation for full-viewport coverage.
-  - Fix: Emergency system recovery for Docker environment and build integrity.
-
-- **v1.4.0 — 2026-03-13**
-  - Feature: Intelligent Vulnerability Linking (Dynamic NIST/OSV redirects).
-  - Feature: Localisation audit (UK English "Centre" naming convention).
-  - Testing: Implementation of focused unit and component tests for the Intelligence module.
-  - Fix: Standardised theme-aware colors for high contrast in light and dark modes.
-  - Fix: Resolved stale CVE sorting bug in the live feed.
-
-- **v1.3.0 — 2026-03-12**
-  - Feature: Relocated Threat Intelligence to a dedicated Centre page.
-  - Feature: High-fidelity "Latest Intelligence" dashboard summary card.
-  - Design: System-wide glassmorphism and modern scrollbar implementation.
-  - Interaction: Success/error toast notifications for user interactions.
-
-- **v1.2.0 — 2026-03-11**
-  - Feature: Automated synchronisation with NVD, OSV, and CISA KEV.
-  - Feature: Daily vulnerability email dispatcher with risk filtering.
-
-- **v1.1.6 — 2026-03-10**
-  - Fix: Azure Blob upload/download Node runtime bugs and unified SDK imports.
-  - Fix: JWT/session role propagation improvements.
-  - Health checks and worker/prisma startup enhancements.
