@@ -7,7 +7,11 @@ const mockPrisma: any = {
     updateMany: vi.fn(),
     createMany: vi.fn(),
   },
-  vulnerabilityHistory: { createMany: vi.fn() },
+  vulnerabilityHistory: { 
+    createMany: vi.fn(),
+    findMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
   uploadHistory: { update: vi.fn() },
   $transaction: vi.fn(),
 };
@@ -36,6 +40,7 @@ vi.mock("@/lib/storage", () => ({ getStorageProvider: vi.fn(async () => mockStor
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.vulnerabilityHistory.findMany.mockResolvedValue([]);
 });
 
 describe("processNessusUpload", () => {
@@ -152,5 +157,55 @@ describe("processNessusUpload", () => {
     await expect(processNessusUpload({ uploadId: "u4", siteId: "site-z", storageKey: "k3" })).rejects.toBe(pErr);
     // Ensure cleanup eval was attempted
     expect(mockRedis.eval).toHaveBeenCalled();
+  });
+
+  it("does not recreate vulnerabilities that are in history as FalsePositive", async () => {
+    mockRedis.set.mockResolvedValue("OK");
+    mockStorage.read.mockResolvedValue("csv-data");
+    mockPrisma.importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 0 });
+
+    const { parseNessusCsv } = await import("@/lib/csv");
+    (parseNessusCsv as any).mockImplementation(() => [
+      {
+        pluginId: "400",
+        host: "10.0.0.2",
+        port: "443",
+        risk: "High",
+        pluginPublicationDate: "2020-01-01",
+        name: "Test vuln in history",
+        cve: "CVE-400",
+      },
+    ]);
+
+    // Mock no active vulnerabilities
+    mockPrisma.vulnerability.findMany.mockResolvedValue([]);
+    // Mock existing history vulnerability
+    mockPrisma.vulnerabilityHistory.findMany = vi.fn().mockResolvedValue([
+      {
+        id: "h1",
+        pluginId: "400",
+        host: "10.0.0.2",
+        port: "443",
+        cve: "CVE-400",
+        status: "FalsePositive",
+      },
+    ]);
+    mockPrisma.vulnerabilityHistory.updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({});
+    mockPrisma.vulnerability.createMany = vi.fn().mockResolvedValue({ count: 0 });
+    mockPrisma.uploadHistory.update.mockResolvedValue({});
+
+    const { processNessusUpload } = await import("@/lib/ingest");
+
+    await processNessusUpload({ uploadId: "u5", siteId: "site-y", storageKey: "k5" });
+
+    // Verify that createMany was NOT called as a result of the loop data
+    // (createMany might be called with empty array if not guarded, but our logic guards it)
+    expect(mockPrisma.vulnerability.createMany).not.toHaveBeenCalled();
+    // Verify that history was updated
+    expect(mockPrisma.vulnerabilityHistory.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["h1"] } },
+      data: { lastSeenAt: expect.any(Date) },
+    });
   });
 });

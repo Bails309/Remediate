@@ -120,6 +120,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     }
 
     const activeMap = new Map<string, { id: string }>();
+    const historyMap = new Map<string, { id: string }>();
     const keyList = Array.from(uniqueKeys.values());
 
     for (let i = 0; i < keyList.length; i += chunkSize) {
@@ -134,7 +135,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       const active = await prisma.vulnerability.findMany({
         where: {
           siteId,
-          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
+          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] },
           OR: orClause,
         },
         orderBy: { lastSeenAt: "desc" },
@@ -146,6 +147,22 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
           activeMap.set(key, { id: item.id });
         }
       }
+
+      const history = await prisma.vulnerabilityHistory.findMany({
+        where: {
+          siteId,
+          status: { in: [VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
+          OR: orClause,
+        },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+      for (const item of history) {
+        const key = `${item.pluginId}|${item.host}|${item.port}|${item.cve ?? ""}`;
+        if (!historyMap.has(key)) {
+          historyMap.set(key, { id: item.id });
+        }
+      }
     }
 
     await prisma.vulnerability.updateMany({
@@ -154,14 +171,19 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     });
 
     const touchIds: string[] = [];
+    const touchHistoryIds: string[] = [];
     const createData = [];
 
     let processed = 0;
     for (const row of filteredRows) {
       const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
       const active = activeMap.get(key);
+      const history = historyMap.get(key);
+
       if (active) {
         touchIds.push(active.id);
+      } else if (history) {
+        touchHistoryIds.push(history.id);
       } else {
         const normalizedRiskValue = normalizeRisk(row.risk);
         createData.push({
@@ -206,6 +228,14 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       });
     }
 
+    for (let i = 0; i < touchHistoryIds.length; i += chunkSize) {
+      const chunk = touchHistoryIds.slice(i, i + chunkSize);
+      await prisma.vulnerabilityHistory.updateMany({
+        where: { id: { in: chunk } },
+        data: { lastSeenAt: batchTime },
+      });
+    }
+
     if (createData.length > 0) {
       for (let i = 0; i < createData.length; i += chunkSize) {
         const chunk = createData.slice(i, i + chunkSize);
@@ -246,7 +276,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     });
 
     if (remediated.length > 0) {
-      const historyData = remediated.map((v) => ({
+      const historyData = remediated.map((v: any) => ({
         id: v.id as string,
         siteId: v.siteId as string,
         assigneeId: v.assigneeId as string | null,
@@ -273,7 +303,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       await prisma.$transaction([
         prisma.vulnerabilityHistory.createMany({ data: historyData }),
         prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map((v) => v.id) } },
+          where: { id: { in: remediated.map((v: any) => v.id) } },
         }),
       ]);
       console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);

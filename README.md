@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.0.1 (2026-03-17)</p>
+  <p><strong>Version:</strong> 2.1.0 (2026-03-17)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -223,6 +223,13 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+- **v2.1.0 — 2026-03-17**
+  - **Feature**: Dismissed Finding Persistence (prevents re-creation of False Positives/No Fixes in ingestion).
+  - **Ingest**: Enhanced multi-table lookup for historical triage state.
+
+- **v2.0.1 — 2026-03-17**
+  - **Fix**: Resolved Checkbox Event Propagation in the vulnerability table.
 
 - **v2.0.0 — 2026-03-17**
   - **Rebranding**: Complete migration from "Sites" to "Buckets" for organizational scoping.
