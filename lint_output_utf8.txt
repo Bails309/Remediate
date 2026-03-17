@@ -1,0 +1,24 @@
+﻿
+C:\GitRepos\Remediate\app\(app)\admin\operations\operations-hub-client.tsx
+  4:27  warning  'RefreshCw' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\GitRepos\Remediate\app\(app)\admin\settings\settings-hub-client.tsx
+  4:10  warning  'Shield' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\GitRepos\Remediate\components\ProductTour.tsx
+   17:31  warning  'isNewUser' is defined but never used                                                                                                        @typescript-eslint/no-unused-vars
+   17:58  warning  'nonce' is defined but never used                                                                                                            @typescript-eslint/no-unused-vars
+   21:26  error    Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+   42:20  error    Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+   55:16  error    Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+   62:49  warning  'e' is defined but never used                                                                                                                @typescript-eslint/no-unused-vars
+   66:36  error    Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+  353:6   warning  React Hook useEffect has missing dependencies: 'completedTours' and 'completedToursStr'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\GitRepos\Remediate\components\Sidebar.tsx
+  6:53   warning  'Inbox' is defined but never used     @typescript-eslint/no-unused-vars
+  6:60   warning  'Mail' is defined but never used      @typescript-eslint/no-unused-vars
+  6:147  warning  'Database' is defined but never used  @typescript-eslint/no-unused-vars
+
+Ô£û 13 problems (4 errors, 9 warnings)
+

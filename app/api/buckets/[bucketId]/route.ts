@@ -12,8 +12,8 @@ const updateSchema = z.object({
   autoImportEnabled: z.boolean().optional(),
 });
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ siteId: string }> }) {
-  const { siteId } = await params;
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ bucketId: string }> }) {
+  const { bucketId } = await params;
   const rate = await enforceRateLimit(request);
   if (!rate.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -21,15 +21,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   await requireUser();
   const payload = updateSchema.parse(await request.json());
-  const site = await prisma.site.update({
-    where: { id: siteId },
+  const bucket = await prisma.site.update({
+    where: { id: bucketId },
     data: payload,
   });
-  return NextResponse.json(site);
+  return NextResponse.json(bucket);
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ siteId: string }> }) {
-  const { siteId } = await params;
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ bucketId: string }> }) {
+  const { bucketId } = await params;
   const rate = await enforceRateLimit(request);
   if (!rate.allowed) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -38,7 +38,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await requireUser();
 
   try {
-    await prisma.site.delete({ where: { id: siteId } });
+    await prisma.site.delete({ where: { id: bucketId } });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to delete bucket", error);

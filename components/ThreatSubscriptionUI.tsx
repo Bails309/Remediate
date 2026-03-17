@@ -77,7 +77,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
     };
 
     return (
-        <div className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
+        <div id="tour-threat-subscription" className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-blue-500/10 rounded-lg">
                     <Zap className="w-5 h-5 text-blue-500 dark:text-blue-400" />

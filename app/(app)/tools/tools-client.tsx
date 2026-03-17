@@ -460,7 +460,7 @@ export function ToolsClient({ session }: { session: Session }) {
                 <div
                   key={tool.id}
                   className={cn(
-                    "group relative glass glass-edge rounded-3xl p-6 transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
+                    "group relative glass glass-edge rounded-3xl p-6 transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] cursor-pointer tour-tools-card",
                     isSelected ? "bg-emerald-500/10 border-emerald-500/40 shadow-2xl shadow-emerald-500/10 ring-1 ring-emerald-500/20" : "hover:bg-white/5 border-white/5"
                   )}
                   onClick={() => setSelectedToolId(tool.id)}
@@ -517,7 +517,7 @@ export function ToolsClient({ session }: { session: Session }) {
           </div>
 
           {selectedTool && (
-            <div ref={configRef} className="glass glass-edge rounded-[40px] p-8 mt-4 animate-in slide-in-from-bottom-8 fade-in duration-700 border-emerald-500/20 shadow-2xl shadow-emerald-500/10">
+            <div ref={configRef} className="glass glass-edge rounded-[40px] p-8 mt-4 animate-in slide-in-from-bottom-8 fade-in duration-700 border-emerald-500/20 shadow-2xl shadow-emerald-500/10 tour-tools-config">
               <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
@@ -677,11 +677,11 @@ export function ToolsClient({ session }: { session: Session }) {
           )}
 
           <section className="glass glass-edge rounded-[32px] p-8 w-full">
-            <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500/60 mb-6">
+            <div id="tour-tools-terminal-header" className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500/60 mb-6">
               <TerminalSquare size={14} />
               Terminal Workspace
             </div>
-            <div className="overflow-hidden rounded-3xl bg-[#0A0F1C] border border-white/5 shadow-2xl w-full">
+            <div id="tour-tools-terminal" className="overflow-hidden rounded-3xl bg-[#0A0F1C] border border-white/5 shadow-2xl w-full">
               <div className="flex items-center justify-between border-b border-white/5 px-6 py-4 bg-white/5">
                 <div className="flex items-center gap-4">
                   <div className="flex gap-1.5">
@@ -700,11 +700,11 @@ export function ToolsClient({ session }: { session: Session }) {
                     <p className="text-xl font-bold tracking-[0.2em] opacity-10">EXECUTING COMMAND...</p>
                   </div>
                 ) : error ? (
-                  <pre className="whitespace-pre-wrap text-rose-400/90 font-medium leading-relaxed">
+                  <pre id="tour-tools-pre-error" className="whitespace-pre-wrap text-rose-400/90 font-medium leading-relaxed">
                     <TerminalText text={error} />
                   </pre>
                 ) : (
-                  <pre className="whitespace-pre-wrap leading-relaxed">
+                  <pre id="tour-tools-pre" className="whitespace-pre-wrap leading-relaxed">
                     <TerminalText text={output} fallback="Terminal ready for input. Run an audit to see live results." />
                   </pre>
                 )}

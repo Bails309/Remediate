@@ -16,6 +16,7 @@ type Props = {
     title: string;
     data: TableData[];
     showTotal?: boolean;
+    idProp?: string;
 };
 
 function getCellColor(risk: "Critical" | "High" | "Medium" | "Low" | "Total", count: number) {
@@ -28,7 +29,7 @@ function getCellColor(risk: "Critical" | "High" | "Medium" | "Low" | "Total", co
     return "bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300";
 }
 
-export function HeatmapTable({ title, data, showTotal = false }: Props) {
+export function HeatmapTable({ title, data, showTotal = false, idProp }: Props) {
     return (
         <div className="glass glass-edge rounded-[24px] overflow-hidden">
             {title && (
@@ -38,7 +39,7 @@ export function HeatmapTable({ title, data, showTotal = false }: Props) {
             )}
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-right">
-                    <thead>
+                    <thead id={idProp}>
                         <tr className="bg-[color:var(--color-muted)]/50">
                             <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Name</th>
                             <th className="p-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Critical</th>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { Shield, Upload, LayoutGrid, Bug, Settings, Inbox, Mail, PieChart, LogOut, Activity, Users, ChevronDown, ChevronRight, Briefcase, Wrench, Database } from "lucide-react";
+import { LayoutDashboard, Shield, AlertTriangle, Activity, Database, Upload, Users, Settings, LogOut, Search, Map, ChevronLeft, ChevronRight, Menu, X, BarChart2, Zap, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
@@ -18,13 +18,9 @@ export const baseNav = [
 
 export const adminNavItems = [
   { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage CSV uploads and processing" },
-  { href: "/sites", label: "Buckets", icon: Shield, title: "Manage tracked buckets and their settings" },
-  { href: "/admin/oidc", label: "Auth Settings", icon: Settings, title: "Configure SSO / OIDC providers and callback URLs" },
-  { href: "/admin/storage", label: "Storage Settings", icon: Database, title: "Configure where uploaded scan files are stored (Redis or Azure Blob)" },
-  { href: "/admin/import", label: "Import Settings", icon: Settings, title: "CSV import behavior and thresholds" },
-  { href: "/admin/dead-letter", label: "Dead Letters", icon: Inbox, title: "Review failed uploads and retries" },
-  { href: "/admin/reports", label: "Reports", icon: Mail, title: "Configure weekly report recipients and SMTP settings" },
-  { href: "/admin/health", label: "System Health", icon: Activity, title: "Inspect background workers, DB, and Redis health" },
+  { href: "/buckets", label: "Buckets", icon: Shield, title: "Manage tracked buckets and their settings" },
+  { href: "/admin/settings", label: "Settings", icon: Settings, title: "Configure Auth, Storage, Imports and Reporting" },
+  { href: "/admin/operations", label: "System Status", icon: Activity, title: "Inspect infrastructure health and dead-letter queues" },
   { href: "/admin/users", label: "Users", icon: Users, title: "Manage application users and roles" },
 ];
 
@@ -64,7 +60,7 @@ export function Sidebar({ session }: { session?: Session | null }) {
   const logoSrc = mounted && theme === "light" ? "/logo-light.jpg" : "/logo-dark.jpg";
 
   return (
-    <aside className="glass glass-edge sticky top-6 hidden h-[calc(100vh-3rem)] w-64 flex-col gap-8 rounded-[32px] p-6 lg:flex">
+    <aside id="tour-sidebar" className="glass glass-edge sticky top-6 hidden h-[calc(100vh-3rem)] w-64 flex-col gap-8 rounded-[32px] p-6 lg:flex">
       <div className="flex flex-col items-center gap-4 pt-4 text-center">
         <div className="relative flex h-20 w-20 items-center justify-center rounded-[24px] bg-white/5 p-1 ring-1 ring-white/10 transition-all hover:scale-105 hover:bg-white/10">
           <div className="h-full w-full overflow-hidden rounded-[20px]">

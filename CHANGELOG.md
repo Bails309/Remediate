@@ -3,6 +3,28 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.0.0] - 2026-03-17
+### Added
+- **Administration Menu Consolidation**: Reorganized the administration workspace into logical **Settings** (`/admin/settings`) and **Operations** (`/admin/operations`) hubs, reducing sidebar complexity by 50%.
+- **Buckets Rebranding**: Completed a full-system transition from "Sites" to "Buckets" across all UI elements, routes (`/buckets`), and API endpoints (`/api/buckets`).
+- **Stateful Test Mocking**: Implemented a persistent, stateful Prisma client mock in the test suite to resolve integration test failures and ensure environmental parity.
+
+### Fixed
+- **Product Tour Stability**: Resolved a critical initialization loop and fixed positioning offsets for the Analytics and Tools tours using `fixed` strategy and window-level locks.
+- **Docker Build Regressions**: Fixed lingering TypeScript type mismatches in `layout.tsx` and `ProductTour.tsx` to enable 100% clean production builds.
+- **E2E Test Environment**: Resolved Playwright browser dependency issues to enable full automated verification of the Dockerized application.
+
+## [1.9.0] - 2026-03-16
+### Added
+- **Multi-Page Product Tour**: Implemented an "Ultra-Modern" glassmorphic product tour across Dashboard, Buckets (Sites), and Security Tools using `shepherd.js`.
+- **Onboarding State Tracking**: Integrated with Prisma to track `isNewUser` and `completedTours`, ensuring the tour only triggers when appropriate.
+- **Tour Debug Mode**: Added a `?debugTour=true` query parameter to facilitate repeated tour testing and validation for developers.
+- **Tour Completion API**: Created a secure route handler (`/api/tours/complete`) to persist tour progress for authenticated users.
+
+### Security
+- **Hardened CSP Strategy**: Eliminated deprecated dependencies (`popper.js` v1, `deep-diff`) and transitioned to a strictly nonced CSP for style elements.
+- **Nonce-Based Styling**: Integrated security nonces into the tour component to allow dynamic styling without the risks associated with global `unsafe-inline` directives.
+
 ## [1.8.1] - 2026-03-16
 ### Fixed
 - **Production Migration Integrity**: Resolved a "column does not exist" error by manually generating the missing Prisma migration for `ThreatSubscription` scheduling fields (`scheduledHour`, `scheduledMinute`, `lastSentAt`).

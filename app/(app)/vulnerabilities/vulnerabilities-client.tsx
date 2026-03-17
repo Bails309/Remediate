@@ -612,7 +612,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         <p className="text-sm opacity-70">Filter, assign, and triage vulnerabilities.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <div id="tour-vuln-filters" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <Select
           value={viewScope}
           onChange={(value) => {
@@ -798,6 +798,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           {session?.user?.id && assigneeId === session.user.id ? "All Assignments" : "My Assignments"}
         </Button>
         <Button
+          id="tour-vuln-advanced"
           variant="outline"
           onClick={() => { setFoldDuplicates(!foldDuplicates); setPage(1); }}
           className={cn(
@@ -913,10 +914,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-[28px] border border-slate-200 dark:border-[color:rgba(0,200,255,0.2)] shadow-[0_0_20px_rgba(0,200,255,0.05),0_0_2px_rgba(0,200,255,0.1)] dark:shadow-[0_0_20px_rgba(0,200,255,0.15),0_0_2px_rgba(0,200,255,0.5)] bg-white dark:bg-white/5 backdrop-blur-sm">
+      <div id="tour-vuln-table" className="overflow-x-auto rounded-[28px] border border-slate-200 dark:border-[color:rgba(0,200,255,0.2)] shadow-[0_0_20px_rgba(0,200,255,0.05),0_0_2px_rgba(0,200,255,0.1)] dark:shadow-[0_0_20px_rgba(0,200,255,0.15),0_0_2px_rgba(0,200,255,0.5)] bg-white dark:bg-white/5 backdrop-blur-sm">
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
-            <tr>
+          <thead id="tour-vuln-header" className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
+            <tr id="tour-vuln-table-header">
               <th className="p-4 text-center">
                 {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#00C8FF]" />}
               </th>

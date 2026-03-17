@@ -7,22 +7,22 @@ import { Trash2, AlertTriangle, X } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 
-type Site = { id: string; name: string };
+type Bucket = { id: string; name: string };
 
 type Props = {
-  initialSites: Site[];
+  initialBuckets: Bucket[];
 };
 
-export function SitesClient({ initialSites }: Props) {
-  const [sites, setSites] = useState<Site[]>(initialSites);
+export function BucketsClient({ initialBuckets }: Props) {
+  const [buckets, setBuckets] = useState<Bucket[]>(initialBuckets);
   const [name, setName] = useState("");
-  const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
+  const [bucketToDelete, setBucketToDelete] = useState<Bucket | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const createSite = async () => {
+  const createBucket = async () => {
     if (!name.trim()) return;
     try {
-      const response = await fetch("/api/sites", {
+      const response = await fetch("/api/buckets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -30,7 +30,6 @@ export function SitesClient({ initialSites }: Props) {
 
       let parsed: unknown = null;
       try {
-        // If the server redirected (e.g. to a login page), `response.redirected` will be true
         if (response.redirected || (response.url && response.url.includes("/login"))) {
           toast.error("Not authenticated — please sign in and try again.");
           return;
@@ -53,8 +52,8 @@ export function SitesClient({ initialSites }: Props) {
         return;
       }
 
-      const site = parsed as Site;
-      setSites((prev) => [...prev, site]);
+      const bucket = parsed as Bucket;
+      setBuckets((prev) => [...prev, bucket]);
       setName("");
       toast.success("Bucket added");
     } catch {
@@ -62,25 +61,25 @@ export function SitesClient({ initialSites }: Props) {
     }
   };
 
-  const removeSite = (site: Site) => {
-    setSiteToDelete(site);
+  const removeBucket = (bucket: Bucket) => {
+    setBucketToDelete(bucket);
   };
 
   const confirmDelete = async () => {
-    if (!siteToDelete) return;
+    if (!bucketToDelete) return;
     setIsDeleting(true);
 
     try {
-      const response = await fetch(`/api/sites/${siteToDelete.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/buckets/${bucketToDelete.id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         toast.error(data.error ?? "Failed to remove bucket");
         return;
       }
 
-      setSites((prev) => prev.filter((item) => item.id !== siteToDelete.id));
+      setBuckets((prev) => prev.filter((item) => item.id !== bucketToDelete.id));
       toast.success("Bucket removed");
-      setSiteToDelete(null);
+      setBucketToDelete(null);
     } finally {
       setIsDeleting(false);
     }
@@ -98,24 +97,26 @@ export function SitesClient({ initialSites }: Props) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Create new bucket"
+          id="tour-sites-input"
+          className="tour-sites-input"
         />
-        <Button onClick={createSite} disabled={!name.trim()} title={!name.trim() ? "Enter a bucket name" : undefined}>
+        <Button id="tour-sites-add" onClick={createBucket} disabled={!name.trim()} title={!name.trim() ? "Enter a bucket name" : undefined} className="tour-sites-add">
           Add Bucket
         </Button>
       </div>
 
-      <div className="grid gap-3">
-        {sites.map((site) => (
-          <div key={site.id} className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 py-3">
+      <div className="grid gap-3 tour-sites-list">
+        {buckets.map((bucket) => (
+          <div key={bucket.id} className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--color-border)] bg-[color:var(--color-card)] px-4 py-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{site.name}</p>
-              <p className="truncate text-[11px] opacity-60">Bucket ID: {site.id}</p>
+              <p className="truncate text-sm font-semibold">{bucket.name}</p>
+              <p className="truncate text-[11px] opacity-60">Bucket ID: {bucket.id}</p>
             </div>
             <button
-              onClick={() => removeSite(site)}
+              onClick={() => removeBucket(bucket)}
               className="rounded-md p-2 text-gray-400 transition-colors hover:text-rose-500"
-              aria-label={`Remove ${site.name}`}
-              title={`Remove ${site.name}`}
+              aria-label={`Remove ${bucket.name}`}
+              title={`Remove ${bucket.name}`}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -123,11 +124,11 @@ export function SitesClient({ initialSites }: Props) {
         ))}
       </div>
 
-      {siteToDelete && (
+      {bucketToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-rose-500/20 bg-white dark:bg-slate-900 p-8 shadow-2xl glass glass-edge animate-in zoom-in-95 duration-300">
             <button
-              onClick={() => setSiteToDelete(null)}
+              onClick={() => setBucketToDelete(null)}
               disabled={isDeleting}
               className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
@@ -140,14 +141,14 @@ export function SitesClient({ initialSites }: Props) {
               </div>
               <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">Delete Bucket?</h3>
               <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
-                Are you sure you want to remove <span className="font-bold text-slate-700 dark:text-slate-300">&quot;{siteToDelete.name}&quot;</span>?
+                Are you sure you want to remove <span className="font-bold text-slate-700 dark:text-slate-300">&quot;{bucketToDelete.name}&quot;</span>?
                 This action is permanent and will securely wipe all related uploads and vulnerability data.
               </p>
 
               <div className="flex w-full gap-4">
                 <Button
                   variant="outline"
-                  onClick={() => setSiteToDelete(null)}
+                  onClick={() => setBucketToDelete(null)}
                   disabled={isDeleting}
                   className="flex-1 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
                 >

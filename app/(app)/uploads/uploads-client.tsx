@@ -203,7 +203,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
         finalAliases.push(newAlias.trim());
       }
 
-      const resp = await fetch(`/api/sites/${editingSiteId}`, {
+      const resp = await fetch(`/api/buckets/${editingSiteId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -612,7 +612,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                             onClick={async () => {
                               const newStatus = !site.autoImportEnabled;
                               try {
-                                await fetch(`/api/sites/${site.id}`, {
+                                await fetch(`/api/buckets/${site.id}`, {
                                   method: "PUT",
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ name: site.name, autoImportEnabled: newStatus })

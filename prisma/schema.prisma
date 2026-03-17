@@ -54,6 +54,9 @@ model User {
   pentestExecutions PentestExecution[]
   assignmentNotifications AssignmentNotification[]
   threatSubscription ThreatSubscription?
+  isNewUser     Boolean          @default(true)
+  lastLoginAt   DateTime         @default(now())
+  completedTours String[]        @default([])
   createdAt     DateTime         @default(now())
 }
 

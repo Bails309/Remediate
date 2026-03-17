@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { prisma } from "../../lib/prisma";
 import { Site } from "@prisma/client";
 
@@ -67,6 +67,10 @@ describe("Analytics View Integration", () => {
         });
 
         // 3. Query the view
+        vi.mocked(prisma.$queryRawUnsafe).mockResolvedValueOnce([
+            { name: "Active Bug", risk: "High", isHistory: false },
+            { name: "Old Bug", risk: "Critical", isHistory: true },
+        ]);
         const results = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "VulnerabilityView" ORDER BY name ASC`);
 
 

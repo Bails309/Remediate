@@ -8,6 +8,7 @@ import { ClientDate } from "@/components/ClientDate";
 import { ThreatSummaryCard } from "@/components/ThreatSummaryCard";
 import { Activity, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/components/cn";
+import { auth } from "@/auth";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -26,6 +27,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ bucketId?: string }>;
 }) {
+  const session = await auth();
   const params = await searchParams;
   const bucketId = params.bucketId;
 
@@ -40,7 +42,7 @@ export default async function DashboardPage({
 
   interface RiskGroupRow { risk: string; count: number }
 
-  const [buckets, riskGroups, latestUploads, activeVulnerabilitiesResult, vulnerabilities] = await Promise.all([
+  const [buckets, riskGroups, latestUploads, activeVulnerabilitiesResult, vulnerabilities, dbUser] = await Promise.all([
     prisma.site.findMany({ orderBy: { name: "asc" } }),
     (prisma as PrismaClient).$queryRawUnsafe(`
       SELECT risk::text, count(*)::int as count FROM (
@@ -67,6 +69,12 @@ export default async function DashboardPage({
       where: bucketId ? { siteId: bucketId } : {},
       select: { risk: true },
     }),
+    session?.user?.email 
+      ? prisma.user.findUnique({ 
+          where: { email: session.user.email },
+          select: { isNewUser: true, completedTours: true }
+        })
+      : Promise.resolve(null)
   ]);
 
   const activeVulnerabilities = activeVulnerabilitiesResult[0]?.count || 0;
@@ -94,17 +102,17 @@ export default async function DashboardPage({
       {/* Header & Filter Row */}
       <div className="flex flex-wrap items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Remediation Command Centre</h1>
+          <h1 id="tour-dashboard-title" className="text-3xl font-bold tracking-tight">Remediation Command Centre</h1>
           <p className="text-sm opacity-60 mt-1">Holistic view of your operational security posture.</p>
         </div>
-        <div className="glass glass-edge px-4 py-2 rounded-2xl flex items-center gap-4">
+        <div className="tour-bucket-filter glass glass-edge px-4 py-2 rounded-2xl flex items-center gap-4">
           <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Filter</span>
           <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
         </div>
       </div>
 
       {/* Operational Posture Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div id="tour-dashboard-stats" className="tour-stat-cards grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {riskOrder.map((risk) => (
           <StatCard
             key={risk}
@@ -116,7 +124,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Intelligence Correlation Summary */}
-      <div className="space-y-6">
+      <div id="tour-dashboard-correlation" className="tour-threat-intel space-y-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-40 flex items-center gap-2 px-1">
           <ShieldAlert className="h-3 w-3" />
           Environment Intelligence Correlation

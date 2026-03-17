@@ -50,7 +50,7 @@ export function ThreatSummaryCard() {
   }
 
   return (
-    <div className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
+    <div id="tour-live-intelligence" className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
       <div className="flex items-center justify-between mb-8">
         <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
           <Activity className="h-4 w-4" />

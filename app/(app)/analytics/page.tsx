@@ -110,7 +110,8 @@ export default async function AnalyticsPage({
         SELECT risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") risk
             FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR') AND \"assigneeId\" IS NULL" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR') AND \"assigneeId\" IS NULL"}
+            ${whereClause}
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND "assigneeId" IS NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY risk
@@ -188,7 +189,8 @@ export default async function AnalyticsPage({
         SELECT "assigneeId"::text as "assigneeId", risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") "assigneeId", risk
             FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR') AND \"assigneeId\" IS NOT NULL" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR') AND \"assigneeId\" IS NOT NULL"}
+            ${whereClause}
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND "assigneeId" IS NOT NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY "assigneeId", risk
@@ -275,7 +277,8 @@ export default async function AnalyticsPage({
         SELECT host::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
             FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR')" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')"}
+            ${whereClause}
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY host, risk
@@ -304,7 +307,8 @@ export default async function AnalyticsPage({
         SELECT name::text, risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
             FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR')" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')"}
+            ${whereClause}
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY name, risk
@@ -333,7 +337,8 @@ export default async function AnalyticsPage({
         SELECT "createdAt", risk::text FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") "createdAt", risk
             FROM "Vulnerability"
-            ${whereClause ? whereClause + " AND status IN ('Open', 'InProgress', 'InProgressWithCR')" : "WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')"}
+            ${whereClause}
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
             ORDER BY name, host, port, "pluginId", "createdAt" ASC
         ) as groups
     `, ...values)) as AgingRow[];
@@ -379,7 +384,7 @@ export default async function AnalyticsPage({
 
     return (
         <div className="space-y-8">
-            <div className="glass glass-edge rounded-[32px] p-6 lg:p-8">
+            <div id="tour-analytics-overview" className="glass glass-edge rounded-[32px] p-6 lg:p-8">
                 <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-semibold">Analytics Overview</h2>
@@ -388,7 +393,7 @@ export default async function AnalyticsPage({
                     <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
                 </div>
 
-                <div className="mt-8 overflow-hidden rounded-[24px] border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 pt-6">
+                <div id="tour-analytics-trend" className="mt-8 overflow-hidden rounded-[24px] border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 pt-6">
                     <div className="flex items-center justify-between px-6 pb-4">
                         <h3 className="text-lg font-semibold">Vulnerability Levels Over Time</h3>
                         <TrendRangeFilter selected={range} />
@@ -399,7 +404,7 @@ export default async function AnalyticsPage({
 
             <div className="grid gap-6 lg:grid-cols-2">
                 <div className="space-y-6">
-                    <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+                    <div id="tour-analytics-hosts" className="glass glass-edge rounded-[28px] p-6 lg:p-8">
                         <h3 className="mb-6 font-semibold text-lg">Top 6 Most Vulnerable Hosts</h3>
                         <HeatmapTable title="" data={topHostsData} showTotal={true} />
                     </div>

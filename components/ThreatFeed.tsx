@@ -60,7 +60,7 @@ export function ThreatFeed() {
   }
 
   return (
-    <div className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full overflow-hidden">
+    <div id="tour-threat-feed" className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full overflow-hidden">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h3 className="text-xl font-bold flex items-center gap-2">

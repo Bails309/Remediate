@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
-const siteSchema = z.object({
+const bucketSchema = z.object({
   name: z.string().min(2),
 });
 
@@ -29,12 +29,12 @@ export async function POST(request: NextRequest) {
   await requireUser();
   const raw = await request.json().catch(() => ({}));
   const name = typeof raw.name === "string" ? raw.name.trim() : raw.name;
-  const parsed = siteSchema.safeParse({ name });
+  const parsed = bucketSchema.safeParse({ name });
   if (!parsed.success) {
     const message = parsed.error?.issues?.map((i) => i.message).join(", ") || "Invalid payload";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const site = await prisma.site.create({ data: parsed.data });
-  return NextResponse.json(site, { status: 201 });
+  const bucket = await prisma.site.create({ data: parsed.data });
+  return NextResponse.json(bucket, { status: 201 });
 }

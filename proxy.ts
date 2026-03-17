@@ -43,9 +43,21 @@ const proxyHandler = auth((req: AuthRequest) => {
     return NextResponse.next();
 });
 
+function getOrCreateNonce(req: NextRequest, responseHeaders: Headers) {
+    const cookieNonce = req.cookies.get("x-nonce")?.value;
+    if (cookieNonce) return cookieNonce;
+
+    const newNonce = btoa(Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2));
+    // Set cookie for subsequent sub-requests to keep nonce stable during SPA session
+    responseHeaders.append("Set-Cookie", `x-nonce=${newNonce}; Path=/; HttpOnly; SameSite=Lax`);
+    return newNonce;
+}
+
 export async function proxy(...args: Parameters<typeof proxyHandler>) {
     const [req] = args;
-    const nonce = btoa(globalThis.crypto.randomUUID());
+    const responseHeaders = new Headers();
+    const nonce = getOrCreateNonce(req, responseHeaders);
+    
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("x-nonce", nonce);
 
@@ -75,14 +87,21 @@ export async function proxy(...args: Parameters<typeof proxyHandler>) {
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     response.headers.set('x-nonce', nonce);
+    
+    // Copy any Set-Cookie headers from our nonce generation
+    responseHeaders.forEach((value, key) => {
+        if (key.toLowerCase() === 'set-cookie') {
+            response.headers.append(key, value);
+        }
+    });
 
     // Development tooling injects styles without a nonce. In dev we allow inline styles;
-    // in production we keep a nonce-based style policy.
-    const styleSrc = process.env.NODE_ENV === 'production'
-        ? ["'self'", `'nonce-${nonce}'`]
-        : ["'self'", "'unsafe-inline'"];
+    // in production we follow a strict script policy but allow inline styles for the tour.
+    const styleSrc = ["'self'", "'unsafe-inline'"];
+    const styleSrcElem = ["'self'", "'unsafe-inline'"];
+    const styleSrcAttr = ["'unsafe-inline'"];
 
-    let csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src ${styleSrc.join(" ")}; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`;
+    let csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src ${styleSrc.join(" ")}; style-src-elem ${styleSrcElem.join(" ")}; style-src-attr ${styleSrcAttr.join(" ")}; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`;
 
     if (isHttps) {
         response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
