@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.3.0] - 2026-03-17
+### Changed
+- **Dependency Update**: Bumped `next` and `eslint-config-next` to version `16.1.7` to leverage latest performance improvements and security patches.
+- **Verification**: Completed a full verification suite including 150+ unit tests, linting, and production builds.
+
 ## [2.2.0] - 2026-03-17
 ### Added
 - **Weekly Assignment Notifications**: Implemented a "Security Briefing" email system that sends a summary of active assignments to users every Monday at 8 AM UTC.
