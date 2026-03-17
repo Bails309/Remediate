@@ -340,7 +340,7 @@ export function ProductTour({ completedTours }: Props) {
       });
 
       tourRef.current = tour;
-      tour.addSteps(currentSteps);
+      tour.addSteps(currentSteps as any);
       
       tour.on("complete", () => handleTourComplete(tourId));
       tour.on("cancel", () => handleTourComplete(tourId));
