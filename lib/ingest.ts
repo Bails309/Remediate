@@ -276,7 +276,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     });
 
     if (remediated.length > 0) {
-      const historyData = remediated.map((v: any) => ({
+      const historyData = remediated.map((v) => ({
         id: v.id as string,
         siteId: v.siteId as string,
         assigneeId: v.assigneeId as string | null,
@@ -303,7 +303,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       await prisma.$transaction([
         prisma.vulnerabilityHistory.createMany({ data: historyData }),
         prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map((v: any) => v.id) } },
+          where: { id: { in: remediated.map((v) => v.id) } },
         }),
       ]);
       console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);

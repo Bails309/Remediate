@@ -2,13 +2,13 @@ import { prisma } from "./prisma";
 import { getReportConfig } from "./reports";
 import { sendEmail } from "./email";
 import { renderWeeklyAssignmentEmail, AssignmentItem } from "./assignment-email";
-// Using any for VulnerabilityStatus to bypass persistent environment-specific Prisma export issues
-type VulnerabilityStatus = any;
+// Using internal types to bypass environment-specific Prisma export issues while maintaining lint compliance
+type VulnerabilityStatusLabel = "Open" | "InProgress" | "InProgressWithCR" | "Remediated" | "FalsePositive" | "NoFixAvailable";
 const VulnerabilityStatus = {
-    Open: "Open",
-    InProgress: "InProgress",
-    InProgressWithCR: "InProgressWithCR"
-} as any;
+    Open: "Open" as VulnerabilityStatusLabel,
+    InProgress: "InProgress" as VulnerabilityStatusLabel,
+    InProgressWithCR: "InProgressWithCR" as VulnerabilityStatusLabel
+};
 
 export async function dispatchWeeklyAssignmentEmails() {
     console.log("[WeeklyAssignments] Starting dispatch process...");
@@ -44,12 +44,12 @@ export async function dispatchWeeklyAssignmentEmails() {
         if (!user.email) continue;
 
         // Combine primary and collaborative vulnerabilities, ensuring uniqueness
-        const vulnMap = new Map<string, any>();
+        const vulnMap = new Map<string, AssignmentItem>();
         
-        user.vulnerabilities.forEach((v: any) => vulnMap.set(v.id, v));
-        user.collaboratingVulnerabilities.forEach((v: any) => vulnMap.set(v.id, v));
+        user.vulnerabilities.forEach((v) => vulnMap.set(v.id, v as unknown as AssignmentItem));
+        user.collaboratingVulnerabilities.forEach((v) => vulnMap.set(v.id, v as unknown as AssignmentItem));
         
-        const assignments: AssignmentItem[] = Array.from(vulnMap.values()).map((v: any) => ({
+        const assignments: AssignmentItem[] = Array.from(vulnMap.values()).map((v: AssignmentItem) => ({
             id: v.id,
             name: v.name,
             risk: v.risk,

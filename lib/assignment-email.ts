@@ -1,5 +1,5 @@
 import { renderEmailLayout } from "./email";
-type Risk = any;
+type Risk = "Critical" | "High" | "Medium" | "Low" | "None";
 
 export interface AssignmentItem {
     id: string;
@@ -8,6 +8,16 @@ export interface AssignmentItem {
     host: string;
     port: string;
     status: string;
+}
+
+interface RiskStyle {
+    bg: string;
+    text: string;
+    border: string;
+}
+
+interface RiskStyles {
+    [key: string]: RiskStyle;
 }
 
 export function renderWeeklyAssignmentEmail(user: { name: string }, assignments: AssignmentItem[]) {
@@ -19,7 +29,7 @@ export function renderWeeklyAssignmentEmail(user: { name: string }, assignments:
     const high = assignments.filter(a => a.risk === "High");
     const others = assignments.filter(a => a.risk !== "Critical" && a.risk !== "High");
 
-    const riskStyles = {
+    const riskStyles: RiskStyles = {
         Critical: { bg: "#fef2f2", text: "#ef4444", border: "#fee2e2" },
         High: { bg: "#fffaf0", text: "#f97316", border: "#ffedd5" },
         Medium: { bg: "#f0f9ff", text: "#0ea5e9", border: "#e0f2fe" },
@@ -101,7 +111,7 @@ export function renderWeeklyAssignmentEmail(user: { name: string }, assignments:
     });
 }
 
-function renderAssignmentCards(items: AssignmentItem[], styles: any, appUrl: string) {
+function renderAssignmentCards(items: AssignmentItem[], styles: RiskStyles, appUrl: string) {
     return items.map(item => {
         const style = styles[item.risk] || styles.None;
         const vulnUrl = `${appUrl}/vulnerabilities?id=${item.id}`;
