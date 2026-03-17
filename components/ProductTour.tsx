@@ -13,7 +13,7 @@ interface StepOptions {
   classes?: string;
   attachTo?: {
     element: string | HTMLElement;
-    on: string;
+    on: 'top' | 'top-start' | 'top-end' | 'bottom' | 'bottom-start' | 'bottom-end' | 'left' | 'left-start' | 'left-end' | 'right' | 'right-start' | 'right-end';
   };
   buttons?: Array<{
     text: string;
@@ -24,6 +24,10 @@ interface StepOptions {
   when?: Record<string, () => void>;
   canClickTarget?: boolean;
   modalOverlayOpeningPadding?: number;
+  modalOverlayOpeningRadius?: number;
+  scrollTo?: boolean | ScrollIntoViewOptions;
+  cancelIcon?: { enabled: boolean };
+  floatingUIOptions?: Record<string, unknown>;
 }
 
 interface Props {
@@ -340,6 +344,7 @@ export function ProductTour({ completedTours }: Props) {
       });
 
       tourRef.current = tour;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tour.addSteps(currentSteps as any);
       
       tour.on("complete", () => handleTourComplete(tourId));
