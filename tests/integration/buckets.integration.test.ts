@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET, POST } from "../../app/api/sites/route";
+import { GET, POST } from "../../app/api/buckets/route";
 import { prisma } from "../../lib/prisma";
 import { NextRequest } from "next/server";
 
@@ -11,7 +11,7 @@ vi.mock("../../lib/rate-limit", () => ({
     enforceRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }));
 
-describe("Sites API Integration", () => {
+describe("Buckets API Integration", () => {
     beforeEach(async () => {
         vi.clearAllMocks();
         // Cleanup in correct order
@@ -21,8 +21,8 @@ describe("Sites API Integration", () => {
         await prisma.site.deleteMany();
     });
 
-    it("POST /api/sites creates a new site", async () => {
-        const req = new NextRequest("http://localhost/api/sites", {
+    it("POST /api/buckets creates a new bucket", async () => {
+        const req = new NextRequest("http://localhost/api/buckets", {
             method: "POST",
             body: JSON.stringify({ name: "Berlin Data Centre" })
         });
@@ -37,16 +37,16 @@ describe("Sites API Integration", () => {
         expect(dbSite).toBeDefined();
     });
 
-    it("GET /api/sites returns list of sites", async () => {
-        await prisma.site.create({ data: { name: "Site A" } });
-        await prisma.site.create({ data: { name: "Site B" } });
+    it("GET /api/buckets returns list of buckets", async () => {
+        await prisma.site.create({ data: { name: "Bucket A" } });
+        await prisma.site.create({ data: { name: "Bucket B" } });
 
-        const req = new NextRequest("http://localhost/api/sites");
+        const req = new NextRequest("http://localhost/api/buckets");
         const res = await GET(req);
         expect(res.status).toBe(200);
 
         const data = await res.json();
         expect(data.length).toBe(2);
-        expect(data[0].name).toBe("Site A");
+        expect(data[0].name).toBe("Bucket A");
     });
 });

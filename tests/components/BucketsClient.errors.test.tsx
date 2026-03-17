@@ -1,20 +1,20 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { SitesClient } from "@/app/(app)/sites/sites-client";
+import { BucketsClient } from "@/app/(app)/buckets/buckets-client";
 import { toast } from "@/lib/toast";
 
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
-describe("SitesClient error flows", () => {
+describe("BucketsClient error flows", () => {
   it("shows error when create fails", async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "boom" }) } as any) as unknown as typeof fetch);
 
     const toastErr = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
-    render(<SitesClient initialSites={[]} />);
+    render(<BucketsClient initialBuckets={[]} />);
 
     const input = screen.getByPlaceholderText("Create new bucket");
     fireEvent.change(input, { target: { value: "Cannot Create" } });
@@ -27,10 +27,10 @@ describe("SitesClient error flows", () => {
     toastErr.mockRestore();
   });
 
-  it("shows error when delete fails and keeps the site", async () => {
+  it("shows error when delete fails and keeps the bucket", async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.toString() : (input as any).url);
-      if (url.includes("/api/sites/") && url.includes("/api/sites/") ) {
+      if (url.includes("/api/buckets/") && url.includes("/api/buckets/") ) {
         // DELETE path
         return Promise.resolve({ ok: false, json: async () => ({ error: "boom" }) } as any);
       }
@@ -39,9 +39,9 @@ describe("SitesClient error flows", () => {
 
     const toastErr = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
-    render(<SitesClient initialSites={[{ id: "s1", name: "Site 1" }]} />);
+    render(<BucketsClient initialBuckets={[{ id: "b1", name: "Bucket 1" }]} />);
 
-    const removeBtn = screen.getByLabelText("Remove Site 1");
+    const removeBtn = screen.getByLabelText("Remove Bucket 1");
     fireEvent.click(removeBtn);
 
     // Click the modal confirm button
@@ -49,7 +49,7 @@ describe("SitesClient error flows", () => {
     fireEvent.click(confirmBtn);
 
     await waitFor(() => expect(toastErr).toHaveBeenCalled());
-    expect(screen.getByText("Site 1")).toBeTruthy();
+    expect(screen.getByText("Bucket 1")).toBeTruthy();
 
     toastErr.mockRestore();
   });
