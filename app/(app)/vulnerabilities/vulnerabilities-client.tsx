@@ -919,7 +919,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           <thead id="tour-vuln-header" className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
             <tr id="tour-vuln-table-header">
               <th className="p-4 text-center">
-                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-[#00C8FF]" />}
+                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : <input type="checkbox" checked={allSelected} onChange={toggleAll} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />}
               </th>
               <th className="p-4">Issue</th>
               <th className="p-4">Host</th>
@@ -942,7 +942,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                           Archived
                         </Badge>
                       ) : (
-                        <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item)} className="accent-[#00C8FF]" />
+                        <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item)} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />
                       )}
                     </td>
                     <td className="p-4">
@@ -993,6 +993,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                         type="checkbox"
                         checked={isGroupSelected(group)}
                         onChange={() => toggleGroupSelect(group)}
+                        onClick={(e) => e.stopPropagation()}
                         className="accent-[#00C8FF]"
                       />
                     )}
@@ -1050,6 +1051,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                                   type="checkbox"
                                   checked={selected.includes(member.id)}
                                   onChange={() => toggleSelect(member)}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="mt-1 accent-[#00C8FF]"
                                 />
                               )}

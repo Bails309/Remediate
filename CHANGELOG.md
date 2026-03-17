@@ -3,6 +3,10 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.0.1] - 2026-03-17
+### Fixed
+- **Vulnerability Table**: Resolved an issue where clicking a row checkbox unexpectedly triggered the row click handler, opening the detail side card.
+
 ## [2.0.0] - 2026-03-17
 ### Added
 - **Administration Menu Consolidation**: Reorganized the administration workspace into logical **Settings** (`/admin/settings`) and **Operations** (`/admin/operations`) hubs, reducing sidebar complexity by 50%.
