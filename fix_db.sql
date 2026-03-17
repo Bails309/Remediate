@@ -1,1 +1,0 @@
-ALTER TABLE "UploadHistory" ALTER COLUMN "uploadedBy" DROP NOT NULL;
