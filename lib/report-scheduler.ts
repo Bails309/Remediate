@@ -4,6 +4,7 @@ import { getWeeklyCriticalHighSummary } from "@/lib/report-analytics";
 import { sendReportEmail, renderEmailLayout } from "@/lib/email";
 import { syncAllThreats } from "./threat-intelligence/worker";
 import { dispatchDailyThreatDigest } from "./threat-intelligence/dispatcher";
+import { dispatchWeeklyAssignmentEmails } from "./assignment-notifications";
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 
@@ -51,10 +52,15 @@ export function startReportScheduler() {
       }
 
       const lastSentAt = config.lastSentAt ? new Date(config.lastSentAt) : null;
-      if (!isTimeToSend(config, lastSentAt)) {
-        // Fall through to other daily tasks even if the weekly report isn't ready
-      } else {
+      if (isTimeToSend(config, lastSentAt)) {
         await sendWeeklyReport(config);
+      }
+
+      // 3. Weekly Assignment Notifications (Monday 8:00 AM UTC/Z)
+      const now = new Date();
+      if (now.getUTCDay() === 1 && now.getUTCHours() === 8 && now.getUTCMinutes() === 0) {
+          console.log("[Scheduler] 08:00 Monday window reached. Triggering weekly assignment notifications...");
+          await dispatchWeeklyAssignmentEmails();
       }
 
       await handleDailyThreatIntelligence();

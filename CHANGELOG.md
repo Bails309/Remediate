@@ -3,11 +3,15 @@
 All notable changes to this project are documented in this file.
 
 
-## [2.1.0] - 2026-03-17
+## [2.2.0] - 2026-03-17
 ### Added
-- **Dismissed Finding Persistence**: Enhanced CSV ingestion logic to query the `VulnerabilityHistory` table. This ensures that vulnerabilities marked as 'False Positive' or 'No Fix' are not recreated as 'Open' during subsequent uploads, but instead have their historical records updated with a new "Last Seen" timestamp.
+- **Weekly Assignment Notifications**: Implemented a "Security Briefing" email system that sends a summary of active assignments to users every Monday at 8 AM UTC.
+- **Ultra-Modern Email Templates**: Expanded the premium design system to include dedicated per-user assignment digests with high-contrast Bento stats and risk-coded cards.
 
-## [2.0.1] - 2026-03-17
+### Fixed
+- **Dismissed Finding Persistence**: Corrected a bug where vulnerabilities previously marked as 'False Positive' or 'No Fix' were recreated as 'Open' during subsequent uploads. The system now correctly touches historical records in `VulnerabilityHistory` instead.
+
+## [2.1.0] - 2026-03-17
 ### Fixed
 - **Vulnerability Table**: Resolved an issue where clicking a row checkbox unexpectedly triggered the row click handler, opening the detail side card.
 

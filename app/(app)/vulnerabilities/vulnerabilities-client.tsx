@@ -132,7 +132,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [selectedMeta, setSelectedMeta] = useState<Record<string, SelectedAssignmentMeta>>({});
   const [viewScope, setViewScope] = useState<ViewScope>("active");
   const [siteId, setSiteId] = useState("");
-  const [status, setStatus] = useState("Open");
+  const [status, setStatus] = useState("");
   const [risk, setRisk] = useState("");
   const [archivedFrom, setArchivedFrom] = useState("");
   const [archivedTo, setArchivedTo] = useState("");
@@ -627,9 +627,6 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             if (nextScope === "archived" && status === "Open") {
               setStatus("");
             }
-            if (nextScope === "active" && !status) {
-              setStatus("Open");
-            }
           }}
           options={[
             { label: "Active Findings", value: "active" },
@@ -787,7 +784,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           onClick={() => {
             if (session?.user?.id) {
               const currentUserId = session.user.id;
-              setAssigneeId((current) => (current === currentUserId ? "" : currentUserId));
+              if (assigneeId !== currentUserId) {
+                setAssigneeId(currentUserId);
+                setStatus("");
+                setPage(1);
+              } else {
+                setAssigneeId("");
+                setPage(1);
+              }
             } else {
               toast.error("Missing user session");
             }

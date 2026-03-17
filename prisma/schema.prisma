@@ -57,6 +57,7 @@ model User {
   isNewUser     Boolean          @default(true)
   lastLoginAt   DateTime         @default(now())
   completedTours String[]        @default([])
+  lastWeeklyAssignmentReportAt DateTime?
   createdAt     DateTime         @default(now())
 }
 
