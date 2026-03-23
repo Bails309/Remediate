@@ -13,6 +13,7 @@ import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { Dialog } from "@/components/Dialog";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -158,6 +159,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [isUpdatingCollaboration, setIsUpdatingCollaboration] = useState(false);
   const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
   const [pendingDetailAssignment, setPendingDetailAssignment] = useState<PendingDetailAssignment | null>(null);
+  const [bulkCrDialogOpen, setBulkCrDialogOpen] = useState(false);
+  const [bulkCrValue, setBulkCrValue] = useState("");
 
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
@@ -283,7 +286,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     });
 
     if (!response.ok) {
-      toast.error("Bulk update failed");
+      const errorData = await response.json().catch(() => ({}));
+      toast.error(errorData.error || "Failed to update assignee");
       return;
     }
 
@@ -324,16 +328,16 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     void commitAssignment(nextAssigneeId);
   };
 
-  const updateStatus = async (value: string) => {
-    if (selected.length === 0) return;
+  const commitBulkStatus = async (value: string, crNumber?: string) => {
     const response = await fetch("/api/vulnerabilities/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: selected, status: value }),
+      body: JSON.stringify({ ids: selected, status: value, crNumber }),
     });
 
     if (!response.ok) {
-      toast.error("Status update failed");
+      const errorData = await response.json().catch(() => ({}));
+      toast.error(errorData.error || "Status update failed");
       return;
     }
 
@@ -342,7 +346,20 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     setBulkStatus("");
     setSubItems({});
     setExpandedGroups(new Set());
+    setBulkCrDialogOpen(false);
+    setBulkCrValue("");
     fetchData();
+  };
+
+  const updateStatus = async (value: string) => {
+    if (selected.length === 0) return;
+
+    if (value === "InProgressWithCR") {
+      setBulkCrDialogOpen(true);
+      return;
+    }
+
+    void commitBulkStatus(value);
   };
 
   const selectedCount = selected.length;
@@ -520,7 +537,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     });
 
     if (!res.ok) {
-      toast.error("Failed to update assignee");
+      const errorData = await res.json().catch(() => ({}));
+      toast.error(errorData.error || "Failed to update assignee");
       return;
     }
 
@@ -1434,6 +1452,61 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         </div>
         ) : null}
       </SideSheet>
+
+      <Dialog
+        open={bulkCrDialogOpen}
+        onClose={() => {
+          setBulkCrDialogOpen(false);
+          setBulkStatus("");
+          setBulkCrValue("");
+        }}
+        title="Enter CR Number"
+        footer={
+          <>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setBulkCrDialogOpen(false);
+                setBulkStatus("");
+                setBulkCrValue("");
+              }}
+              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => void commitBulkStatus("InProgressWithCR", bulkCrValue)}
+              disabled={!bulkCrValue.trim()}
+            >
+              Confirm Update
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Please enter the Change Request (CR) number to be applied to the <span className="font-bold text-slate-900 dark:text-white">{selected.length}</span> selected vulnerabilities.
+          </p>
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">CR Number</p>
+            <Input
+              value={bulkCrValue}
+              placeholder="e.g. 12345"
+              autoFocus
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9]/g, "");
+                setBulkCrValue(val);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && bulkCrValue.trim()) {
+                  void commitBulkStatus("InProgressWithCR", bulkCrValue);
+                }
+              }}
+              className="bg-slate-50 dark:bg-black/20"
+            />
+          </div>
+        </div>
+      </Dialog>
     </div >
   );
 }

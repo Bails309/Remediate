@@ -3,6 +3,32 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.3.9] - 2026-03-23
+### Fixed
+- **Dialog Aesthetics**: Refined the "Confirm Update" button styling to align with the application's semi-transparent themed gradients. Replaced high-contrast custom classes with the standard `primary` and `ghost` button variants.
+
+## [2.3.8] - 2026-03-23
+### Added
+- **Global Assignment Consistency**: Enforced the restricted assignment RBAC (self/unassign only for non-admins) across all update paths, including bulk actions and inline list editing.
+- **Unified Error Handling**: Updated all vulnerability update triggers to display specific server-side error messages, providing clear feedback when an action is blocked by policy.
+
+## [2.3.7] - 2026-03-23
+### Added
+- **Restricted Assignment RBAC**: Hardened the assignment policy for standard users. Non-admins are now limited to self-assignment or unassigning issues. Reassignment to other users is restricted to Admins.
+- **Friendly Error Messages**: Improved error handling on both the backend and frontend. The system now provides descriptive feedback in the UI (e.g., "Standard users can only assign to themselves or Unassigned") when a permission-based action is blocked.
+
+## [2.3.6] - 2026-03-23
+### Fixed
+- **Self-Assignment Permissions**: Resolved a bug where non-admin users could not assign vulnerabilities to themselves from the detailed view. The RBAC logic now correctly supports "taking ownership" of unassigned findings.
+
+## [2.3.5] - 2026-03-23
+### Added
+- **Themed Bulk Prompt**: Replaced the native browser `window.prompt` with a custom, ultra-modern `Dialog` component for bulk CR number entry. This ensures a consistent "CyberDefend" aesthetic throughout the triage workflow.
+
+## [2.3.4] - 2026-03-23
+### Added
+- **Bulk CR Number Support**: Implemented a prompt for Change Request (CR) numbers during bulk status updates to 'In Progress with CR'. This significantly improves productivity when triaging large groups of folded vulnerabilities.
+
 ## [2.3.3] - 2026-03-23
 ### Fixed
 - **Analytics Chart Units**: Resolved a bug in the "Vulnerability Aging (SLA)" chart where counts were incorrectly suffixed with "Days" in the tooltip. The `BarChart` component now supports context-aware units.

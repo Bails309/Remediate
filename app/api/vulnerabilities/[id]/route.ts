@@ -73,18 +73,46 @@ export async function PATCH(
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
-    const isAssignee = vulnerability.assigneeId === user.id;
-
-    if (!isAdmin && !isAssignee) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const body = await req.json();
     const result = patchSchema.safeParse(body);
     if (!result.success) {
         return NextResponse.json({ error: result.error.format() }, { status: 400 });
     }
     const { askForHelp, collaboratorIds, assigneeId, status, crNumber } = result.data;
+
+    // RBAC Rules for Non-Admins:
+    // 1. Cannot assign to anyone other than themselves or "Unassigned".
+    // 2. If not the current owner, can ONLY perform self-assignment (no other changes).
+    // 3. If the current owner, can perform all changes but still cannot assign to others.
+    const isAssignee = vulnerability.assigneeId === user.id;
+    const isTargetingSelf = assigneeId === user.id;
+    const isTargetingNull = assigneeId === null;
+
+    if (!isAdmin) {
+        // Prevent assigning to others
+        if (assigneeId !== undefined && !isTargetingSelf && !isTargetingNull) {
+            return NextResponse.json({ 
+                error: "Standard users can only assign to themselves or Unassigned" 
+            }, { status: 403 });
+        }
+
+        // If not the current owner
+        if (!isAssignee) {
+            if (isTargetingSelf) {
+                // Limit to self-assignment only
+                const modifiedKeys = Object.keys(result.data).filter(
+                    (k) => result.data[k as keyof typeof result.data] !== undefined
+                );
+                if (modifiedKeys.length > 1) {
+                    return NextResponse.json({ 
+                        error: "You must take ownership before making other changes" 
+                    }, { status: 403 });
+                }
+            } else {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+        }
+    }
 
     // Manual validation that respects existing database state
     const effectiveStatus = status || vulnerability.status;

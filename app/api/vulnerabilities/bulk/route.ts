@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { Prisma, Vulnerability, VulnerabilityStatus } from "@prisma/client";
-import { requireUser } from "@/lib/rbac";
+import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
@@ -10,6 +10,7 @@ const bulkSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
   status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR"]).optional(),
   assigneeId: z.string().uuid().nullable().optional(),
+  crNumber: z.string().optional(),
 });
 
 const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
@@ -20,8 +21,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireUser();
+  const session = await requireUser();
+  const userId = session.user.id;
+  const roles = session.user.roles || [];
+  const isAdmin = roles.some(role => (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role));
+
   const payload = bulkSchema.parse(await request.json());
+
+  // RBAC validation for non-admins
+  if (!isAdmin) {
+    // 1. Assignment restriction: cannot assign to others
+    if (payload.assigneeId !== undefined && payload.assigneeId !== userId && payload.assigneeId !== null) {
+      return NextResponse.json({ 
+        error: "Standard users can only assign to themselves or Unassigned" 
+      }, { status: 403 });
+    }
+
+    // 2. Metadata restriction: must own all items to change status/CR
+    if (payload.status || payload.crNumber) {
+      const ownedCount = await prisma.vulnerability.count({
+        where: {
+          id: { in: payload.ids },
+          assigneeId: userId
+        }
+      });
+      if (ownedCount !== payload.ids.length) {
+        return NextResponse.json({ 
+          error: "You must take ownership of all selected items before making other changes" 
+        }, { status: 403 });
+      }
+    }
+  }
 
   const updateData: Record<string, unknown> = {};
   if (payload.status) {
@@ -29,6 +59,9 @@ export async function POST(request: NextRequest) {
   }
   if (payload.assigneeId !== undefined) {
     updateData.assigneeId = payload.assigneeId;
+  }
+  if (payload.crNumber !== undefined) {
+    updateData.crNumber = payload.crNumber;
   }
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {

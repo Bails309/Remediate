@@ -1,26 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockPrisma = {
+const mockPrisma: any = {
+  user: {
+    findUnique: vi.fn(),
+  },
   vulnerability: {
     count: vi.fn(),
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    update: vi.fn(),
+    deleteMany: vi.fn(),
+    updateMany: vi.fn(),
+  },
+  assignmentNotification: {
+    create: vi.fn(),
+    createMany: vi.fn(),
   },
   vulnerabilityHistory: {
     count: vi.fn(),
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    createMany: vi.fn(),
   },
-  $transaction: vi.fn(async (operations: Array<Promise<unknown>>) => Promise.all(operations)),
+  $transaction: vi.fn(async (arg: any) => {
+    if (typeof arg === "function") return await arg(mockPrisma);
+    return Promise.all(arg);
+  }),
   $queryRawUnsafe: vi.fn(),
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("../../lib/rbac", () => ({ requireUser: vi.fn() }));
+vi.mock("../../lib/rbac", () => ({ requireUser: vi.fn(), WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"] }));
 vi.mock("../../lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
+vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
 import { requireUser } from "../../lib/rbac";
 import { enforceRateLimit } from "../../lib/rate-limit";
+import { auth } from "@/auth";
 
 describe("vulnerabilities route scope handling", () => {
   beforeEach(() => {
@@ -119,5 +135,77 @@ describe("vulnerabilities route scope handling", () => {
       })
     );
     expect(body.scope).toBe("archived");
+  });
+});
+
+const MOCK_USER_ID = "00000000-0000-4000-a000-000000000001";
+const MOCK_ADMIN_ID = "00000000-0000-4000-a000-000000000002";
+const MOCK_PEER_ID = "00000000-0000-4000-a000-000000000003";
+const MOCK_VULN_ID = "00000000-0000-4000-a000-000000000004";
+
+describe("vulnerabilities RBAC Enforcement", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireUser).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] } } as any);
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(auth).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] });
+  });
+
+  async function callPatch(id: string, body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] }) {
+    vi.mocked(requireUser).mockResolvedValue({ user } as any);
+    vi.mocked(auth).mockResolvedValue({ user } as any);
+    const { PATCH } = await import("../../app/api/vulnerabilities/[id]/route");
+    const req = new Request(`http://localhost/api/vulnerabilities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return await PATCH(req as any, { params: { id } } as any);
+  }
+
+  async function callBulk(body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] }) {
+    vi.mocked(requireUser).mockResolvedValue({ user } as any);
+    vi.mocked(auth).mockResolvedValue({ user } as any);
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const req = new Request(`http://localhost/api/vulnerabilities/bulk`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return await POST(req as any);
+  }
+
+  it("allows standard user to self-assign (id route)", async () => {
+    mockPrisma.vulnerability.findUnique.mockResolvedValue({ id: MOCK_VULN_ID, assigneeId: null });
+    mockPrisma.vulnerability.update.mockResolvedValue({ id: MOCK_VULN_ID });
+
+    const res = await callPatch(MOCK_VULN_ID, { assigneeId: MOCK_USER_ID });
+    expect(res.status).toBe(200);
+  });
+
+  it("forbids peer assignment (id route)", async () => {
+    mockPrisma.vulnerability.findUnique.mockResolvedValue({ id: MOCK_VULN_ID, assigneeId: null });
+
+    const res = await callPatch(MOCK_VULN_ID, { assigneeId: MOCK_PEER_ID });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain("Standard users can only assign to themselves or Unassigned");
+  });
+
+  it("bulk update supports crNumber", async () => {
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.vulnerability.count.mockResolvedValue(1);
+
+    const res = await callBulk({ ids: [MOCK_VULN_ID], status: "InProgressWithCR", crNumber: "CR-999" });
+    expect(res.status).toBe(200);
+    expect(mockPrisma.vulnerability.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ crNumber: "CR-999" })
+    }));
+  });
+
+  it("bulk update enforces ownership for metadata changes", async () => {
+    mockPrisma.vulnerability.count.mockResolvedValue(1); // Only 1 owned but 2 requested
+
+    const res = await callBulk({ ids: [MOCK_VULN_ID, "00000000-0000-4000-a000-000000000005"], status: "InProgress" });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain("must take ownership of all selected items");
   });
 });

@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.3.3 (2026-03-23)</p>
+  <p><strong>Version:</strong> 2.3.9 (2026-03-23)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -223,6 +223,28 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+### [2.3.9] - 2026-03-23
+- **Fixed**: Refined Dialog aesthetics. Standardized button styles to use themed semi-transparent gradients instead of high-contrast solid colors.
+
+### [2.3.8] - 2026-03-23
+- **Security**: Hardened bulk update and inline assignment APIs with consistent RBAC (non-admins restricted to self/unassign).
+- **Improved**: Unified error handling across all vulnerability update paths (Bulk, Inline, and Detailed).
+
+### [2.3.7] - 2026-03-23
+- **Security**: Restricted standard users to self-assignment and unassignment only. Reassignment to others now requires Admin privileges.
+- **Improved**: Descriptive, server-side error messages now display in the UI for unauthorized actions.
+
+### [2.3.6] - 2026-03-23
+- **Fixed**: Self-Assignment Permissions. Standard users can now correctly assign vulnerabilities to themselves from the detailed view, resolving a regression in the triage workflow.
+
+### [2.3.5] - 2026-03-23
+- **Feature**: Themed Bulk Prompt. Replaced the browser's native `window.prompt` with a custom, ultra-modern `Dialog` component for bulk CR number entry.
+- **Improved**: Consistent visual style across the entire triage lifecycle.
+
+### [2.3.4] - 2026-03-23
+- **Feature**: Bulk CR Number Support. Users are now prompted for a Change Request (CR) number when updating multiple vulnerabilities (including folded groups) to 'In Progress with CR'.
+- **Improved**: Streamlined triage process for large groups of related issues.
 
 ### [2.3.3] - 2026-03-23
 - **Fixed**: Support for deep linking to vulnerabilities via both `id` and `ids` query parameters.
