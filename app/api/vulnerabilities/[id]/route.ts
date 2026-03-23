@@ -147,6 +147,9 @@ export async function PATCH(
     const updateData: Prisma.VulnerabilityUpdateInput = {};
     if (typeof askForHelp === 'boolean') {
         updateData.askForHelp = askForHelp;
+        if (askForHelp === false) {
+            updateData.collaborators = { set: [] };
+        }
     }
 
     if (assigneeId !== undefined) {
@@ -161,7 +164,7 @@ export async function PATCH(
         updateData.crNumber = crNumber;
     }
 
-    if (Array.isArray(collaboratorIds)) {
+    if (Array.isArray(collaboratorIds) && askForHelp !== false) {
         updateData.collaborators = {
             set: collaboratorIds.map((id: string) => ({ id })),
         };

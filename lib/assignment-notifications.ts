@@ -20,19 +20,13 @@ export async function dispatchWeeklyAssignmentEmails() {
     }
 
     // 1. Get all users with at least one active assignment
-    // We include both primary assignee and collaborators
+    // We only include the primary assignee
     const users = await prisma.user.findMany({
         where: {
-            OR: [
-                { vulnerabilities: { some: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } } } },
-                { collaboratingVulnerabilities: { some: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } } } }
-            ]
+            vulnerabilities: { some: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } } }
         },
         include: {
             vulnerabilities: {
-                where: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } }
-            },
-            collaboratingVulnerabilities: {
                 where: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } }
             }
         }
@@ -43,13 +37,7 @@ export async function dispatchWeeklyAssignmentEmails() {
     for (const user of users) {
         if (!user.email) continue;
 
-        // Combine primary and collaborative vulnerabilities, ensuring uniqueness
-        const vulnMap = new Map<string, AssignmentItem>();
-        
-        user.vulnerabilities.forEach((v) => vulnMap.set(v.id, v as unknown as AssignmentItem));
-        user.collaboratingVulnerabilities.forEach((v) => vulnMap.set(v.id, v as unknown as AssignmentItem));
-        
-        const assignments: AssignmentItem[] = Array.from(vulnMap.values()).map((v: AssignmentItem) => ({
+        const assignments: AssignmentItem[] = (user.vulnerabilities as unknown as AssignmentItem[]).map((v: AssignmentItem) => ({
             id: v.id,
             name: v.name,
             risk: v.risk,
