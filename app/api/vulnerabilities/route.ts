@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
   const archivedFrom = isArchivedScope ? parseDateParam(searchParams.get("archivedFrom")) : undefined;
   const archivedTo = isArchivedScope ? parseDateParam(searchParams.get("archivedTo"), true) : undefined;
   const fold = searchParams.get("fold") === "true";
-  const ids = searchParams.get("ids")?.split(",") ?? undefined;
+  const id = searchParams.get("id");
+  const ids = searchParams.get("ids")?.split(",") ?? (id ? [id] : undefined);
 
   // For expansion: fetch all members of a group by its attributes
   const gName = searchParams.get("gName") ?? undefined;
@@ -91,7 +92,11 @@ export async function GET(request: NextRequest) {
       });
 
     const scopedItems = isArchivedScope ? items.map(mapHistoryItem) : items.map(mapActiveItem);
-    return NextResponse.json({ items: scopedItems, scope });
+    return NextResponse.json({ 
+      items: scopedItems, 
+      total: scopedItems.length,
+      scope 
+    });
   }
 
   if (fold) {

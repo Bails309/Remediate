@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
@@ -139,6 +140,11 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [query, setQuery] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [detail, setDetail] = useState<Vulnerability | null>(null);
+  const [idFilter, setIdFilter] = useState("");
+  const [autoOpenTarget, setAutoOpenTarget] = useState<string | null>(null);
+  
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [bulkStatus, setBulkStatus] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -168,6 +174,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     if (isArchivedView && archivedTo) params.set("archivedTo", archivedTo);
     if (query) params.set("q", query);
     if (assigneeId) params.set("assigneeId", assigneeId);
+    if (idFilter) params.set("id", idFilter);
     if (foldDuplicates) params.set("fold", "true");
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -180,7 +187,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     const payload = await response.json();
     setData(payload.items ?? []);
     setTotal(payload.total ?? 0);
-  }, [viewScope, siteId, status, risk, archivedFrom, archivedTo, query, assigneeId, foldDuplicates, page, pageSize, isArchivedView]);
+  }, [viewScope, siteId, status, risk, archivedFrom, archivedTo, query, assigneeId, idFilter, foldDuplicates, page, pageSize, isArchivedView]);
 
   const fetchComments = async (id: string) => {
     const res = await fetch(`/api/vulnerabilities/${id}/comments`);
@@ -200,6 +207,22 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   useEffect(() => {
     setPendingDetailAssignment(null);
   }, [detail?.id]);
+
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (id) {
+      setIdFilter(id);
+      setAutoOpenTarget(id);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    // If we have data and an autoOpenTarget filter match, auto-open the detail ONCE
+    if (autoOpenTarget && data.length === 1 && data[0].id === autoOpenTarget) {
+      setDetail(data[0]);
+      setAutoOpenTarget(null); // Clear target to prevent infinite reopening
+    }
+  }, [data, autoOpenTarget]);
 
   useEffect(() => {
     // Call immediately; avoid requestAnimationFrame scheduling so tests with fake timers
@@ -605,11 +628,33 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     setPage(1);
   };
 
+  const clearIdFilter = () => {
+    setIdFilter("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("id");
+    router.replace(`/vulnerabilities${params.toString() ? `?${params.toString()}` : ""}`);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-semibold">Vulnerabilities</h2>
-        <p className="text-sm opacity-70">Filter, assign, and triage vulnerabilities.</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm opacity-70">Filter, assign, and triage vulnerabilities.</p>
+          {idFilter && (
+            <Badge tone="medium" className="gap-2 pl-2 pr-1 lowercase first-letter:uppercase">
+              Focused on 1 item
+              <button 
+                onClick={clearIdFilter}
+                className="hover:bg-amber-500/20 p-0.5 rounded-full transition-colors"
+                title="Clear Focus"
+              >
+                <ChevronRight className="h-3 w-3 rotate-45" />
+              </button>
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div id="tour-vuln-filters" className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">

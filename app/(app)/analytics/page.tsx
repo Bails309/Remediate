@@ -415,7 +415,7 @@ export default async function AnalyticsPage({
                             <h3 className="font-semibold text-lg leading-none">Average Dwell Time by Risk (Days)</h3>
                             <InfoTooltip text="Average Dwell Time is the typical number of days it takes to fix a vulnerability once it's discovered. Lower numbers mean we're finding and fixing issues faster." />
                         </div>
-                        <BarChart data={dwellTimeData} />
+                        <BarChart data={dwellTimeData} unit="Days" />
                     </div>
                 </div>
             </div>
@@ -444,7 +444,7 @@ export default async function AnalyticsPage({
                         <h3 className="font-semibold text-lg leading-none">Vulnerability Aging (SLA)</h3>
                         <InfoTooltip text="Vulnerability Aging shows how long our currently open issues have been active. Ideally, we want most issues in the 0-30 days bucket, as older issues represent longer periods of risk exposure." />
                     </div>
-                    <BarChart data={agingData} />
+                    <BarChart data={agingData} unit="Vulnerabilities" />
                 </div>
             </div>
 

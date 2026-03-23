@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.3.1 (2026-03-23)</p>
+  <p><strong>Version:</strong> 2.3.3 (2026-03-23)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -224,9 +224,18 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 
 ## Release notes
 
-- **v2.3.1 — 2026-03-23**
-  - **Fix**: Weekly Assignment Summary (only includes direct assignments).
-  - **Fix**: Collaboration Cleanup (automatically removes collaborators when 'Ask for Help' is disabled).
+### [2.3.3] - 2026-03-23
+- **Fixed**: Support for deep linking to vulnerabilities via both `id` and `ids` query parameters.
+- **Fixed**: Corrected counts in "Vulnerability Aging (SLA)" chart tooltips (removed misleading "Days" suffix).
+- **Fixed**: Resolved a reinforcement loop that could cause the vulnerability side sheet to reopen automatically after being closed.
+- **Improved**: Automatic list filtering and side sheet opening upon deep link access, with a visual focus indicator.
+
+### [2.3.2] - 2026-03-23
+- **Fixed**: Core support for deep linking to individual findings from external sources.
+
+### [2.3.1] - 2026-03-23
+- **Fixed**: Refined Weekly Assignment Summary to exclude collaborations.
+- **Fixed**: Automatically clear collaborators when "Ask for Help" is disabled.
 
 - **v2.1.0 — 2026-03-17**
   - **Feature**: Dismissed Finding Persistence (prevents re-creation of False Positives/No Fixes in ingestion).

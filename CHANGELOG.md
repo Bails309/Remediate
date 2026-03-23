@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.3.3] - 2026-03-23
+### Fixed
+- **Analytics Chart Units**: Resolved a bug in the "Vulnerability Aging (SLA)" chart where counts were incorrectly suffixed with "Days" in the tooltip. The `BarChart` component now supports context-aware units.
+- **Deep Link Reliability**: Fixed a reinforcement loop that could cause the vulnerability side sheet to reopen automatically after being closed.
+
+## [2.3.2] - 2026-03-23
+### Fixed
+- **Vulnerability Deep Linking**: Added support for both `id` and `ids` query parameters in the API and frontend, enabling direct access to specific findings from external links (e.g., email summaries).
+- **Auto-Selection**: Implemented automatic list filtering and side sheet opening when a valid `id` is present in the URL, including a "Clear Focus" indicator in the UI.
+
 ## [2.3.1] - 2026-03-23
 ### Fixed
 - **Weekly Assignment Summary**: Updated the summary logic to only include vulnerabilities where the user is the primary assignee, excluding collaborations for improved clarity.

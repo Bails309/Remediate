@@ -18,9 +18,10 @@ interface DataPoint {
 
 interface BarChartProps {
     data: DataPoint[];
+    unit?: string;
 }
 
-export function BarChart({ data }: BarChartProps) {
+export function BarChart({ data, unit }: BarChartProps) {
     if (!data || data.length === 0) {
         return (
             <div className="flex h-[300px] items-center justify-center text-sm opacity-50">
@@ -47,7 +48,7 @@ export function BarChart({ data }: BarChartProps) {
                         tickLine={false}
                         axisLine={false}
                         opacity={0.5}
-                        tickFormatter={(value) => `${value}d`}
+                        tickFormatter={(value) => unit ? `${value}${unit.toLowerCase().startsWith('day') ? 'd' : ''}` : value}
                     />
                     <Tooltip
                         cursor={{ fill: "transparent" }}
@@ -57,7 +58,7 @@ export function BarChart({ data }: BarChartProps) {
                                     <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-card)] p-3 shadow-xl backdrop-blur-xl">
                                         <p className="mb-1 font-medium">{payload[0].payload.name}</p>
                                         <p className="text-sm font-semibold" style={{ color: payload[0].payload.fill }}>
-                                            {payload[0].value} Days
+                                            {payload[0].value} {unit ?? ""}
                                         </p>
                                     </div>
                                 );
