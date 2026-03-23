@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.3.1] - 2026-03-23
+### Fixed
+- **Weekly Assignment Summary**: Updated the summary logic to only include vulnerabilities where the user is the primary assignee, excluding collaborations for improved clarity.
+- **Collaboration Management**: Resolved a technical debt issue where disabling the "Ask for Help" feature on a vulnerability would leave collaborators assigned; it now correctly clears all collaborators when disabled.
+
 ## [2.3.0] - 2026-03-17
 ### Changed
 - **Dependency Update**: Bumped `next` and `eslint-config-next` to version `16.1.7` to leverage latest performance improvements and security patches.

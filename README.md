@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.3.0 (2026-03-17)</p>
+  <p><strong>Version:</strong> 2.3.1 (2026-03-23)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -223,6 +223,10 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+- **v2.3.1 — 2026-03-23**
+  - **Fix**: Weekly Assignment Summary (only includes direct assignments).
+  - **Fix**: Collaboration Cleanup (automatically removes collaborators when 'Ask for Help' is disabled).
 
 - **v2.1.0 — 2026-03-17**
   - **Feature**: Dismissed Finding Persistence (prevents re-creation of False Positives/No Fixes in ingestion).
