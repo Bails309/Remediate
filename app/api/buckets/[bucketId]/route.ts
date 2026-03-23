@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/rbac";
+import { requireAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 const updateSchema = z.object({
   name: z.string().min(2),
-  importPattern: z.string().optional().nullable(),
-  importAliases: z.array(z.string()).optional(),
+  importPattern: z.string().optional().nullable().refine((val) => {
+    if (!val) return true;
+    try { new RegExp(val); return true; } catch { return false; }
+  }, "Invalid regex pattern"),
+  importAliases: z.array(z.string().max(200)).max(20).optional(),
   autoImportEnabled: z.boolean().optional(),
 });
 
@@ -19,7 +22,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireUser();
+  await requireAdmin();
   const payload = updateSchema.parse(await request.json());
   const bucket = await prisma.site.update({
     where: { id: bucketId },
@@ -35,7 +38,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireUser();
+  await requireAdmin();
 
   try {
     await prisma.site.delete({ where: { id: bucketId } });

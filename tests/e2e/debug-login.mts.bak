@@ -1,0 +1,49 @@
+import { chromium } from '@playwright/test';
+
+(async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ baseURL: 'http://127.0.0.1:3000' });
+
+    // Listen for console messages
+    page.on('console', (msg) => {
+        console.log(`   CONSOLE [${msg.type()}]: ${msg.text()}`);
+    });
+
+    await page.goto('/login');
+    console.log('1. On login page:', page.url());
+
+    await page.waitForSelector('input[placeholder="Username"]', { timeout: 15000 });
+    console.log('2. Username field found');
+
+    const username = process.env.LOCAL_AUTH_USER || 'admin';
+    const password = process.env.LOCAL_AUTH_PASS || 'admin';
+    console.log(`3. Using credentials: ${username} / ${password}`);
+
+    await page.fill('input[placeholder="Username"]', username);
+    await page.fill('input[placeholder="Password"]', password);
+
+    // Listen for ALL responses during login
+    page.on('response', async (r) => {
+        if (r.url().includes('/api/auth')) {
+            let body = '';
+            try { body = await r.text(); } catch {}
+            console.log(`   Response: ${r.status()} ${r.url()} -> ${body.substring(0, 300)}`);
+        }
+    });
+
+    await page.click('button:has-text("Sign in locally")');
+    console.log('4. Clicked sign in button');
+
+    // Wait and check
+    await page.waitForTimeout(10000);
+    console.log('5. Final URL:', page.url());
+
+    const bodyText = await page.innerText('body');
+    console.log('6. Page text snippet:', bodyText.substring(0, 500));
+
+    // Check for error
+    const errorEl = await page.$('text=Invalid local credentials');
+    console.log('7. Error element found:', !!errorEl);
+
+    await browser.close();
+})();

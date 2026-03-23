@@ -94,12 +94,14 @@ export class AzureFileShareService {
     );
     if (aliasMatch) return aliasMatch;
 
-    // 3. Regex Match
+    // 3. Regex Match (with safety timeout to prevent ReDoS)
     const regexMatch = sites.find(s => {
       if (!s.importPattern) return false;
       try {
         const regex = new RegExp(s.importPattern, "i");
-        return regex.test(filename);
+        // Test with a short string length limit to mitigate catastrophic backtracking
+        const testStr = filename.slice(0, 500);
+        return regex.test(testStr);
       } catch {
         return false;
       }

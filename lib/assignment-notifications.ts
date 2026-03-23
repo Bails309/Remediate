@@ -48,9 +48,15 @@ export async function dispatchWeeklyAssignmentEmails() {
 
         if (assignments.length === 0) continue;
 
+        const appUrl = process.env.NEXTAUTH_URL;
+        if (!appUrl) {
+            console.warn("[WeeklyAssignments] NEXTAUTH_URL not set, skipping email send");
+            continue;
+        }
+
         const subject = `[Remediate] Weekly Assignment Summary: ${assignments.length} items`;
         const html = renderWeeklyAssignmentEmail(user, assignments);
-        const text = `Hello ${user.name},\n\nYou have ${assignments.length} active security assignments requiring your attention.\n\nView details at: ${process.env.NEXTAUTH_URL || "http://localhost:3000"}/vulnerabilities?assigneeId=me`;
+        const text = `Hello ${user.name},\n\nYou have ${assignments.length} active security assignments requiring your attention.\n\nView details at: ${appUrl}/vulnerabilities?assigneeId=me`;
 
         try {
             await sendEmail(config, user.email, subject, html, text);

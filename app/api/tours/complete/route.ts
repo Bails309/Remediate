@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const VALID_TOURS = ["welcome-tour", "threat-intel-update-v1"] as const;
+const tourSchema = z.object({
+    tourId: z.enum(VALID_TOURS),
+});
 
 export async function POST(req: Request) {
     const session = await auth();
@@ -9,23 +15,29 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { tourId } = await req.json();
-        
-        if (!tourId) {
-            return NextResponse.json({ error: "tourId is required" }, { status: 400 });
+        const body = await req.json();
+        const result = tourSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({ error: "Invalid tourId" }, { status: 400 });
         }
+        const { tourId } = result.data;
 
         const toursToMark = tourId === "welcome-tour" 
             ? ["welcome-tour", "threat-intel-update-v1"] 
             : [tourId];
 
+        // Read-then-set for deduplication instead of push
+        const existing = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { completedTours: true },
+        });
+        const merged = [...new Set([...(existing?.completedTours ?? []), ...toursToMark])];
+
         const user = await prisma.user.update({
             where: { email: session.user.email },
             data: {
                 isNewUser: false,
-                completedTours: {
-                    push: toursToMark
-                }
+                completedTours: { set: merged },
             }
         });
 

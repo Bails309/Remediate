@@ -1,4 +1,6 @@
 import { redis } from "@/lib/redis";
+import { requireUser } from "@/lib/rbac";
+import { canAccessUpload } from "@/lib/upload-access";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -10,11 +12,16 @@ function getProgressKey(uploadId: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const session = await requireUser();
   const { searchParams } = new URL(request.url);
   const uploadId = searchParams.get("uploadId");
 
   if (!uploadId) {
     return NextResponse.json({ error: "missing uploadId" }, { status: 400 });
+  }
+
+  if (!(await canAccessUpload(session, uploadId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const stream = new ReadableStream({

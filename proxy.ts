@@ -3,6 +3,7 @@ import authConfig from "./auth.config";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
+import crypto from "crypto";
 
 const { auth } = NextAuth(authConfig);
 
@@ -47,7 +48,7 @@ function getOrCreateNonce(req: NextRequest, responseHeaders: Headers) {
     const cookieNonce = req.cookies.get("x-nonce")?.value;
     if (cookieNonce) return cookieNonce;
 
-    const newNonce = btoa(Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2));
+    const newNonce = crypto.randomUUID();
     // Set cookie for subsequent sub-requests to keep nonce stable during SPA session
     responseHeaders.append("Set-Cookie", `x-nonce=${newNonce}; Path=/; HttpOnly; SameSite=Lax`);
     return newNonce;

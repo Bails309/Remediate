@@ -7,9 +7,9 @@ import { z } from "zod";
 
 const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
-    collaboratorIds: z.array(z.string()).optional(),
+    collaboratorIds: z.array(z.string().uuid()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
-    status: z.string().optional(),
+    status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR"]).optional(),
     crNumber: z.string().optional(),
 });
 
@@ -181,7 +181,15 @@ export async function PATCH(
     }
 
     if (assigneeId !== undefined) {
-        updateData.assignee = assigneeId ? { connect: { id: assigneeId } } : { disconnect: true };
+        if (assigneeId) {
+            const assigneeExists = await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true } });
+            if (!assigneeExists) {
+                return NextResponse.json({ error: "Assignee user not found" }, { status: 400 });
+            }
+            updateData.assignee = { connect: { id: assigneeId } };
+        } else {
+            updateData.assignee = { disconnect: true };
+        }
     }
 
     if (status && ACTIVE_STATUSES.includes(status)) {
@@ -193,6 +201,12 @@ export async function PATCH(
     }
 
     if (Array.isArray(collaboratorIds) && askForHelp !== false) {
+        if (collaboratorIds.length > 0) {
+            const existingUsers = await prisma.user.findMany({ where: { id: { in: collaboratorIds } }, select: { id: true } });
+            if (existingUsers.length !== collaboratorIds.length) {
+                return NextResponse.json({ error: "Some collaborator users not found" }, { status: 400 });
+            }
+        }
         updateData.collaborators = {
             set: collaboratorIds.map((id: string) => ({ id })),
         };

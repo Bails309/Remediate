@@ -58,6 +58,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid role" }, { status: 400 });
         }
 
+        // Role hierarchy: only site_admin can assign site_admin or toolkit_admin
+        const requesterRoles = (session.user.roles as string[]) || [];
+        const isSiteAdmin = requesterRoles.includes("site_admin");
+        if (!isSiteAdmin && (roles.includes("site_admin") || roles.includes("toolkit_admin"))) {
+            return NextResponse.json({ error: "Only site admins can assign site_admin or toolkit_admin roles" }, { status: 403 });
+        }
+
         const normalizedRoles = Array.from(new Set(roles));
         if (!normalizedRoles.includes("web_app_user")) {
             normalizedRoles.push("web_app_user");
@@ -103,21 +110,37 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Invalid role" }, { status: 400 });
         }
 
+        // Role hierarchy: only site_admin can assign site_admin or toolkit_admin
+        const requesterRoles = (session.user.roles as string[]) || [];
+        const isSiteAdmin = requesterRoles.includes("site_admin");
+        if (!isSiteAdmin && (roles.includes("site_admin") || roles.includes("toolkit_admin"))) {
+            return NextResponse.json({ error: "Only site admins can assign site_admin or toolkit_admin roles" }, { status: 403 });
+        }
+
         const normalizedRoles = Array.from(new Set(roles));
         if (!normalizedRoles.includes("web_app_user")) {
             normalizedRoles.push("web_app_user");
         }
 
-        // Prevent removing site_admin role from the last site_admin
-        if (!normalizedRoles.includes("site_admin")) {
-            const adminCount = await prisma.user.count({ where: { roles: { has: "site_admin" } } });
-            if (adminCount <= 1) {
-                // Double check if the user being updated IS a site_admin
-                const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
-                if ((targetUser?.roles ?? []).includes("site_admin")) {
-                    return NextResponse.json({ error: "Cannot remove last site admin" }, { status: 400 });
+        // Check target user exists
+        const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
+        if (!targetUser) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        // Prevent removing site_admin role from the last site_admin (within a transaction)
+        if (!normalizedRoles.includes("site_admin") && (targetUser.roles ?? []).includes("site_admin")) {
+            const updated = await prisma.$transaction(async (tx) => {
+                const adminCount = await tx.user.count({ where: { roles: { has: "site_admin" } } });
+                if (adminCount <= 1) {
+                    throw new Error("Cannot remove last site admin");
                 }
-            }
+                return tx.user.update({
+                    where: { id: userId },
+                    data: { roles: normalizedRoles },
+                });
+            });
+            return NextResponse.json(updated);
         }
 
         const user = await prisma.user.update({
@@ -127,6 +150,9 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json(user);
     } catch (error) {
+        if (error instanceof Error && error.message === "Cannot remove last site admin") {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         console.error("Failed to update user:", error);
         return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
     }
@@ -155,12 +181,16 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        // Prevent deleting the last site admin
+        // Prevent deleting the last site admin (within a transaction to avoid race condition)
         if (targetUser.roles?.includes("site_admin")) {
-            const adminCount = await prisma.user.count({ where: { roles: { has: "site_admin" } } });
-            if (adminCount <= 1) {
-                return NextResponse.json({ error: "Cannot delete last site admin" }, { status: 400 });
-            }
+            await prisma.$transaction(async (tx) => {
+                const adminCount = await tx.user.count({ where: { roles: { has: "site_admin" } } });
+                if (adminCount <= 1) {
+                    throw new Error("Cannot delete last site admin");
+                }
+                await tx.user.delete({ where: { id: userId } });
+            });
+            return NextResponse.json({ success: true });
         }
 
         // Prevent deleting yourself
@@ -172,6 +202,9 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof Error && error.message === "Cannot delete last site admin") {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+        }
         console.error("Failed to delete user:", error);
         return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
     }

@@ -6,6 +6,7 @@ import { NextRequest } from "next/server";
 // Mock RBAC and rate limit
 vi.mock("../../lib/rbac", () => ({
     requireUser: vi.fn().mockResolvedValue({ id: "u1", email: "user@test.com" }),
+    requireAdmin: vi.fn().mockResolvedValue({ id: "u1", email: "user@test.com" }),
 }));
 vi.mock("../../lib/rate-limit", () => ({
     enforceRateLimit: vi.fn().mockResolvedValue({ allowed: true }),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -1510,3 +1510,4 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     </div >
   );
 }
+

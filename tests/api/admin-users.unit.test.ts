@@ -12,6 +12,7 @@ const mockPrisma = {
     delete: vi.fn(),
     count: vi.fn(),
   },
+  $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));

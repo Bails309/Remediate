@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   const gPort = searchParams.get("gPort") ?? undefined;
   const gPluginId = searchParams.get("gPluginId") ?? undefined;
 
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
+  const page = Math.max(1, Math.min(10000, parseInt(searchParams.get("page") ?? "1") || 1));
   const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get("pageSize") ?? "25") || 25));
 
   if (ids || (gName && gHost && gPort && gPluginId)) {
@@ -130,8 +130,9 @@ export async function GET(request: NextRequest) {
       }
     }
     if (query) {
-      conditions.push(`(name ILIKE $${valIdx} OR host ILIKE $${valIdx} OR "pluginId" ILIKE $${valIdx} OR cve ILIKE $${valIdx})`);
-      values.push(`%${query}%`);
+      const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
+      conditions.push(`(name ILIKE $${valIdx} ESCAPE '\\' OR host ILIKE $${valIdx} ESCAPE '\\' OR "pluginId" ILIKE $${valIdx} ESCAPE '\\' OR cve ILIKE $${valIdx} ESCAPE '\\')`);
+      values.push(`%${escapedQuery}%`);
       valIdx++;
     }
     if (archivedFrom) {
@@ -258,10 +259,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ total, items: items.map(mapActiveItem), page, pageSize, scope });
   } catch (err) {
-    // Log the error server-side and return details to the client for debugging in dev
     console.error("/api/vulnerabilities error:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    return NextResponse.json({ error: message, stack }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

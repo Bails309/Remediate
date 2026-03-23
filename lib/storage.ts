@@ -1,6 +1,6 @@
 import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from "@azure/storage-blob";
 import { prisma } from "./prisma";
-import { decrypt, fingerprintSecret } from "./crypto";
+import { decrypt } from "./crypto";
 
 export interface StorageProvider {
     save(key: string, content: string): Promise<void>;
@@ -113,22 +113,17 @@ export async function getStorageProvider(): Promise<StorageProvider> {
 
             if (config.azureAuthMethod === "CONNECTION_STRING" && config.azureConnectionStringEnc) {
                 const connectionString = decrypt(config.azureConnectionStringEnc);
-                console.info("Azure storage: using Connection String (masked)", connectionString ? `****${connectionString.slice(-8)}` : "(none)");
+                console.info("Azure storage: using Connection String");
                 blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
             } else if (config.azureAuthMethod === "ACCOUNT_KEY" && config.azureAccountName && config.azureAccountKeyEnc) {
                 const accountKey = decrypt(config.azureAccountKeyEnc);
                 console.info("Azure storage: using Account Key for account", config.azureAccountName);
-                const maskedKey = accountKey ? `****${accountKey.slice(-8)}` : undefined;
-                console.info("Azure storage: accountKey (masked):", maskedKey);
-                console.info("Azure storage: accountKey fingerprint:", fingerprintSecret(accountKey));
                 const credential = new StorageSharedKeyCredential(config.azureAccountName, accountKey);
                 blobServiceClient = new BlobServiceClient(`https://${config.azureAccountName}.blob.core.windows.net`, credential);
             } else if (config.azureAuthMethod === "SAS_TOKEN" && config.azureAccountName && config.azureSasTokenEnc) {
                 const sasToken = decrypt(config.azureSasTokenEnc);
                 const raw = sasToken.startsWith("?") ? sasToken.substring(1) : sasToken;
-                const masked = raw ? `...${raw.slice(-12)}` : undefined;
-                console.info("Azure storage: using SAS token (masked):", masked);
-                console.info("Azure storage: SAS fingerprint:", fingerprintSecret(raw));
+                console.info("Azure storage: using SAS token for account", config.azureAccountName);
                 const url = `https://${config.azureAccountName}.blob.core.windows.net?${raw}`;
                 blobServiceClient = new BlobServiceClient(url);
             }

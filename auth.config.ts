@@ -1,6 +1,7 @@
 import type { User, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
+import crypto from "crypto";
 
 const authConfig = {
     trustHost: true,
@@ -27,7 +28,12 @@ const authConfig = {
 
                 if (!credentials?.username || !credentials.password) return null;
 
-                if (credentials.username === localUser && credentials.password === localPass) {
+                const usernameMatch = credentials.username === localUser;
+                const passA = Buffer.from(String(credentials.password));
+                const passB = Buffer.from(localPass);
+                const passwordMatch = passA.length === passB.length && crypto.timingSafeEqual(passA, passB);
+
+                if (usernameMatch && passwordMatch) {
                     const localEmail = process.env.LOCAL_AUTH_EMAIL || localUser;
                     const localName = process.env.LOCAL_AUTH_NAME || "Local Admin";
 

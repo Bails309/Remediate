@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
+
+const authFile = path.join(__dirname, 'tests', 'e2e', '.auth', 'user.json');
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -18,7 +21,7 @@ export default defineConfig({
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
         /* Base URL to use in actions like `await page.goto('/')`. */
-        baseURL: 'http://127.0.0.1:3000',
+        baseURL: 'http://localhost:3000',
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
@@ -26,22 +29,44 @@ export default defineConfig({
 
     /* Configure projects for major browsers */
     projects: [
+        // Auth setup — logs in and saves session state
+        {
+            name: 'setup',
+            testMatch: /auth\.setup\.ts/,
+        },
+        // Tests that do NOT need authentication (login page, 404, health API)
+        {
+            name: 'unauthenticated',
+            testMatch: /\.(unauthenticated|spec)\.ts$/,
+            use: { ...devices['Desktop Chrome'] },
+        },
+        // Tests that need authentication
         {
             name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            testMatch: /\.authenticated\.ts$/,
+            use: {
+                ...devices['Desktop Chrome'],
+                storageState: authFile,
+            },
+            dependencies: ['setup'],
         },
     ],
 
     /* Run your local dev server before starting the tests */
     webServer: {
         command: 'npm run start',
-        url: 'http://127.0.0.1:3000',
+        url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
         env: {
             NODE_ENV: 'test',
-            DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/remediate',
+            DATABASE_URL: process.env.DATABASE_URL || 'postgresql://remediate:remediate_password@localhost:5432/remediate',
             REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
             AUTH_SECRET: 'test-secret',
+            LOCAL_AUTH_ENABLED: 'true',
+            LOCAL_AUTH_USER: 'admin',
+            LOCAL_AUTH_PASS: 'admin',
+            LOCAL_AUTH_EMAIL: 'admin@example.com',
+            LOCAL_AUTH_NAME: 'Test Admin',
         }
     },
 });

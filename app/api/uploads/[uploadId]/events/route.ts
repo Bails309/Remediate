@@ -1,5 +1,8 @@
 import { redis } from "@/lib/redis";
+import { requireUser } from "@/lib/rbac";
+import { canAccessUpload } from "@/lib/upload-access";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +12,12 @@ function getProgressKey(uploadId: string) {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ uploadId: string }> }) {
+  const session = await requireUser();
   const { uploadId } = await params;
+
+  if (!(await canAccessUpload(session, uploadId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const stream = new ReadableStream({
     async start(controller) {

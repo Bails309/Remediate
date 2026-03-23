@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/rbac";
+import { requireAdmin, requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireUser();
+  await requireAdmin();
   const raw = await request.json().catch(() => ({}));
   const name = typeof raw.name === "string" ? raw.name.trim() : raw.name;
   const parsed = bucketSchema.safeParse({ name });

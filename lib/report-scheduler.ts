@@ -56,11 +56,20 @@ export function startReportScheduler() {
         await sendWeeklyReport(config);
       }
 
-      // 3. Weekly Assignment Notifications (Monday 8:00 AM UTC/Z)
+      // 3. Weekly Assignment Notifications (Monday ~8:00 AM UTC)
+      // Use lastSentAt tracking to avoid missed or duplicate sends
       const now = new Date();
-      if (now.getUTCDay() === 1 && now.getUTCHours() === 8 && now.getUTCMinutes() === 0) {
-          console.log("[Scheduler] 08:00 Monday window reached. Triggering weekly assignment notifications...");
-          await dispatchWeeklyAssignmentEmails();
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      if (now.getUTCDay() === 1 && now.getUTCHours() >= 8) {
+          // Check if we already sent this week by looking at the most recent user timestamp
+          const recentlySent = await prisma.user.findFirst({
+              where: { lastWeeklyAssignmentReportAt: { gte: new Date(now.getTime() - SEVEN_DAYS_MS) } },
+              select: { id: true },
+          });
+          if (!recentlySent) {
+              console.log("[Scheduler] Monday 08:00+ window reached, no recent send. Triggering weekly assignment notifications...");
+              await dispatchWeeklyAssignmentEmails();
+          }
       }
 
       await handleDailyThreatIntelligence();

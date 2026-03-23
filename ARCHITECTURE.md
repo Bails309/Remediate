@@ -30,9 +30,20 @@ A high-level view of Remediate components and interactions.
 - **Redis Cluster Support**: Uses Redis Hash Tags (`{bull}`) to ensure cross-slot compatibility in clustered environments.
 
 ## Security
-- **RBAC**: Enforced at the API level for sensitive admin and pentest tool routes.
+- **RBAC**: Enforced at the API level for sensitive admin and pentest tool routes. Role hierarchy prevents non-site-admins from escalating privileges. Last-admin protections use database transactions to prevent race conditions.
+- **Input Validation**: All API boundaries validate inputs with Zod schemas — status enums, UUID formats, content length limits, regex patterns, and page/limit caps.
 - **Inter-service Auth**: Communication with the pentest backend is secured with short-lived, signed JWTs using `AUTH_SECRET`.
 - **Encryption**: OIDC and SMTP configuration secrets are stored encrypted in Postgres.
+- **CSP**: Middleware generates a cryptographic nonce (`crypto.randomUUID`) per request for script and style sources.
+- **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
+
+## Testing
+- **Unit Tests (Vitest)**: 93 test files, 373 tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
+- **E2E Tests (Playwright)**: 45 tests across 14 files using a multi-project setup:
+  - `setup` — Authenticates via local credentials and saves session state.
+  - `unauthenticated` — Tests login flow, RBAC redirects, health API, and 404 handling.
+  - `chromium` — Tests all authenticated pages (dashboard, vulnerabilities, uploads, buckets, analytics, threat intelligence, 9 admin pages, sidebar navigation) using stored session state.
+- **CI/CD (GitHub Actions)**: Lint, unit tests (Postgres + Redis services), integration tests, E2E (Playwright with DB schema push + seed data), Docker build, and CodeQL security scanning.
 
 ## Key File Locations
 - **Threat Intelligence**: `lib/threat-intelligence/`, `app/api/threat-intelligence/`, `app/(app)/threat-intelligence/`

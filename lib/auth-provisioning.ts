@@ -52,8 +52,9 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
             roles = defaultRoles;
         }
     } else {
-        // Existing users keep their stored roles; local session roles can override.
-        roles = userRolesFromSession ?? existingUser?.roles ?? defaultRoles;
+        // Existing users always keep their DB-stored roles.
+        // Never overwrite with session roles — role changes must go through admin UI.
+        roles = existingUser?.roles ?? defaultRoles;
     }
 
     console.log(`[Auth] Provisioning ${authSource} user: ${email} with roles: ${roles.join(", ")}`);
@@ -77,32 +78,6 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
         return true;
     } catch (upsertError) {
         console.error(`[Auth] Failed to provision user ${email}:`, upsertError);
-        // Fallback for extremely old schema if somehow still present in DB
-        try {
-            console.log("[Auth] Attempting fallback to legacy 'role' field...");
-            // Legacy schema fallback may have a singular `role` field which is not
-            // present in the current Prisma schema/type definitions. Create a
-            // narrow, typed view of the `user` model to avoid using `any`.
-            type LegacyUserModel = { upsert: (args: unknown) => Promise<unknown> };
-            const legacyUser = (prisma as unknown as { user: LegacyUserModel }).user;
-            await legacyUser.upsert({
-                where: { email },
-                update: {
-                    name: user.name || "User",
-                    role: isPrimaryAdmin ? "Admin" : "User",
-                    authSource
-                },
-                create: {
-                    email,
-                    name: user.name || "User",
-                    role: isPrimaryAdmin ? "Admin" : "User",
-                    authSource
-                },
-            });
-            return true;
-        } catch (fallbackError) {
-            console.error(`[Auth] Legacy fallback also failed for ${email}:`, fallbackError);
-            return false;
-        }
+        return false;
     }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/rbac", () => ({ requireUser: vi.fn() }));
+vi.mock("@/lib/rbac", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     site: { findUnique: vi.fn() },
@@ -35,7 +35,7 @@ vi.mock("@/lib/queue", () => ({
 vi.mock("@/lib/progress", () => ({ setProgress: vi.fn() }));
 
 import { POST } from "@/app/api/uploads/nessus/route";
-import { requireUser } from "@/lib/rbac";
+import { requireAdmin } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { validateNessusCsv } from "@/lib/csv";
 
@@ -56,7 +56,7 @@ function makeReq(form: Record<string, unknown>) {
 
 describe("POST /api/uploads/nessus", () => {
   it("returns 400 when missing file or siteId", async () => {
-    vi.mocked(requireUser).mockResolvedValue({ user: { id: "u1", email: "a@b.com" } } as any);
+    vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "u1", email: "a@b.com" } } as any);
     vi.mocked(prisma.site.findUnique).mockResolvedValue({ id: "site-1" } as any);
     vi.mocked(prisma.uploadHistory.create).mockResolvedValue({ id: "upload-1" } as any);
     vi.mocked(validateNessusCsv).mockReturnValue({ ok: true } as any);

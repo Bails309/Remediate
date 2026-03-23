@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.3.9 (2026-03-23)</p>
+  <p><strong>Version:</strong> 2.4.1 (2026-03-23)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -223,6 +223,15 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+### [2.4.1] - 2026-03-23
+- **Testing**: Comprehensive E2E Playwright test suite — 45 tests across 14 files covering all application pages, login flow, RBAC enforcement, sidebar navigation, admin pages, health API, and 404 handling.
+- **CI**: Fixed E2E pipeline — added database schema push, seed data, and local auth environment variables so Playwright tests can authenticate against a real server.
+- **Infra**: Restructured Playwright config with multi-project setup (auth fixture, unauthenticated, authenticated) and stored session state for efficient test execution.
+
+### [2.4.0] - 2026-03-23
+- **Security**: 28 security and logic fixes including timing-safe auth, cryptographic CSP nonce, SQL pattern injection prevention, RBAC hardening, rate-limit improvements, and transaction-guarded admin operations.
+- **Testing**: Expanded unit test suite to 93 files / 373 tests with full CI/CD coverage gating.
 
 ### [2.3.9] - 2026-03-23
 - **Fixed**: Refined Dialog aesthetics. Standardized button styles to use themed semi-transparent gradients instead of high-contrast solid colors.

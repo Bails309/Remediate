@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/rbac";
+import { requireAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { redis } from "@/lib/redis";
 import { validateNessusCsv } from "@/lib/csv";
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const session = await requireUser();
+  const session = await requireAdmin();
   const formData = await request.formData();
   const file = formData.get("file");
   const siteId = formData.get("siteId")?.toString();

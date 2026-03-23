@@ -48,7 +48,11 @@ export function startNotificationScheduler() {
                 });
                 const uniqueVulns = Object.values(uniqueVulnsDict);
 
-                const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+                const appUrl = process.env.NEXTAUTH_URL;
+                if (!appUrl) {
+                    console.warn("[Notifications] NEXTAUTH_URL not set, skipping email send");
+                    continue;
+                }
                 const subject = `[Remediate] ${uniqueVulns.length} New Finding Assignment(s)`;
 
                 const riskStyles = {

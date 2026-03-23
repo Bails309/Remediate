@@ -3,6 +3,45 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.4.1] - 2026-03-23
+### Added
+- **E2E Playwright Test Suite**: Expanded end-to-end test coverage from 1 test to 45 tests across 14 files covering login flow, dashboard, navigation, vulnerabilities, uploads, buckets, analytics, threat intelligence, all 9 admin pages, RBAC (unauthenticated redirect enforcement), health API, and 404 handling.
+- **Playwright Auth Fixture**: Added `auth.setup.ts` that authenticates via local credentials and saves session state for reuse by authenticated test projects.
+- **Playwright Multi-Project Config**: Restructured Playwright into 3 projects — `setup` (auth fixture), `unauthenticated` (public page tests), and `chromium` (authenticated tests with stored session state).
+- **CI E2E Pipeline Fix**: Added `prisma db push`, `prisma db seed`, and `LOCAL_AUTH_*` environment variables to the GitHub Actions e2e job so Playwright tests can authenticate and query seeded data.
+
+## [2.4.0] - 2026-03-23
+### Security
+- **Timing-Safe Password Comparison**: Replaced direct string comparison with `crypto.timingSafeEqual` in local credentials authentication to prevent timing side-channel attacks.
+- **Cryptographic CSP Nonce**: Replaced `Math.random()`-based nonce generation with `crypto.randomUUID()` in the middleware Content-Security-Policy header.
+- **Stack Trace Removal**: Removed internal stack traces from the vulnerability search API error responses to prevent information leakage.
+- **LIKE Pattern Injection**: Escaped user-supplied wildcard characters (`%`, `_`, `\`) in ILIKE search queries to prevent pattern injection.
+- **Role Overwrite Prevention**: Fixed auth provisioning to never overwrite manually assigned database roles with session-supplied roles on subsequent logins.
+- **Role Escalation Guard**: Added role hierarchy enforcement in the admin user management API — non-site-admins can no longer grant `site_admin` or `toolkit_admin` roles.
+- **Last-Admin Race Condition**: Wrapped last-admin protection checks (PATCH and DELETE) in a Prisma `$transaction` to prevent concurrent role removals.
+- **Rate Limiter Hardening**: Added optional `userId` parameter to the rate limiter so authenticated routes can key on user identity instead of spoofable IP headers.
+- **Bucket Auth Escalation**: Changed the bucket PUT handler from `requireUser` to `requireAdmin` to prevent standard users from modifying bucket configurations.
+- **Credential Log Sanitisation**: Removed all credential fingerprint logging (connection strings, account keys, SAS tokens) from the storage provider initialisation.
+- **Secret Fingerprint Removal**: Removed secret fingerprint logging from the storage test API endpoint.
+- **NEXTAUTH_URL Fallback Guard**: Replaced silent `localhost` fallback for `NEXTAUTH_URL` with an explicit warning-and-skip pattern in notification schedulers.
+
+### Fixed
+- **Threat Feed Limit Cap**: Capped the threat intelligence feed API limit to a maximum of 100 entries to prevent unbounded queries.
+- **Tour Completion Deduplication**: Rewrote the tour completion endpoint with Zod validation and a read-then-set deduplication strategy to prevent duplicate entries.
+- **Tour ID Whitelist**: Added an enum-based whitelist of valid tour identifiers to reject arbitrary values.
+- **ReDoS Mitigation**: Added a 500-character input length limit before regex matching in the Azure File Share filename filter.
+- **Weekly Notification Timing**: Replaced fragile exact-minute matching with `lastSentAt` tracking for weekly assignment notification scheduling.
+- **VACUUM to ANALYZE**: Changed per-upload `VACUUM ANALYZE` to lightweight `ANALYZE` only; full `VACUUM` should be a scheduled maintenance task.
+- **Status Enum Validation**: Changed vulnerability status validation from freeform string to a strict `z.enum()` with all valid statuses.
+- **Assignee Existence Check**: Added database existence verification before connecting an assignee to a vulnerability.
+- **Collaborator Existence Check**: Added count verification for collaborator IDs before setting collaborators on a vulnerability.
+- **Comment Content Validation**: Added Zod schema validation (min 1, max 10,000 characters) for vulnerability comment content.
+- **Analytics Site ID Validation**: Added UUID format validation for the `siteId` parameter in the analytics API.
+- **Bucket Import Pattern Validation**: Added regex syntax validation and length constraints for bucket import patterns and aliases.
+- **Page Number Cap**: Added an upper bound of 10,000 on the page number parameter in the vulnerability search API.
+- **User Existence Check**: Added a pre-update existence check when patching user roles via the admin API.
+- **Legacy Schema Fallback Removal**: Removed the legacy `role` (singular) field fallback from auth provisioning, eliminating dead code paths.
+
 ## [2.3.9] - 2026-03-23
 ### Fixed
 - **Dialog Aesthetics**: Refined the "Confirm Update" button styling to align with the application's semi-transparent themed gradients. Replaced high-contrast custom classes with the standard `primary` and `ghost` button variants.

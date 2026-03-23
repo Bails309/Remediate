@@ -32,10 +32,11 @@ async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
     }
     throw error; // Let BullMQ handle retries
   } finally {
-    // Maintenance after processing (successful or failed attempt)
+    // Lightweight statistics refresh (ANALYZE only, no VACUUM) to keep query planner current.
+    // Full VACUUM should be scheduled separately (e.g., daily cron) to avoid locking tables per-upload.
     try {
-      await prisma.$executeRawUnsafe(`VACUUM ANALYZE "Vulnerability";`);
-      await prisma.$executeRawUnsafe(`VACUUM ANALYZE "VulnerabilityHistory";`);
+      await prisma.$executeRawUnsafe(`ANALYZE "Vulnerability";`);
+      await prisma.$executeRawUnsafe(`ANALYZE "VulnerabilityHistory";`);
 
       // 12-month retention policy cleanup
       const twelveMonthsAgo = new Date();

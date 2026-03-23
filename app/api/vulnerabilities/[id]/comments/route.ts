@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { z } from "zod";
+
+const commentSchema = z.object({
+    content: z.string().min(1).max(10000),
+    isPrivate: z.boolean().optional(),
+});
 
 export async function GET(
     req: Request,
@@ -85,11 +91,12 @@ export async function POST(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { content, isPrivate = true } = await req.json();
-
-    if (!content) {
-        return NextResponse.json({ error: "Content is required" }, { status: 400 });
+    const body = await req.json();
+    const parsed = commentSchema.safeParse(body);
+    if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.format() }, { status: 400 });
     }
+    const { content, isPrivate = true } = parsed.data;
 
     const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
         where: { id: vulnerabilityId },

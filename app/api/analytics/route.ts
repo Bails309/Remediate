@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { z } from "zod";
 import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -12,12 +13,16 @@ export async function GET(request: NextRequest) {
 
   await requireUser();
   const { searchParams } = new URL(request.url);
-  const siteId = searchParams.get("siteId") ?? undefined;
+  const rawSiteId = searchParams.get("siteId") ?? undefined;
+  const siteId = rawSiteId ? z.string().uuid().safeParse(rawSiteId) : undefined;
+  if (siteId && !siteId.success) {
+    return NextResponse.json({ error: "Invalid siteId" }, { status: 400 });
+  }
 
   const groups = await prisma.vulnerability.groupBy({
     by: ["risk"],
     where: {
-      ...(siteId ? { siteId } : {}),
+      ...(siteId?.success ? { siteId: siteId.data } : {}),
       status: "Open",
     },
     _count: { _all: true },
