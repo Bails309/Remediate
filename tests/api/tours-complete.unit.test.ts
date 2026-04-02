@@ -104,4 +104,19 @@ describe("/api/tours/complete POST", () => {
     expect(setArg).toContain("whats-new-apr-2026");
     expect(setArg).toContain("welcome-tour");
   });
+
+  it.each([
+    "dashboard-tour",
+    "vulnerabilities-tour",
+    "analytics-tour",
+    "threat-intelligence-tour",
+  ])("accepts page-specific tour: %s", async (tourId) => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue({ completedTours: [] });
+    mockPrisma.user.update.mockResolvedValue({ completedTours: [tourId] });
+
+    const { POST } = await import("../../app/api/tours/complete/route");
+    const res = await POST(postReq({ tourId }));
+    expect(res.status).toBe(200);
+  });
 });

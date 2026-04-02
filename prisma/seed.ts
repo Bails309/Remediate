@@ -12,7 +12,7 @@ async function main() {
       email: adminEmail,
       name: "Admin User",
       roles: ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"],
-      completedTours: ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026"],
+      completedTours: ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"],
     },
   });
 
