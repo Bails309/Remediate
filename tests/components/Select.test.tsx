@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, vi } from "vitest";
+import { describe, it, vi, expect } from "vitest";
 
 import { Select } from "@/components/Select";
 

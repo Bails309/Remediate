@@ -27,7 +27,7 @@ describe("UploadsClient", () => {
       onerror = null;
     } as unknown as typeof EventSource;
 
-    const { container } = render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1" }]} initialUploads={[]} />);
+    const { container } = render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1", importAliases: [], autoImportEnabled: false }]} initialUploads={[]} initialAzureConfig={null} />);
 
     // select site (hidden native select used by component)
     const nativeSelect = container.querySelector("select") as HTMLSelectElement | null;

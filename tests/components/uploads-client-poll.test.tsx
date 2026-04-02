@@ -39,7 +39,6 @@ describe("UploadsClient polling + history", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error mocking global fetch
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
     // Provide a minimal EventSource mock for jsdom/node
     class MockEventSource {
@@ -59,7 +58,7 @@ describe("UploadsClient polling + history", () => {
     (global as any).EventSource = MockEventSource as any;
 
     // render and start upload
-    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1" }]} initialUploads={[]} />);
+    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1", importAliases: [], autoImportEnabled: false }]} initialUploads={[]} initialAzureConfig={null} />);
 
     const nativeSelect = document.querySelector("select") as HTMLSelectElement;
     fireEvent.change(nativeSelect, { target: { value: "s1" } });

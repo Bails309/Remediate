@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 // Import the handlers relatively so module resolution matches runtime
 // Route module will be dynamically imported after mocks are set to ensure proper hoisting
@@ -11,6 +12,7 @@ const mockPrisma = {
     update: vi.fn(),
     delete: vi.fn(),
     count: vi.fn(),
+    create: vi.fn(),
   },
   $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
@@ -32,7 +34,7 @@ describe("admin users route (unit)", () => {
   it("returns 401 when not admin", async () => {
     vi.mocked(auth).mockResolvedValue(null as any);
     const { GET } = await import("../../app/api/admin/users/route");
-    const res = await GET(new Request("http://localhost/api/admin/users"));
+    const res = await GET(new NextRequest("http://localhost/api/admin/users"));
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("Unauthorized");
@@ -44,7 +46,7 @@ describe("admin users route (unit)", () => {
     vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: false } as any);
 
     const { GET } = await import("../../app/api/admin/users/route");
-    const res = await GET(new Request("http://localhost/api/admin/users"));
+    const res = await GET(new NextRequest("http://localhost/api/admin/users"));
     expect(res.status).toBe(429);
     expect((await res.json()).error).toBe("Too many requests");
   });
@@ -57,7 +59,7 @@ describe("admin users route (unit)", () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: "u1", email: "a@a" }] as any);
 
     const { GET } = await import("../../app/api/admin/users/route");
-    const res = await GET(new Request("http://localhost/api/admin/users"));
+    const res = await GET(new NextRequest("http://localhost/api/admin/users"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
@@ -190,7 +192,7 @@ describe("admin users route (unit)", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { GET } = await import("../../app/api/admin/users/route");
-    const res = await GET(new Request("http://localhost/api/admin/users"));
+    const res = await GET(new NextRequest("http://localhost/api/admin/users"));
     expect(res.status).toBe(500);
     consoleSpy.mockRestore();
   });
@@ -309,7 +311,7 @@ describe("admin users POST route (unit)", () => {
     vi.mocked(checkAdmin).mockReturnValue(true as any);
     vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
     mockPrisma.user.findUnique.mockResolvedValue(null as any);
-    mockPrisma.user.create = vi.fn().mockResolvedValue({ id: "new-u", email: "new@test.com", roles: ["web_app_admin", "web_app_user"] } as any);
+    mockPrisma.user.create.mockResolvedValue({ id: "new-u", email: "new@test.com", roles: ["web_app_admin", "web_app_user"] } as any);
 
     const { POST } = await import("../../app/api/admin/users/route");
     const req = new Request("http://localhost/api/admin/users", { method: "POST", body: JSON.stringify({ email: "new@test.com", roles: ["web_app_admin"] }) });

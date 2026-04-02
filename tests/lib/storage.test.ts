@@ -58,7 +58,7 @@ vi.mock("@/lib/redis", () => ({
 describe("storage provider (azure)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
   });
 
   it("returns an Azure-backed provider and can save/read/delete", async () => {
@@ -81,7 +81,7 @@ describe("storage provider (azure)", () => {
 describe("storage provider (redis fallback)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = "test"; // should force Redis provider
+    (process.env as Record<string, string | undefined>).NODE_ENV = "test"; // should force Redis provider
   });
 
   it("returns Redis provider in test env and its methods interact with redis client", async () => {

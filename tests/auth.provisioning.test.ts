@@ -61,7 +61,7 @@ describe("Auth Provisioning", () => {
             roles: ["web_app_admin", "web_app_user"]
         });
 
-        await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } });
+        await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } as any });
 
         expect(prisma.user.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -79,7 +79,7 @@ describe("Auth Provisioning", () => {
             roles: ["web_app_admin", "web_app_user"]
         });
 
-        await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } });
+        await provisionUser({ user: dashboardAdmin, account: { provider: "keycloak" } as any });
 
         // Verify it doesn't default back to "User"
         const upsertCall = vi.mocked(prisma.user.upsert).mock.calls[0][0];

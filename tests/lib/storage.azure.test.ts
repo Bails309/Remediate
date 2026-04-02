@@ -27,13 +27,13 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@azure/storage-blob", () => {
-  const BlobServiceClient = function (this: any) {
+  const BlobServiceClient = function (this: Record<string, unknown>) {
     return { getContainerClient: mockGetContainerClient };
   } as unknown as { fromConnectionString: (...a: any[]) => any } & ((...a: any[]) => any);
   (BlobServiceClient as any).fromConnectionString = vi.fn(() => ({ getContainerClient: mockGetContainerClient }));
 
   // Provide a real constructor for StorageSharedKeyCredential so `new` works
-  function StorageSharedKeyCredential(accountName: string, accountKey: string) {
+  function StorageSharedKeyCredential(this: Record<string, unknown>, accountName: string, accountKey: string) {
     this.accountName = accountName;
     this.accountKey = accountKey;
   }
@@ -47,7 +47,7 @@ vi.mock("@azure/storage-blob", () => {
 describe("Azure storage branches", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
   });
 
   it("ACCOUNT_KEY path uses StorageSharedKeyCredential and returns provider", async () => {

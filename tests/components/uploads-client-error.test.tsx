@@ -13,7 +13,7 @@ describe("UploadsClient error handling", () => {
     const { toast } = await import("@/lib/toast");
     const spy = vi.spyOn(toast, "error").mockImplementation(() => ({} as any));
 
-    render(<UploadsClient initialSites={[]} initialUploads={[]} />);
+    render(<UploadsClient initialSites={[]} initialUploads={[]} initialAzureConfig={null} />);
 
     const btn = screen.getByText("Start Upload");
     fireEvent.click(btn);
