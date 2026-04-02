@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
 import { Shield, Activity, Upload, Users, Settings, LogOut, ChevronRight, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
@@ -209,8 +210,12 @@ export function Sidebar({ session }: { session?: Session | null }) {
             </div>
           </div>
         )}
+        <FeedbackButton />
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={async () => {
+            await fetch("/api/auth/revoke", { method: "POST" }).catch(() => {});
+            signOut({ callbackUrl: "/login" });
+          }}
           className="flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-red-500 transition-all hover:bg-red-500/10 group"
         >
           <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />

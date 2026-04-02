@@ -222,6 +222,53 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - Dockerfile: Multi-stage container build
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
+## Feedback & Audit APIs
+
+### Submit Feedback (authenticated users)
+
+```
+POST /api/feedback
+Content-Type: application/json
+Cookie: <session cookie>
+
+{
+  "type": "bug" | "feature" | "general",
+  "message": "Description (5–5000 chars)",
+  "page": "/dashboard"          // optional — auto-populated by the UI
+}
+```
+
+Returns `{ "success": true }` on 200. Rate limited per user.
+
+### Retrieve Feedback (site_admin only)
+
+```
+GET /api/feedback
+Cookie: <session cookie>
+```
+
+Returns the 100 most recent entries:
+
+```json
+[
+  {
+    "id": "...",
+    "userEmail": "user@example.com",
+    "newValue": { "type": "bug", "message": "...", "page": "/dashboard" },
+    "createdAt": "2026-04-02T12:00:00.000Z"
+  }
+]
+```
+
+### Audit Log (site_admin only)
+
+```
+GET /api/admin/audit-log?page=1&limit=50&action=feedback.submit&entityType=Feedback
+Cookie: <session cookie>
+```
+
+Supports filtering by `action` and `entityType`. Returns paginated results with total count.
+
 ## Release notes
 
 ### [2.5.0] - 2026-04-02

@@ -48,9 +48,13 @@ function getOrCreateNonce(req: NextRequest, responseHeaders: Headers) {
     const cookieNonce = req.cookies.get("x-nonce")?.value;
     if (cookieNonce) return cookieNonce;
 
+    const forwardedProto = req.headers.get('x-forwarded-proto');
+    const isHttps = forwardedProto === 'https' || req.url.startsWith('https://');
+    const secureSuffix = isHttps ? '; Secure' : '';
+
     const newNonce = crypto.randomUUID();
     // Set cookie for subsequent sub-requests to keep nonce stable during SPA session
-    responseHeaders.append("Set-Cookie", `x-nonce=${newNonce}; Path=/; HttpOnly; SameSite=Lax`);
+    responseHeaders.append("Set-Cookie", `x-nonce=${newNonce}; Path=/; HttpOnly; SameSite=Lax${secureSuffix}`);
     return newNonce;
 }
 

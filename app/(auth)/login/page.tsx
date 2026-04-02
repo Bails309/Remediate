@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -114,6 +115,11 @@ export default function LoginPage() {
             </div>
           </div>
         )}
+      </div>
+      <div className="mt-6 flex items-center gap-4 text-xs opacity-40">
+        <Link href="/privacy" className="hover:opacity-100 transition-opacity">Privacy Policy</Link>
+        <span>·</span>
+        <Link href="/accessibility" className="hover:opacity-100 transition-opacity">Accessibility</Link>
       </div>
     </div>
   );

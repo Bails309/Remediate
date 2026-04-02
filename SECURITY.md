@@ -53,3 +53,23 @@ This file lists practical security controls and best practices for running Remed
 
 ## Notes
 - Avoid running untested schema changes in production. Use feature flags or phased rollouts for high-risk changes.
+
+## Key Rotation Procedure
+1. **AUTH_SECRET**: Generate a new value (`openssl rand -base64 32`), update the secret store, and redeploy. Existing sessions will be invalidated — users must re-authenticate.
+2. **DATABASE_URL**: Rotate credentials through your managed database provider (e.g. Azure Key Vault auto-rotation), then restart the application.
+3. **REDIS_URL**: Update the password in both the Redis server and the secret store, then restart.
+4. **SMTP credentials**: Update in the admin Settings page (encrypted at rest with `AUTH_SECRET`).
+5. **Schedule**: Rotate `AUTH_SECRET` at least every 90 days, or immediately after any suspected compromise.
+
+## Incident Response
+1. **Detection** — Automated health checks (`GET /api/health`) monitor PostgreSQL and Redis availability. System status is visible in the admin Operations page. Audit logs (`AuditLog` table) record all security-relevant actions.
+2. **Containment** — Revoke compromised sessions by rotating `AUTH_SECRET`. Disable affected user accounts via the admin Users page. If a credential is compromised, rotate it immediately per the Key Rotation Procedure above.
+3. **Investigation** — Query the audit log via `GET /api/admin/audit-log` with action/entity filters. Review application logs for anomalous activity patterns.
+4. **Recovery** — Restore from backups if data integrity is affected. Redeploy with rotated secrets. Verify system health via `/api/health`.
+5. **Post-Incident** — Document the incident, root cause, and remediation steps. Update this guide with any new controls. Notify affected users per GDPR Article 34 if personal data was compromised.
+
+## Data Retention Policy
+- **User accounts**: Retained while active; deleted on GDPR erasure request (`DELETE /api/account`) or admin action.
+- **Audit logs**: Retained for 12 months. Implement a scheduled job to purge entries older than the retention period.
+- **Vulnerability data**: Retained as long as relevant; archived records preserved in `VulnerabilityHistory`.
+- **Session data**: JWT tokens expire after 8 hours. Idle sessions time out after 20 minutes.
