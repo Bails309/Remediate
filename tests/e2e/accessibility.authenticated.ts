@@ -8,7 +8,7 @@ test.describe('Accessibility Statement Page', () => {
 
     test('displays WCAG conformance target', async ({ page }) => {
         await page.goto('/accessibility');
-        await expect(page.getByText('WCAG 2.1 Level AA')).toBeVisible();
+        await expect(page.getByText('(WCAG) 2.1 Level AA')).toBeVisible();
     });
 
     test('displays all required sections', async ({ page }) => {
