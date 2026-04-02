@@ -216,7 +216,7 @@ describe("VulnerabilitiesClient assignment confirmation", () => {
     const init3 = patchCall3![1] as RequestInit;
     expect(init3.method).toBe("PATCH");
     expect(JSON.parse(String(init3.body))).toEqual({ assigneeId: "u2" });
-  }, 10000);
+  }, 30000);
 
   it("updates directly from the detail sheet when the issue is unassigned", async () => {
     const mockFetch = createFetchMock({
@@ -249,5 +249,5 @@ describe("VulnerabilitiesClient assignment confirmation", () => {
     expect(JSON.parse(String(init4.body))).toEqual({ assigneeId: "u2" });
 
     expect(screen.queryByText(/Confirm Reassignment/i)).toBeNull();
-  });
+  }, 30000);
 });

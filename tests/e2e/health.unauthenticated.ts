@@ -5,6 +5,8 @@ test.describe('Health API', () => {
         const response = await request.get('/api/health');
         expect(response.status()).toBe(200);
         const body = await response.json();
-        expect(body).toEqual({ ok: true });
+        expect(body.ok).toBe(true);
+        expect(body.postgres).toBe('ok');
+        expect(body.redis).toBe('ok');
     });
 });

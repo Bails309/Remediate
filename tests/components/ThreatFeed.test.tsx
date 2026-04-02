@@ -79,4 +79,27 @@ describe("ThreatFeed component", () => {
       expect(screen.getByText("No active threats detected in feed.")).toBeInTheDocument();
     });
   });
+
+  it("handles fetch throwing an error gracefully", async () => {
+    (fetch as any).mockRejectedValue(new Error("Network error"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<ThreatFeed />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No active threats detected in feed.")).toBeInTheDocument();
+    });
+    expect(consoleSpy).toHaveBeenCalledWith("Failed to fetch threat feed", expect.any(Error));
+    consoleSpy.mockRestore();
+  });
+
+  it("handles non-ok response without crashing", async () => {
+    (fetch as any).mockResolvedValue({ ok: false, status: 500 });
+
+    render(<ThreatFeed />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No active threats detected in feed.")).toBeInTheDocument();
+    });
+  });
 });

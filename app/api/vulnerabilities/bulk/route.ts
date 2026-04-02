@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, Vulnerability, VulnerabilityStatus } from "@prisma/client";
 import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { writeAuditLog } from "@/lib/audit-log";
 import type { NextRequest } from "next/server";
 
 const bulkSchema = z.object({
@@ -122,6 +123,15 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+  });
+
+  writeAuditLog({
+    userId: userId!,
+    userEmail: session.user.email!,
+    action: payload.status ? "vulnerability.bulk_status_changed" : "vulnerability.bulk_assigned",
+    entityType: "Vulnerability",
+    entityId: payload.ids.join(","),
+    newValue: payload.status || payload.assigneeId || null,
   });
 
   return NextResponse.json({ ok: true });

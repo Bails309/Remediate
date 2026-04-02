@@ -101,4 +101,20 @@ describe("/api/admin/import POST", () => {
     const data = await res.json();
     expect(data.pluginGracePeriodDays).toBe(14);
   });
+
+  it("returns 400 for malformed JSON body", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { POST } = await import("../../app/api/admin/import/route");
+    const req = new NextRequest("http://localhost/api/admin/import", {
+      method: "POST",
+      body: "not-json",
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Invalid request body");
+    consoleSpy.mockRestore();
+  });
 });

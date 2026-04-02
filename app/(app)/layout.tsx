@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { ProductTour } from "@/components/ProductTour";
 import { WhatsNew } from "@/components/WhatsNew";
+import { IdleTimeout } from "@/components/IdleTimeout";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <Providers>
       <div id="app-layout-debug" style={{ display: 'none' }} data-session={!!session} data-user={!!dbUser} />
+      <IdleTimeout />
       {dbUser && !process.env.E2E_TESTING && (
         <>
           <ProductTour 
@@ -44,6 +47,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <main className="fade-up p-2 lg:p-6">
             {children}
           </main>
+          <footer className="mt-auto border-t border-white/5 px-2 py-4 lg:px-6 flex items-center gap-4 text-xs opacity-40">
+            <Link href="/privacy" className="hover:opacity-100 transition-opacity">Privacy Policy</Link>
+            <span>·</span>
+            <Link href="/accessibility" className="hover:opacity-100 transition-opacity">Accessibility</Link>
+          </footer>
         </div>
       </div>
     </Providers>

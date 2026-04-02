@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { checkAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { writeAuditLog } from "@/lib/audit-log";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
@@ -79,6 +80,15 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        writeAuditLog({
+            userId: session.user.id!,
+            userEmail: session.user.email!,
+            action: "user.created",
+            entityType: "User",
+            entityId: user.id,
+            newValue: JSON.stringify({ email: normalizedEmail, roles: normalizedRoles }),
+        });
+
         return NextResponse.json(user);
     } catch (error) {
         console.error("Failed to pre-register user:", error);
@@ -140,12 +150,33 @@ export async function PATCH(req: NextRequest) {
                     data: { roles: normalizedRoles },
                 });
             });
+
+            writeAuditLog({
+                userId: session.user.id!,
+                userEmail: session.user.email!,
+                action: "user.roles_changed",
+                entityType: "User",
+                entityId: userId,
+                oldValue: JSON.stringify(targetUser.roles),
+                newValue: JSON.stringify(normalizedRoles),
+            });
+
             return NextResponse.json(updated);
         }
 
         const user = await prisma.user.update({
             where: { id: userId },
             data: { roles: normalizedRoles },
+        });
+
+        writeAuditLog({
+            userId: session.user.id!,
+            userEmail: session.user.email!,
+            action: "user.roles_changed",
+            entityType: "User",
+            entityId: userId,
+            oldValue: JSON.stringify(targetUser.roles),
+            newValue: JSON.stringify(normalizedRoles),
         });
 
         return NextResponse.json(user);
@@ -190,6 +221,16 @@ export async function DELETE(req: NextRequest) {
                 }
                 await tx.user.delete({ where: { id: userId } });
             });
+
+            writeAuditLog({
+                userId: session.user.id!,
+                userEmail: session.user.email!,
+                action: "user.deleted",
+                entityType: "User",
+                entityId: userId,
+                oldValue: JSON.stringify({ roles: targetUser.roles }),
+            });
+
             return NextResponse.json({ success: true });
         }
 
@@ -199,6 +240,15 @@ export async function DELETE(req: NextRequest) {
         }
 
         await prisma.user.delete({ where: { id: userId } });
+
+        writeAuditLog({
+            userId: session.user.id!,
+            userEmail: session.user.email!,
+            action: "user.deleted",
+            entityType: "User",
+            entityId: userId,
+            oldValue: JSON.stringify({ roles: targetUser.roles }),
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -29,4 +29,18 @@ describe("BucketFilter", () => {
 
     expect(push).toHaveBeenCalledWith("/current?bucketId=b2");
   });
+
+  it("removes bucketId param when All Buckets is selected", () => {
+    const push = vi.fn();
+    vi.mocked(nav).useRouter = (() => ({ push, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() })) as any;
+    vi.mocked(nav).useSearchParams = (() => new URLSearchParams("bucketId=b1")) as any;
+
+    const buckets = [{ id: "b1", name: "Bucket 1" }];
+    const { container } = render(<BucketFilter buckets={buckets} selected={"b1"} />);
+
+    const select = container.querySelector("select") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "" } });
+
+    expect(push).toHaveBeenCalledWith("/current?");
+  });
 });

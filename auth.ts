@@ -19,7 +19,10 @@ const result = NextAuth(async () => {
     return {
         ...authConfig,
         trustHost: true,
-        session: { strategy: "jwt" },
+        session: {
+            strategy: "jwt",
+            maxAge: 8 * 60 * 60, // 8-hour absolute session lifetime (OWASP recommendation)
+        },
         providers: [
             ...authConfig.providers,
             oidcProvider,
@@ -42,6 +45,16 @@ const result = NextAuth(async () => {
             async jwt({ token, user, trigger }: { token: JWT; user?: User; trigger?: string }) {
                 const now = Math.floor(Date.now() / 1000);
                 const ONE_HOUR = 3600;
+
+                // Check if this token has been revoked (server-side logout)
+                if (token.jti) {
+                    const { redis } = await import("@/lib/redis");
+                    const revoked = await redis.get(`revoked:${token.jti}`);
+                    if (revoked) {
+                        // Return an empty token — NextAuth will treat this as invalid
+                        return {} as JWT;
+                    }
+                }
 
                 const email = user?.email || token.email;
 

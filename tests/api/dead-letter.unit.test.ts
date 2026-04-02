@@ -157,6 +157,41 @@ describe("/api/uploads/dead-letter PUT", () => {
     expect(data.requeued).toBe(1);
     expect(data.skipped).toBe(0);
   });
+
+  it("skips dead letter when upload not found", async () => {
+    vi.mocked(listDeadLetters).mockResolvedValue(["u1"]);
+    mockPrisma.uploadHistory.findMany.mockResolvedValue([]); // no matching upload
+    vi.mocked(getPayload).mockResolvedValue("payload");
+
+    const { PUT } = await import("../../app/api/uploads/dead-letter/route");
+    const res = await PUT();
+    const data = await res.json();
+    expect(data.requeued).toBe(0);
+    expect(data.skipped).toBe(1);
+  });
+
+  it("skips dead letter when payload expired", async () => {
+    vi.mocked(listDeadLetters).mockResolvedValue(["u1"]);
+    mockPrisma.uploadHistory.findMany.mockResolvedValue([{ id: "u1", siteId: "site-1" }]);
+    vi.mocked(getPayload).mockResolvedValue(null);
+
+    const { PUT } = await import("../../app/api/uploads/dead-letter/route");
+    const res = await PUT();
+    const data = await res.json();
+    expect(data.skipped).toBe(1);
+  });
+
+  it("skips dead letter when site is locked", async () => {
+    vi.mocked(listDeadLetters).mockResolvedValue(["u1"]);
+    mockPrisma.uploadHistory.findMany.mockResolvedValue([{ id: "u1", siteId: "site-1" }]);
+    vi.mocked(getPayload).mockResolvedValue("payload");
+    mockRedis.set.mockResolvedValue(null); // NX returns null when key exists
+
+    const { PUT } = await import("../../app/api/uploads/dead-letter/route");
+    const res = await PUT();
+    const data = await res.json();
+    expect(data.skipped).toBe(1);
+  });
 });
 
 describe("/api/uploads/dead-letter DELETE", () => {
@@ -190,5 +225,21 @@ describe("/api/uploads/dead-letter DELETE", () => {
     const res = await DELETE(req);
     const data = await res.json();
     expect(data.purged).toBe(0);
+  });
+
+  it("purges dead letters whose upload is not found in DB", async () => {
+    vi.mocked(listDeadLetters).mockResolvedValue(["u-missing"]);
+    mockPrisma.uploadHistory.findMany.mockResolvedValue([]); // no matching upload
+
+    const { DELETE } = await import("../../app/api/uploads/dead-letter/route");
+    const req = new NextRequest("http://localhost/api/uploads/dead-letter", {
+      method: "DELETE",
+      body: JSON.stringify({ days: 7 }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await DELETE(req);
+    const data = await res.json();
+    expect(data.purged).toBe(1);
+    expect(deletePayload).toHaveBeenCalledWith("u-missing");
   });
 });

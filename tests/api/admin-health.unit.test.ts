@@ -131,4 +131,89 @@ describe("/api/admin/health GET", () => {
     const data = await res.json();
     expect(data.toolkitBackend.status).toBe("Healthy");
   });
+
+  it("reports stale worker heartbeat", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(requireAdmin).mockResolvedValue(undefined as any);
+    mockPrisma.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    mockRedis.ping.mockResolvedValue("PONG");
+    mockRedis.info.mockResolvedValue("used_memory_human:2MB");
+    // heartbeat from 60 seconds ago
+    mockRedis.get.mockResolvedValue(String(Date.now() - 60_000));
+    mockPrisma.vulnerability.count.mockResolvedValue(0);
+    mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+
+    const { GET } = await import("../../app/api/admin/health/route");
+    const res = await GET(makeRequest());
+    const data = await res.json();
+    expect(data.worker.status).toMatch(/^Stale/);
+  });
+
+  it("reports toolkit backend unhealthy when fetch throws", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(requireAdmin).mockResolvedValue(undefined as any);
+    process.env.PENTEST_BACKEND_URL = "http://toolkit:4000";
+    mockPrisma.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    mockRedis.ping.mockResolvedValue("PONG");
+    mockRedis.info.mockResolvedValue("used_memory_human:1MB");
+    mockRedis.get.mockResolvedValue(String(Date.now()));
+    mockPrisma.vulnerability.count.mockResolvedValue(0);
+    mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+    mockFetch.mockRejectedValue(new Error("Connection refused"));
+
+    const { GET } = await import("../../app/api/admin/health/route");
+    const res = await GET(makeRequest());
+    const data = await res.json();
+    expect(data.toolkitBackend.status).toBe("Unhealthy");
+  });
+
+  it("reports toolkit backend unhealthy status code", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(requireAdmin).mockResolvedValue(undefined as any);
+    process.env.PENTEST_BACKEND_URL = "http://toolkit:4000";
+    mockPrisma.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    mockRedis.ping.mockResolvedValue("PONG");
+    mockRedis.info.mockResolvedValue("used_memory_human:1MB");
+    mockRedis.get.mockResolvedValue(String(Date.now()));
+    mockPrisma.vulnerability.count.mockResolvedValue(0);
+    mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+    mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+    const { GET } = await import("../../app/api/admin/health/route");
+    const res = await GET(makeRequest());
+    const data = await res.json();
+    expect(data.toolkitBackend.status).toBe("Unhealthy (503)");
+  });
+
+  it("reports schema out of sync when count throws", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(requireAdmin).mockResolvedValue(undefined as any);
+    mockPrisma.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    mockRedis.ping.mockResolvedValue("PONG");
+    mockRedis.info.mockResolvedValue("used_memory_human:1MB");
+    mockRedis.get.mockResolvedValue(String(Date.now()));
+    mockPrisma.vulnerability.count.mockRejectedValue(new Error("Table not found"));
+    mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+
+    const { GET } = await import("../../app/api/admin/health/route");
+    const res = await GET(makeRequest());
+    const data = await res.json();
+    expect(data.schema.status).toBe("Out of sync");
+  });
+
+  it("reports redis memory when no match found", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(requireAdmin).mockResolvedValue(undefined as any);
+    mockPrisma.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    mockRedis.ping.mockResolvedValue("PONG");
+    mockRedis.info.mockResolvedValue("some_other_info:value"); // no used_memory_human match
+    mockRedis.get.mockResolvedValue(String(Date.now()));
+    mockPrisma.vulnerability.count.mockResolvedValue(0);
+    mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+
+    const { GET } = await import("../../app/api/admin/health/route");
+    const res = await GET(makeRequest());
+    const data = await res.json();
+    expect(data.redis.memory).toBe("0MB");
+  });
 });

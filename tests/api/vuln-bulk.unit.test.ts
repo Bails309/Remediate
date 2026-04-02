@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockPrisma = {
   vulnerability: { findMany: vi.fn(), count: vi.fn(), delete: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   vulnerabilityHistory: { createMany: vi.fn() },
+  assignmentNotification: { createMany: vi.fn() },
   $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -96,5 +97,103 @@ describe("/api/vulnerabilities/bulk POST", () => {
       postReq({ ids: [validId], status: "InProgress" }) as any
     );
     expect(res.status).toBe(200);
+  });
+
+  it("archives vulnerabilities when setting terminal status (Remediated)", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "u1", email: "a@a.com", roles: ["site_admin"] },
+    } as any);
+    const vuln = {
+      id: validId, siteId: "s1", assigneeId: null, status: "Open",
+      lastSeenAt: new Date(), createdAt: new Date(),
+      pluginId: "1001", cve: null, cvssScore: null, risk: "High",
+      host: "h1", protocol: "tcp", port: "443", name: "Test",
+      synopsis: null, description: null, solution: null, seeAlso: null,
+      pluginOutput: null, pluginPublicationDate: null, pluginModificationDate: null,
+    };
+    mockPrisma.vulnerability.findMany.mockResolvedValue([vuln]);
+    mockPrisma.vulnerabilityHistory.createMany.mockResolvedValue({ count: 1 });
+    mockPrisma.vulnerability.deleteMany.mockResolvedValue({ count: 1 });
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], status: "Remediated" }) as any
+    );
+    expect(res.status).toBe(200);
+    expect(mockPrisma.vulnerabilityHistory.createMany).toHaveBeenCalled();
+    expect(mockPrisma.vulnerability.deleteMany).toHaveBeenCalled();
+  });
+
+  it("creates assignment notifications when assigning to a user", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "u1", email: "a@a.com", roles: ["site_admin"] },
+    } as any);
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.assignmentNotification.createMany.mockResolvedValue({ count: 1 });
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], assigneeId: validId2 }) as any
+    );
+    expect(res.status).toBe(200);
+    expect(mockPrisma.assignmentNotification.createMany).toHaveBeenCalled();
+  });
+
+  it("allows non-admin to self-assign", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: validId2, email: "u@u.com", roles: ["web_app_user"] },
+    } as any);
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.assignmentNotification.createMany.mockResolvedValue({ count: 1 });
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], assigneeId: validId2 }) as any
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("allows non-admin to unassign (set null)", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "u1", email: "u@u.com", roles: ["web_app_user"] },
+    } as any);
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], assigneeId: null }) as any
+    );
+    expect(res.status).toBe(200);
+    // No assignment notifications for null assignee
+    expect(mockPrisma.assignmentNotification.createMany).not.toHaveBeenCalled();
+  });
+
+  it("updates crNumber for admin", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "u1", email: "a@a.com", roles: ["site_admin"] },
+    } as any);
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], crNumber: "CR-12345" }) as any
+    );
+    expect(res.status).toBe(200);
+    expect(mockPrisma.vulnerability.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ crNumber: "CR-12345" }) })
+    );
+  });
+
+  it("blocks non-admin crNumber change on unowned items", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "u1", roles: ["web_app_user"] },
+    } as any);
+    mockPrisma.vulnerability.count.mockResolvedValue(0);
+
+    const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
+    const res = await POST(
+      postReq({ ids: [validId], crNumber: "CR-999" }) as any
+    );
+    expect(res.status).toBe(403);
   });
 });

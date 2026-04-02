@@ -332,3 +332,20 @@ model ThreatFeedMetadata {
   sha256Hash    String?
   lastSyncedAt  DateTime @default(now())
 }
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  userEmail   String
+  action      String   // e.g., "vulnerability.status_change", "user.role_update", "user.delete"
+  entityType  String   // e.g., "Vulnerability", "User", "ReportConfig"
+  entityId    String?
+  oldValue    String?  // JSON-serialised previous state
+  newValue    String?  // JSON-serialised new state
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([action, createdAt(sort: Desc)])
+}

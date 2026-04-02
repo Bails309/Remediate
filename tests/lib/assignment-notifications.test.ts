@@ -112,4 +112,46 @@ describe("dispatchWeeklyAssignmentEmails", () => {
     await dispatchWeeklyAssignmentEmails();
     expect(sendEmail).not.toHaveBeenCalled();
   });
+
+  it("catches and logs sendEmail failure without crashing", async () => {
+    process.env.NEXTAUTH_URL = "https://remediate.local";
+    vi.mocked(getReportConfig).mockResolvedValue({ enabled: true } as any);
+    vi.mocked(sendEmail).mockRejectedValue(new Error("SMTP timeout"));
+    mockPrisma.user.findMany.mockResolvedValue([
+      {
+        id: "u1",
+        name: "Alice",
+        email: "alice@example.com",
+        vulnerabilities: [{ id: "v1", name: "Test", risk: "High", host: "h", port: "0", status: "Open" }],
+      },
+    ]);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { dispatchWeeklyAssignmentEmails } = await import("../../lib/assignment-notifications");
+    await dispatchWeeklyAssignmentEmails();
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to send to alice@example.com"),
+      expect.any(Error),
+    );
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
+  it("skips users with empty vulnerabilities after mapping", async () => {
+    process.env.NEXTAUTH_URL = "https://remediate.local";
+    vi.mocked(getReportConfig).mockResolvedValue({ enabled: true } as any);
+    mockPrisma.user.findMany.mockResolvedValue([
+      {
+        id: "u1",
+        name: "Bob",
+        email: "bob@example.com",
+        vulnerabilities: [],
+      },
+    ]);
+
+    const { dispatchWeeklyAssignmentEmails } = await import("../../lib/assignment-notifications");
+    await dispatchWeeklyAssignmentEmails();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
 });

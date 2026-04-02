@@ -81,4 +81,15 @@ describe("/api/oidc/test POST", () => {
     expect(data.ok).toBe(true);
     expect(data.issuer).toBe("https://idp.example.com");
   });
+
+  it("returns 500 for non-ZodError exceptions (e.g. network error)", async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
+    mockFetch.mockRejectedValue(new Error("Network timeout"));
+
+    const { POST } = await import("../../app/api/oidc/test/route");
+    const res = await POST(makeRequest({ issuerUrl: "https://idp.example.com" }));
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Network timeout");
+  });
 });

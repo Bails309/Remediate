@@ -55,4 +55,29 @@ describe("/api/uploads/progress GET", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ progress: { step: "Queued", progress: 5 } });
   });
+
+  it("returns null progress when redis returns null payload", async () => {
+    vi.mocked(canAccessUpload).mockResolvedValue(true);
+    vi.mocked(redis.get).mockResolvedValue(null as any);
+
+    const { GET } = await import("../../app/api/uploads/progress/route");
+    const res = await GET(new Request("http://localhost/api/uploads/progress?uploadId=up-1") as any);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ progress: null });
+  });
+
+  it("returns null progress when payload is malformed JSON", async () => {
+    vi.mocked(canAccessUpload).mockResolvedValue(true);
+    vi.mocked(redis.get).mockResolvedValue("not-valid-json{{{" as any);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { GET } = await import("../../app/api/uploads/progress/route");
+    const res = await GET(new Request("http://localhost/api/uploads/progress?uploadId=up-1") as any);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ progress: null });
+    expect(consoleSpy).toHaveBeenCalledWith("Failed to parse progress payload", expect.any(Error));
+    consoleSpy.mockRestore();
+  });
 });

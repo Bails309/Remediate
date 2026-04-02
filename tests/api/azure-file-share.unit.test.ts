@@ -108,4 +108,61 @@ describe("/api/admin/azure-file-share POST", () => {
       })
     );
   });
+
+  it("defaults pollIntervalMinutes to 60 for non-numeric value", async () => {
+    mockPrisma.azureFileShareConfig.upsert.mockResolvedValue({ id: "singleton" });
+
+    const { POST } = await import("../../app/api/admin/azure-file-share/route");
+    const req = new Request("http://localhost/api/admin/azure-file-share", {
+      method: "POST",
+      body: JSON.stringify({
+        enabled: true,
+        accountName: "myaccount",
+        shareName: "scans",
+        directoryPath: "/",
+        pollIntervalMinutes: "not-a-number",
+        deleteAfterImport: false,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(mockPrisma.azureFileShareConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          pollIntervalMinutes: 60,
+        }),
+      })
+    );
+  });
+
+  it("encrypts accountKey and sasToken when provided", async () => {
+    mockPrisma.azureFileShareConfig.upsert.mockResolvedValue({ id: "singleton" });
+
+    const { POST } = await import("../../app/api/admin/azure-file-share/route");
+    const req = new Request("http://localhost/api/admin/azure-file-share", {
+      method: "POST",
+      body: JSON.stringify({
+        enabled: true,
+        accountName: "myaccount",
+        shareName: "scans",
+        directoryPath: "/",
+        pollIntervalMinutes: 30,
+        deleteAfterImport: false,
+        accountKey: "my-key",
+        sasToken: "my-sas",
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(mockPrisma.azureFileShareConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          accountKeyEnc: "enc:my-key",
+          sasTokenEnc: "enc:my-sas",
+        }),
+      })
+    );
+  });
 });

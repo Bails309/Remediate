@@ -55,4 +55,14 @@ describe("ClientDate", () => {
     const { container } = render(<ClientDate date="2024-01-01" className="custom" />);
     expect(container.querySelector(".custom")).not.toBeNull();
   });
+
+  it("renders fallback when Date constructor throws", () => {
+    // Force the catch block by making toLocaleString throw
+    const spy = vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(() => {
+      throw new Error("locale error");
+    });
+    render(<ClientDate date="2024-01-01" fallback="Error" />);
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    spy.mockRestore();
+  });
 });

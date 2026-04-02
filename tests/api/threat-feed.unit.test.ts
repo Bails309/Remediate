@@ -57,4 +57,15 @@ describe("/api/threat-intelligence/feed GET", () => {
       expect.objectContaining({ take: 1 })
     );
   });
+
+  it("returns 500 when prisma throws", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: "u1" } } as any);
+    mockPrisma.threatVulnerability.findMany.mockRejectedValue(new Error("DB error"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { GET } = await import("../../app/api/threat-intelligence/feed/route");
+    const res = await GET(new Request("http://localhost/api/threat-intelligence/feed"));
+    expect(res.status).toBe(500);
+    consoleSpy.mockRestore();
+  });
 });

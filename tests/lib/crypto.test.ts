@@ -23,6 +23,15 @@ describe("crypto utils", () => {
         expect(() => decrypt("short:payload")).toThrow("Invalid encrypted payload");
     });
 
+    it("should throw for corrupted ciphertext (tampered tag)", () => {
+        const encrypted = encrypt(plainText);
+        const parts = encrypted.split(":");
+        // Tamper with the auth tag
+        const badTag = Buffer.from("0000000000000000", "hex").toString("base64");
+        const corrupted = `${parts[0]}:${badTag}:${parts[2]}`;
+        expect(() => decrypt(corrupted)).toThrow();
+    });
+
     it("should throw error if AUTH_SECRET is missing", () => {
         const originalSecret = process.env.AUTH_SECRET;
         delete process.env.AUTH_SECRET;

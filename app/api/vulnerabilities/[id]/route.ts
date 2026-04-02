@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, VulnerabilityStatus, Risk } from "@prisma/client";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { z } from "zod";
+import { writeAuditLog } from "@/lib/audit-log";
 
 const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
@@ -169,6 +170,16 @@ export async function PATCH(
             return h;
         });
 
+        writeAuditLog({
+            userId: user.id,
+            userEmail: session.user.email!,
+            action: "vulnerability.archived",
+            entityType: "Vulnerability",
+            entityId: vulnerabilityId,
+            oldValue: vulnerability.status,
+            newValue: status,
+        });
+
         return NextResponse.json({ ...history, recordScope: "archived" });
     }
 
@@ -247,6 +258,30 @@ export async function PATCH(
 
         return u;
     });
+
+    if (status) {
+        writeAuditLog({
+            userId: user.id,
+            userEmail: session.user.email!,
+            action: "vulnerability.status_changed",
+            entityType: "Vulnerability",
+            entityId: vulnerabilityId,
+            oldValue: vulnerability.status,
+            newValue: status,
+        });
+    }
+
+    if (assigneeId !== undefined && assigneeId !== vulnerability.assigneeId) {
+        writeAuditLog({
+            userId: user.id,
+            userEmail: session.user.email!,
+            action: "vulnerability.assigned",
+            entityType: "Vulnerability",
+            entityId: vulnerabilityId,
+            oldValue: vulnerability.assigneeId,
+            newValue: assigneeId,
+        });
+    }
 
     return NextResponse.json(updated);
 }

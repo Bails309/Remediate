@@ -193,7 +193,10 @@ export function MobileNav({ session }: { session?: Session | null }) {
             </div>
           )}
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={async () => {
+              await fetch("/api/auth/revoke", { method: "POST" }).catch(() => {});
+              signOut({ callbackUrl: "/login" });
+            }}
             className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-500/10 transition-colors"
           >
             <LogOut size={18} />
