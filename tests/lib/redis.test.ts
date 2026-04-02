@@ -61,3 +61,44 @@ describe("Redis client initialization", () => {
         });
     });
 });
+
+describe("Redis proxy handler methods", () => {
+    const origEnv = process.env;
+
+    beforeEach(() => {
+        vi.resetModules();
+        process.env = { ...origEnv, REDIS_URL: "redis://localhost:6379" };
+    });
+
+    afterEach(() => {
+        process.env = origEnv;
+    });
+
+    it("set handler sets a property on the underlying instance", async () => {
+        const { redis } = await import("@/lib/redis");
+        (redis as any).customProp = "test-value";
+        expect((redis as any).customProp).toBe("test-value");
+    });
+
+    it("has handler checks property existence", async () => {
+        const { redis } = await import("@/lib/redis");
+        void (redis as any).url; // trigger lazy init
+        expect("url" in redis).toBe(true);
+        expect("nonExistentProp" in redis).toBe(false);
+    });
+
+    it("ownKeys handler returns keys of the underlying instance", async () => {
+        const { redis } = await import("@/lib/redis");
+        void (redis as any).url; // trigger lazy init
+        const keys = Reflect.ownKeys(redis);
+        expect(keys).toContain("url");
+    });
+
+    it("getOwnPropertyDescriptor returns descriptor for known props", async () => {
+        const { redis } = await import("@/lib/redis");
+        void (redis as any).url; // trigger lazy init
+        const desc = Object.getOwnPropertyDescriptor(redis, "url");
+        expect(desc).toBeDefined();
+        expect(desc!.value).toBe("redis://localhost:6379");
+    });
+});

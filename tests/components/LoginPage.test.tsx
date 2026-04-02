@@ -82,4 +82,41 @@ describe('LoginPage', () => {
             expect(screen.getByText(/Invalid local credentials/)).toBeInTheDocument();
         });
     });
+
+    it('should handle fetch error and show disabled message', async () => {
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+        render(<LoginPage />);
+
+        await waitFor(() => {
+            expect(screen.getByText(/No authentication methods are enabled/)).toBeInTheDocument();
+        });
+    });
+
+    it('should auto-start SSO when ?sso=keycloak is in URL', async () => {
+        mockFetch.mockResolvedValue({
+            json: async () => ({ ssoEnabled: true, localEnabled: false }),
+        });
+
+        // Set URL search params
+        const originalSearch = window.location.search;
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, search: '?sso=keycloak' },
+            writable: true,
+            configurable: true,
+        });
+
+        render(<LoginPage />);
+
+        await waitFor(() => {
+            expect(signIn).toHaveBeenCalledWith('keycloak', expect.objectContaining({ callbackUrl: '/dashboard' }));
+        }, { timeout: 5000 });
+
+        // Restore
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, search: originalSearch },
+            writable: true,
+            configurable: true,
+        });
+    });
 });

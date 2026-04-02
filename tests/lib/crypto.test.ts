@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { encrypt, decrypt } from "../../lib/crypto";
+import { encrypt, decrypt, fingerprintSecret } from "../../lib/crypto";
 
 describe("crypto utils", () => {
     const plainText = "my-secret-payload";
@@ -30,6 +30,15 @@ describe("crypto utils", () => {
         const badTag = Buffer.from("0000000000000000", "hex").toString("base64");
         const corrupted = `${parts[0]}:${badTag}:${parts[2]}`;
         expect(() => decrypt(corrupted)).toThrow();
+    });
+
+    it("fingerprintSecret returns a stable 12-char hex hash", () => {
+        const fp = fingerprintSecret("my-secret");
+        expect(fp).toHaveLength(12);
+        expect(fp).toMatch(/^[0-9a-f]{12}$/);
+        expect(fingerprintSecret("my-secret")).toBe(fp);
+        // different input → different hash
+        expect(fingerprintSecret("other")).not.toBe(fp);
     });
 
     it("should throw error if AUTH_SECRET is missing", () => {

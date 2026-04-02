@@ -28,6 +28,13 @@ vi.mock("@/lib/redis", () => ({
   },
 }));
 
+const mockStorageDelete = vi.fn();
+vi.mock("@/lib/storage", () => ({
+  getStorageProvider: vi.fn(async () => ({
+    delete: mockStorageDelete,
+  })),
+}));
+
 import * as queue from "@/lib/queue";
 
 beforeEach(() => {
@@ -86,5 +93,39 @@ describe("queue operations", () => {
     mockGetJob.mockResolvedValue({ remove });
     await queue.resetRetry("u1");
     expect(remove).toHaveBeenCalled();
+  });
+
+  it("deletePayload deletes the storage key", async () => {
+    mockStorageDelete.mockResolvedValue(undefined);
+    await queue.deletePayload("u1");
+    expect(mockStorageDelete).toHaveBeenCalledWith("nessus-u1.csv");
+  });
+
+  it("deletePayload handles storage delete failure gracefully", async () => {
+    mockStorageDelete.mockRejectedValue(new Error("Storage unavailable"));
+    await expect(queue.deletePayload("u2")).resolves.toBeUndefined();
+  });
+});
+
+describe("queue proxy handler methods", () => {
+  it("set handler sets property on the queue", () => {
+    (queue.uploadQueue as any).testProp = 42;
+    expect((queue.uploadQueue as any).testProp).toBe(42);
+  });
+
+  it("has handler checks property existence", () => {
+    expect("add" in queue.uploadQueue).toBe(true);
+    expect("nonExistentMethod" in queue.uploadQueue).toBe(false);
+  });
+
+  it("ownKeys handler returns keys", () => {
+    const keys = Reflect.ownKeys(queue.uploadQueue);
+    expect(Array.isArray(keys)).toBe(true);
+    expect(keys).toContain("add");
+  });
+
+  it("getOwnPropertyDescriptor returns descriptor", () => {
+    const desc = Object.getOwnPropertyDescriptor(queue.uploadQueue, "add");
+    expect(desc).toBeDefined();
   });
 });
