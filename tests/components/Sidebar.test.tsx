@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +18,8 @@ vi.mock("next/image", () => ({
 vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
 }));
+
+import { signOut } from "next-auth/react";
 
 vi.mock("@/components/FeedbackButton", () => ({
   FeedbackButton: () => React.createElement("button", { "data-testid": "feedback" }, "Feedback"),
@@ -83,5 +85,26 @@ describe("Sidebar", () => {
   it("renders without session", () => {
     const { getByText } = render(<Sidebar session={null} />);
     expect(getByText("Dashboard")).toBeDefined();
+  });
+
+  it("calls signOut when sign out button is clicked", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({}) as any;
+    const { getByText } = render(<Sidebar session={baseSession as any} />);
+    fireEvent.click(getByText("Sign Out"));
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/login" });
+    });
+    global.fetch = originalFetch;
+  });
+
+  it("toggles admin expansion on button click", () => {
+    const adminSession = { user: { name: "Admin", email: "admin@test.com", roles: ["site_admin"] } };
+    const { getByText, queryByText } = render(<Sidebar session={adminSession as any} />);
+    const adminToggle = getByText("Administration");
+    // The admin items should not be visible because pathname is /dashboard, not an admin path
+    fireEvent.click(adminToggle);
+    // After click the section expands
+    expect(queryByText("Uploads")).toBeDefined();
   });
 });

@@ -10,6 +10,7 @@ const mockPrisma = {
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../auth", () => ({ auth: vi.fn() }));
+vi.mock("../../lib/audit-log", () => ({ writeAuditLog: vi.fn() }));
 
 import { auth } from "../../auth";
 
@@ -149,6 +150,39 @@ describe("vulnerabilities/[id] PATCH", () => {
     );
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("CR Number is required");
+  });
+
+  it("admin can update vulnerability to active status", async () => {
+    const ownedVuln = { ...vuln, assigneeId: "admin1" };
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+    mockPrisma.vulnerability.findUnique.mockResolvedValue(ownedVuln);
+    mockPrisma.vulnerability.update.mockResolvedValue({ ...ownedVuln, status: "InProgress" });
+    const { PATCH } = await import("../../app/api/vulnerabilities/[id]/route");
+    const res = await PATCH(
+      patchReq({ status: "InProgress" }) as any,
+      { params: Promise.resolve({ id: "v1" }) }
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("admin can archive vulnerability with Remediated status", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+    mockPrisma.vulnerability.findUnique.mockResolvedValue(vuln);
+    mockPrisma.vulnerabilityHistory.create.mockResolvedValue({
+      ...vuln, status: "Remediated", archivedAt: new Date(),
+      assignee: { id: "admin1", name: "Admin" },
+    });
+    mockPrisma.vulnerability.delete.mockResolvedValue(vuln);
+    const { PATCH } = await import("../../app/api/vulnerabilities/[id]/route");
+    const res = await PATCH(
+      patchReq({ status: "Remediated" }) as any,
+      { params: Promise.resolve({ id: "v1" }) }
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.recordScope).toBe("archived");
   });
 });
 
