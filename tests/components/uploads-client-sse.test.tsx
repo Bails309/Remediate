@@ -36,7 +36,7 @@ describe("UploadsClient SSE", () => {
     }
     (global as any).EventSource = MockEventSource as any;
 
-    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1" }]} initialUploads={[]} />);
+    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1", importAliases: [], autoImportEnabled: false }]} initialUploads={[]} initialAzureConfig={null} />);
 
     const container = document.body;
     // select native select and file input
@@ -97,7 +97,7 @@ describe("UploadsClient SSE", () => {
     }
     (global as any).EventSource = MockEventSourceErr as any;
 
-    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1" }]} initialUploads={[]} />);
+    render(<UploadsClient initialSites={[{ id: "s1", name: "Site 1", importAliases: [], autoImportEnabled: false }]} initialUploads={[]} initialAzureConfig={null} />);
 
     const container = document.body;
     const nativeSelect = container.querySelector("select") as HTMLSelectElement;

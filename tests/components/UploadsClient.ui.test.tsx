@@ -6,7 +6,7 @@ import { UploadsClient } from "@/app/(app)/uploads/uploads-client";
 
 describe("UploadsClient UI", () => {
   it("renders headings and empty states with no uploads", () => {
-    render(<UploadsClient initialSites={[]} initialUploads={[]} />);
+    render(<UploadsClient initialSites={[]} initialUploads={[]} initialAzureConfig={null} />);
 
     expect(screen.getByText("CSV Uploads")).toBeDefined();
     expect(screen.getByText("Recent Uploads")).toBeDefined();

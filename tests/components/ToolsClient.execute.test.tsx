@@ -24,7 +24,6 @@ describe("ToolsClient execute flow", () => {
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
 
-    // @ts-expect-error - global.fetch replacement
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     render(<ToolsClient session={session} />);

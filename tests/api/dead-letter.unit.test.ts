@@ -73,7 +73,7 @@ describe("/api/uploads/dead-letter POST", () => {
   });
 
   it("returns 410 when payload expired", async () => {
-    vi.mocked(getPayload).mockResolvedValue(null);
+    vi.mocked(getPayload).mockResolvedValue(null as any);
 
     const { POST } = await import("../../app/api/uploads/dead-letter/route");
     const req = new NextRequest("http://localhost/api/uploads/dead-letter", {
@@ -173,7 +173,7 @@ describe("/api/uploads/dead-letter PUT", () => {
   it("skips dead letter when payload expired", async () => {
     vi.mocked(listDeadLetters).mockResolvedValue(["u1"]);
     mockPrisma.uploadHistory.findMany.mockResolvedValue([{ id: "u1", siteId: "site-1" }]);
-    vi.mocked(getPayload).mockResolvedValue(null);
+    vi.mocked(getPayload).mockResolvedValue(null as any);
 
     const { PUT } = await import("../../app/api/uploads/dead-letter/route");
     const res = await PUT();
