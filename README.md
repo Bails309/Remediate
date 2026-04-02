@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.4.1 (2026-03-23)</p>
+  <p><strong>Version:</strong> 2.5.0 (2026-04-02)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -223,6 +223,16 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
 ## Release notes
+
+### [2.5.0] - 2026-04-02
+- **Feature**: Sunset Status — new lifecycle state that keeps vulnerabilities in the triage queue while excluding them from analytics.
+- **Feature**: Sunset Analytics — dedicated analytics section with risk breakdown and host distribution for sunset items.
+- **Feature**: Comments — add, edit, and delete comments on vulnerabilities with permission controls for admins, assignees, and collaborators.
+- **Feature**: Comment Count Indicators — cyan badge on issue rows showing active comment count at a glance.
+- **Feature**: What's New Modal — one-time tour card on next login summarising all April 2026 additions.
+- **Security**: Dependency bumps for lodash, brace-expansion, flatted, fast-xml-parser, picomatch, effect, and nodemailer.
+- **Ingest**: Sunset items are now matched during re-upload to prevent duplication.
+- **Analytics**: Sunset items excluded from all core analytics; tracked in their own dedicated section.
 
 ### [2.4.1] - 2026-03-23
 - **Testing**: Comprehensive E2E Playwright test suite — 45 tests across 14 files covering all application pages, login flow, RBAC enforcement, sidebar navigation, admin pages, health API, and 404 handling.

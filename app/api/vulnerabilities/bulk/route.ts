@@ -8,12 +8,12 @@ import type { NextRequest } from "next/server";
 
 const bulkSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
-  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR"]).optional(),
+  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR", "Sunset"]).optional(),
   assigneeId: z.string().uuid().nullable().optional(),
   crNumber: z.string().optional(),
 });
 
-const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
+const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR", "Sunset"];
 
 export async function POST(request: NextRequest) {
   const rate = await enforceRateLimit(request);

@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { ProductTour } from "@/components/ProductTour";
+import { WhatsNew } from "@/components/WhatsNew";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <Providers>
       <div id="app-layout-debug" style={{ display: 'none' }} data-session={!!session} data-user={!!dbUser} />
       {dbUser && (
-        <ProductTour 
-          completedTours={dbUser.completedTours} 
-        />
+        <>
+          <ProductTour 
+            completedTours={dbUser.completedTours} 
+          />
+          <WhatsNew completedTours={dbUser.completedTours} />
+        </>
       )}
       <div className="grid min-h-screen gap-8 p-6 lg:grid-cols-[260px_1fr]">
         <Sidebar session={session} />

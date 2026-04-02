@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockPrisma = {
   user: { findUnique: vi.fn() },
   vulnerability: { findUnique: vi.fn() },
-  comment: { findMany: vi.fn(), create: vi.fn() },
+  comment: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
@@ -18,10 +18,27 @@ beforeEach(() => vi.clearAllMocks());
 
 const adminUser = { id: "admin1", roles: ["site_admin"] };
 const vuln = { id: "v1", assigneeId: "std1", askForHelp: false, collaborators: [] };
+const commentUuid = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 function postReq(body: Record<string, unknown>) {
   return new Request("http://localhost/api/vulnerabilities/v1/comments", {
     method: "POST",
+    body: JSON.stringify(body),
+  }) as unknown;
+}
+
+function patchReq(body: Record<string, unknown>) {
+  return new Request("http://localhost/api/vulnerabilities/v1/comments", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }) as unknown;
+}
+
+function deleteReq(body: Record<string, unknown>) {
+  return new Request("http://localhost/api/vulnerabilities/v1/comments", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }) as unknown;
 }
@@ -106,6 +123,104 @@ describe("vulnerabilities/[id]/comments", () => {
       mockPrisma.comment.create.mockResolvedValue({ id: "c2", content: "hello", authorId: "admin1" });
       const { POST } = await import("../../app/api/vulnerabilities/[id]/comments/route");
       const res = await POST(postReq({ content: "hello" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("PATCH", () => {
+    it("returns 401 when unauthenticated", async () => {
+      vi.mocked(auth).mockResolvedValue(null as any);
+      const { PATCH } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await PATCH(patchReq({ commentId: commentUuid, content: "updated" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when comment not found", async () => {
+      vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.comment.findUnique.mockResolvedValue(null);
+      const { PATCH } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await PATCH(patchReq({ commentId: commentUuid, content: "updated" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 403 when user is not author or admin", async () => {
+      const otherUser = { id: "other1", roles: ["web_app_user"] };
+      vi.mocked(auth).mockResolvedValue({ user: { email: "o@o.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(otherUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      const { PATCH } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await PATCH(patchReq({ commentId: commentUuid, content: "updated" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(403);
+    });
+
+    it("allows author to edit their comment", async () => {
+      const authorUser = { id: "std1", roles: ["web_app_user"] };
+      vi.mocked(auth).mockResolvedValue({ user: { email: "s@s.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(authorUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      mockPrisma.comment.update.mockResolvedValue({ id: commentUuid, content: "updated", authorId: "std1" });
+      const { PATCH } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await PATCH(patchReq({ commentId: commentUuid, content: "updated" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(200);
+    });
+
+    it("allows admin to edit any comment", async () => {
+      vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      mockPrisma.comment.update.mockResolvedValue({ id: commentUuid, content: "admin edit", authorId: "std1" });
+      const { PATCH } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await PATCH(patchReq({ commentId: commentUuid, content: "admin edit" }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("DELETE", () => {
+    it("returns 401 when unauthenticated", async () => {
+      vi.mocked(auth).mockResolvedValue(null as any);
+      const { DELETE } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await DELETE(deleteReq({ commentId: commentUuid }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when comment not found", async () => {
+      vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.comment.findUnique.mockResolvedValue(null);
+      const { DELETE } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await DELETE(deleteReq({ commentId: commentUuid }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 403 when user is not author or admin", async () => {
+      const otherUser = { id: "other1", roles: ["web_app_user"] };
+      vi.mocked(auth).mockResolvedValue({ user: { email: "o@o.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(otherUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      const { DELETE } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await DELETE(deleteReq({ commentId: commentUuid }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(403);
+    });
+
+    it("allows author to delete their comment", async () => {
+      const authorUser = { id: "std1", roles: ["web_app_user"] };
+      vi.mocked(auth).mockResolvedValue({ user: { email: "s@s.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(authorUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      mockPrisma.comment.delete.mockResolvedValue({});
+      const { DELETE } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await DELETE(deleteReq({ commentId: commentUuid }) as any, { params: Promise.resolve({ id: "v1" }) });
+      expect(res.status).toBe(200);
+    });
+
+    it("allows admin to delete any comment", async () => {
+      vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.comment.findUnique.mockResolvedValue({ id: commentUuid, authorId: "std1", vulnerabilityId: "v1" });
+      mockPrisma.comment.delete.mockResolvedValue({});
+      const { DELETE } = await import("../../app/api/vulnerabilities/[id]/comments/route");
+      const res = await DELETE(deleteReq({ commentId: commentUuid }) as any, { params: Promise.resolve({ id: "v1" }) });
       expect(res.status).toBe(200);
     });
   });

@@ -33,8 +33,11 @@ function mapHistoryItem(item: Record<string, unknown>) {
 }
 
 function mapActiveItem<T>(item: T) {
+  const raw = item as Record<string, unknown>;
+  const count = raw._count as { comments?: number } | undefined;
   return {
     ...item,
+    commentCount: count?.comments ?? 0,
     recordScope: "active" as const,
   };
 }
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
       })
       : await prisma.vulnerability.findMany({
         where: activeWhere,
-        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
+        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
         orderBy: { lastSeenAt: "desc" },
       });
 
@@ -194,6 +197,7 @@ export async function GET(request: NextRequest) {
           assignee: { select: { id: true, name: true } },
           collaborators: { select: { id: true, name: true } },
           site: true,
+          _count: { select: { comments: true } },
         }
       });
       return mapActiveItem({ ...(item as Record<string, unknown>), ...(vulnWithRelations ?? {}) });
@@ -250,7 +254,7 @@ export async function GET(request: NextRequest) {
       prisma.vulnerability.count({ where }),
       prisma.vulnerability.findMany({
         where,
-        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } } },
+        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
         orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,

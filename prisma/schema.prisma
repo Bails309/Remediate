@@ -24,6 +24,7 @@ enum VulnerabilityStatus {
   NoFixAvailable
   InProgress
   InProgressWithCR
+  Sunset
 }
 
 enum Risk {

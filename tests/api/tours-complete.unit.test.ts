@@ -88,4 +88,20 @@ describe("/api/tours/complete POST", () => {
     const res = await POST(postReq({ tourId: "threat-intel-update-v1" }));
     expect(res.status).toBe(200);
   });
+
+  it("accepts whats-new-apr-2026 and persists it", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue({ completedTours: ["welcome-tour"] });
+    mockPrisma.user.update.mockResolvedValue({ completedTours: ["welcome-tour", "whats-new-apr-2026"] });
+
+    const { POST } = await import("../../app/api/tours/complete/route");
+    const res = await POST(postReq({ tourId: "whats-new-apr-2026" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+
+    const setArg = mockPrisma.user.update.mock.calls[0][0].data.completedTours.set;
+    expect(setArg).toContain("whats-new-apr-2026");
+    expect(setArg).toContain("welcome-tour");
+  });
 });

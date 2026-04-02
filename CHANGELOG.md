@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.5.0] - 2026-04-02
+### Added
+- **Sunset Status**: New `Sunset` vulnerability status that keeps items visible in the triage queue while excluding them from all core analytics metrics. Supported across single, bulk, and inline update paths.
+- **Sunset Analytics Section**: Dedicated analytics section displaying risk breakdown and host distribution charts for sunset items. Always renders with an empty-state message when no items exist.
+- **Vulnerability Comments**: Full comment system — add, edit, and delete comments on vulnerabilities. Permission model allows admins, assignees, and collaborators (when Ask for Help is enabled) to participate.
+- **Comment Count Indicators**: Cyan badge on vulnerability table rows (single, grouped, and expanded member rows) showing the number of comments per issue.
+- **What's New Modal**: One-time "What's New" tour card displayed on first login after the update, summarising all new features. Persisted via the `completedTours` mechanism so it only shows once.
+
+### Changed
+- **Ingest Pipeline**: Active vulnerability matching now includes `Sunset` items so they are not recreated on re-upload.
+- **Weekly Reports**: Sunset items are excluded from weekly assignment notification summaries alongside remediated items.
+
+### Security
+- **Dependency Bumps**: Overridden transitive dependencies — lodash 4.18.1, brace-expansion 2.0.2, flatted 3.4.2, fast-xml-parser 5.5.7, picomatch 4.0.3, effect 3.21.0. Bumped nodemailer to 8.0.4.
+
 ## [2.4.1] - 2026-03-23
 ### Added
 - **E2E Playwright Test Suite**: Expanded end-to-end test coverage from 1 test to 45 tests across 14 files covering login flow, dashboard, navigation, vulnerabilities, uploads, buckets, analytics, threat intelligence, all 9 admin pages, RBAC (unauthenticated redirect enforcement), health API, and 404 handling.
