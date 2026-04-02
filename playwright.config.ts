@@ -59,6 +59,7 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         env: {
             NODE_ENV: 'test',
+            E2E_TESTING: 'true',
             DATABASE_URL: process.env.DATABASE_URL || 'postgresql://remediate:remediate_password@localhost:5432/remediate',
             REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
             AUTH_SECRET: 'test-secret',
