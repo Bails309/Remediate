@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run npm audit
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high --omit=dev
 
   unit:
     runs-on: ubuntu-latest
@@ -84,6 +84,8 @@ jobs:
         run: npx prisma migrate deploy || true
       - name: Lint
         run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
       - name: Build
         run: npm run build
       - name: Run unit tests with coverage
@@ -101,6 +103,9 @@ jobs:
         if: always()
         env:
           MIN_STATEMENTS: 75
+          MIN_BRANCHES: 60
+          MIN_FUNCTIONS: 70
+          MIN_LINES: 75
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -108,7 +113,6 @@ jobs:
             'coverage/coverage-summary.json',
             'coverage/coverage-final.json',
             'coverage/v8/coverage-final.json',
-            'coverage/coverage-summary.json'
           ];
           let data;
           for (const f of files) {
@@ -116,16 +120,22 @@ jobs:
               try { data = JSON.parse(fs.readFileSync(f,'utf8')); break } catch(e){}
             }
           }
-          if (!data) { console.log('No coverage summary found in coverage/; skipping threshold check'); process.exit(0); }
-          let pct;
-          if (data.total && data.total.statements && typeof data.total.statements.pct === 'number') pct = data.total.statements.pct;
-          else if (data.total && data.total.lines && typeof data.total.lines.pct === 'number') pct = data.total.lines.pct;
-          else if (data.coverage && data.coverage.statements && typeof data.coverage.statements.pct === 'number') pct = data.coverage.statements.pct;
-          if (typeof pct !== 'number') { console.log('Unable to determine statements coverage percentage; skipping threshold check'); process.exit(0); }
-          console.log('Statements coverage:', pct);
-          const min = Number(process.env.MIN_STATEMENTS || 75);
-          if (pct < min) { console.error(`Coverage ${pct}% is below threshold ${min}%`); process.exit(1); }
-          console.log('Coverage threshold met');
+          if (!data || !data.total) { console.log('No coverage summary found; skipping threshold check'); process.exit(0); }
+          const t = data.total;
+          const checks = [
+            ['statements', t.statements?.pct, Number(process.env.MIN_STATEMENTS || 75)],
+            ['branches',   t.branches?.pct,   Number(process.env.MIN_BRANCHES || 60)],
+            ['functions',  t.functions?.pct,   Number(process.env.MIN_FUNCTIONS || 70)],
+            ['lines',      t.lines?.pct,       Number(process.env.MIN_LINES || 75)],
+          ];
+          let failed = false;
+          for (const [name, pct, min] of checks) {
+            if (typeof pct !== 'number') { console.log(`${name}: unable to determine, skipping`); continue; }
+            if (pct < min) { console.error(`${name} coverage ${pct}% is below threshold ${min}%`); failed = true; }
+            else { console.log(`${name} coverage: ${pct}% >= ${min}% ✓`); }
+          }
+          if (failed) process.exit(1);
+          console.log('All coverage thresholds met');
           NODE
 
   integration:

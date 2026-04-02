@@ -80,9 +80,26 @@ describe("admin and pentest guards", () => {
     expect(session.user.id).toBe("u2");
   });
 
+  it("requireToolkitAdmin throws when user has toolkit_user role only", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "tuser@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u3", email: "tuser@example.com", roles: ["toolkit_user"] } as any);
+    await expect(import("@/lib/rbac").then((m) => m.requireToolkitAdmin())).rejects.toThrow("Forbidden");
+  });
+
+  it("requireToolkitUser returns session for toolkit_user role", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "tuser@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u4", email: "tuser@example.com", roles: ["toolkit_user"] } as any);
+    const session = await import("@/lib/rbac").then((m) => m.requireToolkitUser());
+    expect(session.user.id).toBe("u4");
+  });
+
   it("hasAnyRole and checkAdmin behave correctly", () => {
     expect(hasAnyRole({ roles: ["site_admin"] }, ["site_admin"])).toBe(true);
     expect(hasAnyRole(null, ["a"])).toBe(false);
+    expect(hasAnyRole({ roles: [] }, ["a"])).toBe(false);
+    expect(hasAnyRole({ roles: null }, ["a"])).toBe(false);
     expect(checkAdmin({ roles: ["web_app_admin"] })).toBe(true);
+    expect(checkAdmin({ roles: ["web_app_user"] })).toBe(false);
+    expect(checkAdmin(undefined)).toBe(false);
   });
 });

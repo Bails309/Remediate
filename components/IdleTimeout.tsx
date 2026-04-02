@@ -52,7 +52,21 @@ export function IdleTimeout() {
   }, [handleLogout, clearAllTimers]);
 
   useEffect(() => {
-    resetTimer();
+    // Start initial timers without calling resetTimer (which sets state synchronously)
+    warningTimerRef.current = setTimeout(() => {
+      setShowWarning(true);
+      setSecondsLeft(120);
+      countdownRef.current = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, WARNING_AT_MS);
+    idleTimerRef.current = setTimeout(handleLogout, IDLE_TIMEOUT_MS);
 
     for (const event of ACTIVITY_EVENTS) {
       window.addEventListener(event, resetTimer, { passive: true });
@@ -64,7 +78,7 @@ export function IdleTimeout() {
         window.removeEventListener(event, resetTimer);
       }
     };
-  }, [resetTimer, clearAllTimers]);
+  }, [resetTimer, clearAllTimers, handleLogout]);
 
   if (!showWarning) return null;
 

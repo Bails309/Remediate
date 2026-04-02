@@ -119,4 +119,26 @@ describe("/api/tours/complete POST", () => {
     const res = await POST(postReq({ tourId }));
     expect(res.status).toBe(200);
   });
+
+  it("returns 500 when prisma throws", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockRejectedValue(new Error("DB error"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { POST } = await import("../../app/api/tours/complete/route");
+    const res = await POST(postReq({ tourId: "welcome-tour" }));
+    expect(res.status).toBe(500);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("handles when user has no existing completedTours", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "a@a.com" } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.user.update.mockResolvedValue({ completedTours: ["dashboard-tour"] });
+
+    const { POST } = await import("../../app/api/tours/complete/route");
+    const res = await POST(postReq({ tourId: "dashboard-tour" }));
+    expect(res.status).toBe(200);
+  });
 });

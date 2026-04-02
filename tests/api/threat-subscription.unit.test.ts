@@ -6,13 +6,18 @@ const mockPrisma = {
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../lib/rbac", () => ({
-  requireUser: vi.fn().mockResolvedValue({ user: { id: "user-1" } }),
+  requireUser: vi.fn(),
 }));
 vi.mock("@prisma/client", () => ({
   Risk: { Critical: "Critical", High: "High", Medium: "Medium", Low: "Low", None: "None" },
 }));
 
-beforeEach(() => vi.clearAllMocks());
+import { requireUser } from "../../lib/rbac";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(requireUser).mockResolvedValue({ user: { id: "user-1" } } as any);
+});
 
 describe("/api/threat-intelligence/subscription GET", () => {
   it("returns the user subscription", async () => {
@@ -42,6 +47,14 @@ describe("/api/threat-intelligence/subscription GET", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toBeNull();
+  });
+
+  it("returns 401 when requireUser returns session without user.id", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: { id: undefined } } as any);
+
+    const { GET } = await import("../../app/api/threat-intelligence/subscription/route");
+    const res = await GET();
+    expect(res.status).toBe(401);
   });
 });
 
@@ -84,6 +97,19 @@ describe("/api/threat-intelligence/subscription POST", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+  });
+
+  it("returns 401 on POST when user.id is missing", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: { id: undefined } } as any);
+
+    const { POST } = await import("../../app/api/threat-intelligence/subscription/route");
+    const req = new Request("http://localhost/api/threat-intelligence/subscription", {
+      method: "POST",
+      body: JSON.stringify({ isSubscribed: true, minRisk: "High", cisaKevOnly: false, scheduledHour: 8, scheduledMinute: 0 }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
   });
 
   it("returns 400 when scheduledMinute out of range", async () => {
