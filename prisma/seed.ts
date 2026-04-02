@@ -5,14 +5,16 @@ const prisma = new PrismaClient();
 const adminEmail = process.env.ADMIN_EMAIL ?? "admin@example.com";
 
 async function main() {
+  const allTours = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"];
+
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: { completedTours: allTours },
     create: {
       email: adminEmail,
       name: "Admin User",
       roles: ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"],
-      completedTours: ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"],
+      completedTours: allTours,
     },
   });
 
