@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <Providers>
       <div id="app-layout-debug" style={{ display: 'none' }} data-session={!!session} data-user={!!dbUser} />
-      {dbUser && (
+      {dbUser && process.env.NODE_ENV !== 'test' && (
         <>
           <ProductTour 
             completedTours={dbUser.completedTours} 
