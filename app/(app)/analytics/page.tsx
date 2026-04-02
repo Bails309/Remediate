@@ -74,6 +74,7 @@ export default async function AnalyticsPage({
             SELECT risk, "createdAt", NULL::timestamp as "archivedAt", "siteId"
             FROM "Vulnerability"
             WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')
+            AND status != 'Sunset'
             UNION ALL
             SELECT risk, "createdAt", "archivedAt", "siteId"
             FROM "VulnerabilityHistory"
@@ -111,7 +112,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND "assigneeId" IS NULL
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset' AND "assigneeId" IS NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY risk
@@ -134,7 +135,7 @@ export default async function AnalyticsPage({
         SELECT "siteId"::text as "siteId", risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") "siteId", risk
             FROM "Vulnerability"
-            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')
+            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY "siteId", risk
@@ -190,7 +191,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") "assigneeId", risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND "assigneeId" IS NOT NULL
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset' AND "assigneeId" IS NOT NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY "assigneeId", risk
@@ -242,6 +243,7 @@ export default async function AnalyticsPage({
         WITH all_vulns AS (
             SELECT status, name, host, port, "pluginId", "siteId"
             FROM "Vulnerability"
+            WHERE status != 'Sunset'
             UNION ALL
             SELECT status, name, host, port, "pluginId", "siteId"
             FROM "VulnerabilityHistory"
@@ -278,7 +280,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY host, risk
@@ -308,7 +310,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY name, risk
@@ -338,7 +340,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") "createdAt", risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR')
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", "createdAt" ASC
         ) as groups
     `, ...values)) as AgingRow[];
@@ -381,6 +383,46 @@ export default async function AnalyticsPage({
         { name: 'Medium', value: dwellAggregates.Medium.count > 0 ? Math.round(dwellAggregates.Medium.totalDays / dwellAggregates.Medium.count) : 0, fill: "var(--color-medium, #eab308)" },
         { name: 'Low', value: dwellAggregates.Low.count > 0 ? Math.round(dwellAggregates.Low.totalDays / dwellAggregates.Low.count) : 0, fill: "var(--color-low, #3b82f6)" },
     ];
+
+    // 10. Sunset Items Analytics
+    interface SunsetRow { name: string; host: string; risk: string; createdAt: Date; lastSeenAt: Date }
+    const sunsetItems = (await prisma.$queryRawUnsafe(`
+        SELECT name::text, host::text, risk::text, "createdAt", "lastSeenAt"
+        FROM "Vulnerability"
+        ${whereClause}
+        ${whereClause ? "AND" : "WHERE"} status = 'Sunset'
+        ORDER BY "createdAt" ASC
+    `, ...values)) as SunsetRow[];
+
+    const sunsetAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "91+ Days": 0 };
+    sunsetItems.forEach((v: SunsetRow) => {
+        const days = Math.floor((nowVal - new Date(v.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        if (days <= 30) sunsetAgingBuckets["0-30 Days"]++;
+        else if (days <= 60) sunsetAgingBuckets["31-60 Days"]++;
+        else if (days <= 90) sunsetAgingBuckets["61-90 Days"]++;
+        else sunsetAgingBuckets["91+ Days"]++;
+    });
+
+    const sunsetAgingData = Object.entries(sunsetAgingBuckets).map(([name, value]) => ({
+        name,
+        value,
+        fill: name === "91+ Days" ? "#ea580c" : name === "61-90 Days" ? "#f97316" : name === "31-60 Days" ? "#fb923c" : "#fdba74"
+    }));
+
+    const sunsetByRisk = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+    sunsetItems.forEach((v: SunsetRow) => {
+        const key = v.risk as keyof typeof sunsetByRisk;
+        if (key in sunsetByRisk) sunsetByRisk[key]++;
+    });
+
+    const sunsetRiskData = [
+        { name: "Critical", value: sunsetByRisk.Critical, color: "#ef4444" },
+        { name: "High", value: sunsetByRisk.High, color: "#f97316" },
+        { name: "Medium", value: sunsetByRisk.Medium, color: "#eab308" },
+        { name: "Low", value: sunsetByRisk.Low, color: "#3b82f6" },
+    ].filter(d => d.value > 0);
+
+    const sunsetTotal = sunsetItems.length;
 
     return (
         <div className="space-y-8">
@@ -462,6 +504,43 @@ export default async function AnalyticsPage({
                     </div>
                 </div>
             </div>
+
+            {sunsetTotal > 0 ? (
+                <div className="glass glass-edge rounded-[32px] p-6 lg:p-8 border-l-4 border-l-orange-400">
+                    <div className="mb-8">
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-2xl font-semibold">Sunset Items</h2>
+                            <span className="inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-500/10 px-3 py-1 text-sm font-bold text-orange-700 dark:text-orange-400">{sunsetTotal} total</span>
+                        </div>
+                        <p className="text-sm opacity-70 mt-1">Vulnerabilities in the Sunset stage are excluded from all other analytics. This section tracks how long items have been in Sunset.</p>
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+                            <div className="mb-6 flex items-center gap-2">
+                                <h3 className="font-semibold text-lg leading-none">Sunset Aging</h3>
+                                <InfoTooltip text="How long vulnerabilities have been in the Sunset status, measured from their original creation date." />
+                            </div>
+                            <BarChart data={sunsetAgingData} unit="Vulnerabilities" />
+                        </div>
+                        <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+                            <div className="mb-6 flex items-center gap-2">
+                                <h3 className="font-semibold text-lg leading-none">Sunset by Severity</h3>
+                                <InfoTooltip text="Breakdown of Sunset items by their risk severity level." />
+                            </div>
+                            <StatusDonutChart data={sunsetRiskData} />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="glass glass-edge rounded-[32px] p-6 lg:p-8 border-l-4 border-l-orange-400">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-semibold">Sunset Items</h2>
+                        <span className="inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-500/10 px-3 py-1 text-sm font-bold text-orange-700 dark:text-orange-400">0 total</span>
+                    </div>
+                    <p className="text-sm opacity-70 mt-2">No vulnerabilities are currently in the Sunset stage. Move items to Sunset status from the vulnerabilities page to track them here.</p>
+                </div>
+            )}
         </div>
     );
 }

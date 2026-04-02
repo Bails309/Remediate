@@ -11,7 +11,7 @@ import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Dialog } from "@/components/Dialog";
 
@@ -30,6 +30,7 @@ const statusDotMap: Record<string, string> = {
   NoFixAvailable: "bg-slate-400",
   InProgress: "bg-blue-500",
   InProgressWithCR: "bg-indigo-500",
+  Sunset: "bg-orange-400",
 };
 
 type Site = { id: string; name: string };
@@ -87,6 +88,7 @@ type Vulnerability = {
   collaborators: { id: string; name: string }[];
   archivedAt?: string | null;
   crNumber?: string | null;
+  commentCount?: number;
   recordScope?: ViewScope;
 };
 
@@ -100,6 +102,7 @@ type Comment = {
   content: string;
   isPrivate: boolean;
   createdAt: string;
+  authorId: string;
   author: {
     name: string | null;
     email: string | null;
@@ -156,6 +159,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
   const [isUpdatingCollaboration, setIsUpdatingCollaboration] = useState(false);
   const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
   const [pendingDetailAssignment, setPendingDetailAssignment] = useState<PendingDetailAssignment | null>(null);
@@ -166,7 +171,9 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const isArchivedView = viewScope === "archived";
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
   const isAssignee = Boolean(session?.user?.id && detail?.assigneeId && session.user.id === detail.assigneeId);
+  const isCollaborator = Boolean(session?.user?.id && detail?.askForHelp && (detail?.collaborators ?? []).some(c => c.id === session.user!.id));
   const canEditCollaboration = isWebAdmin || isAssignee;
+  const canComment = isWebAdmin || isAssignee || isCollaborator;
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     params.set("scope", viewScope);
@@ -479,6 +486,42 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     }
   };
 
+  const editComment = async (commentId: string) => {
+    if (!detail || !editingCommentText.trim()) return;
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}/comments`, {
+        method: "PATCH",
+        body: JSON.stringify({ commentId, content: editingCommentText }),
+      });
+      if (res.ok) {
+        setEditingCommentId(null);
+        setEditingCommentText("");
+        await fetchComments(detail.id);
+      } else {
+        toast.error("Failed to edit comment");
+      }
+    } catch {
+      toast.error("Failed to edit comment");
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    if (!detail) return;
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}/comments`, {
+        method: "DELETE",
+        body: JSON.stringify({ commentId }),
+      });
+      if (res.ok) {
+        await fetchComments(detail.id);
+      } else {
+        toast.error("Failed to delete comment");
+      }
+    } catch {
+      toast.error("Failed to delete comment");
+    }
+  };
+
   const toggleAskForHelp = async () => {
     if (!detail) return;
     setIsUpdatingCollaboration(true);
@@ -621,6 +664,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       { label: "Open", value: "Open" },
       { label: "In Progress", value: "InProgress" },
       { label: "In Progress with CR", value: "InProgressWithCR" },
+      { label: "Sunset", value: "Sunset" },
       { label: "False Positive", value: "FalsePositive" },
       { label: "No Fix", value: "NoFixAvailable" },
       { label: "Remediated", value: "Remediated" },
@@ -971,6 +1015,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   { label: "Open", value: "Open" },
                   { label: "In Progress", value: "InProgress" },
                   { label: "In Progress with CR", value: "InProgressWithCR" },
+                  { label: "Sunset", value: "Sunset" },
                   { label: "False Positive", value: "FalsePositive" },
                   { label: "No Fix", value: "NoFixAvailable" },
                   { label: "Remediated", value: "Remediated" },
@@ -1014,7 +1059,15 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                     </td>
                     <td className="p-4">
                       <p className="font-bold text-slate-900 dark:text-white mb-0.5">{item.name}</p>
-                      <p className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60">Plugin {item.pluginId}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60">Plugin {item.pluginId}</p>
+                        {(item.commentCount ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-400">
+                            <MessageSquare size={10} />
+                            {item.commentCount}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <p className="font-semibold text-slate-800 dark:text-slate-200">{item.host}:{item.port}</p>
@@ -1074,6 +1127,11 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                         <p className="font-bold text-slate-900 dark:text-white mb-0.5">{group.name}</p>
                         <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60 uppercase tracking-tight">Plugin {group.pluginId} • {group.groupCount} issues</p>
                       </div>
+                      {(group.commentCount ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-400">
+                          <MessageSquare size={10} />{group.commentCount}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="p-4">
@@ -1124,7 +1182,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                               )}
                               <div className="min-w-[200px]">
                                 <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">Issue</p>
-                                <p className="text-sm text-slate-900 dark:text-white font-bold">{member.name}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm text-slate-900 dark:text-white font-bold">{member.name}</p>
+                                  {(member.commentCount ?? 0) > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-400">
+                                      <MessageSquare size={10} />{member.commentCount}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <div className="min-w-[150px]">
                                 <p className="text-[10px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest mb-1">CVE</p>
@@ -1310,6 +1375,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                       { label: "Open", value: "Open" },
                       { label: "In Progress", value: "InProgress" },
                       { label: "In Progress with CR", value: "InProgressWithCR" },
+                      { label: "Sunset", value: "Sunset" },
                       { label: "False Positive", value: "FalsePositive" },
                       { label: "No Fix Available", value: "NoFixAvailable" },
                       { label: "Remediated", value: "Remediated" },
@@ -1417,20 +1483,70 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
           <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Comments</h3>
 
           <div className="space-y-4">
-            {Array.isArray(comments) && comments.map((comment) => (
+            {Array.isArray(comments) && comments.map((comment) => {
+              const canEditThis = session?.user?.id === comment.authorId || isWebAdmin;
+              const isEditing = editingCommentId === comment.id;
+              return (
               <div key={comment.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
                 <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold">{comment.author.name}</span>
-                  <ClientDate date={comment.createdAt} />
+                  <div className="flex items-center gap-2">
+                    <ClientDate date={comment.createdAt} />
+                    {canEditThis && !isEditing && (
+                      <button
+                        type="button"
+                        className="text-xs text-cyan-500 hover:text-cyan-400 font-semibold"
+                        onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canEditThis && !isEditing && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-500 hover:text-red-400 font-semibold"
+                        onClick={() => deleteComment(comment.id)}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-slate-800 dark:text-slate-200">{comment.content}</p>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <textarea
+                      className="w-full bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[80px] text-slate-900 dark:text-white"
+                      value={editingCommentText}
+                      onChange={(e) => setEditingCommentText(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }}
+                        className="text-xs px-3 py-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => editComment(comment.id)}
+                        disabled={!editingCommentText.trim()}
+                        className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950 text-xs px-3 py-1"
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-800 dark:text-slate-200">{comment.content}</p>
+                )}
               </div>
-            ))}
+              );
+            })}
             {comments.length === 0 && (
               <p className="text-sm text-slate-500 dark:text-slate-400 italic">No comments yet.</p>
             )}
           </div>
 
+          {canComment && (
           <div className="space-y-3 pt-2">
             <textarea
               className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[100px] text-slate-900 dark:text-white placeholder:text-slate-400"
@@ -1449,6 +1565,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
               </Button>
             </div>
           </div>
+          )}
         </div>
         ) : null}
       </SideSheet>

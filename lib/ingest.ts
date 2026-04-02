@@ -135,7 +135,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       const active = await prisma.vulnerability.findMany({
         where: {
           siteId,
-          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] },
+          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.Sunset] },
           OR: orClause,
         },
         orderBy: { lastSeenAt: "desc" },

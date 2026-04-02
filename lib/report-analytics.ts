@@ -5,7 +5,7 @@ export async function getWeeklyCriticalHighSummary() {
   const rows = await prisma.vulnerability.groupBy({
     by: ["risk", "siteId"],
     where: {
-      status: { not: VulnerabilityStatus.Remediated },
+      status: { notIn: [VulnerabilityStatus.Remediated, VulnerabilityStatus.Sunset] },
       risk: { in: [Risk.Critical, Risk.High] },
     },
     _count: { _all: true },

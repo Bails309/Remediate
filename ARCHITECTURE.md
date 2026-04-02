@@ -37,8 +37,14 @@ A high-level view of Remediate components and interactions.
 - **CSP**: Middleware generates a cryptographic nonce (`crypto.randomUUID`) per request for script and style sources.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
 
+## Vulnerability Lifecycle
+- **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
+- **Active Statuses**: `Open`, `InProgress`, `InProgressWithCR`, and `Sunset` remain in the triage queue.
+- **Sunset**: Keeps items visible for tracking but excludes them from analytics metrics. A dedicated analytics section tracks sunset items separately.
+- **Comments**: Vulnerabilities support threaded comments. Admins, assignees, and collaborators can add, edit, and delete comments. Comment counts are surfaced as badges on table rows.
+
 ## Testing
-- **Unit Tests (Vitest)**: 93 test files, 373 tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
+- **Unit Tests (Vitest)**: 94 test files, 380+ tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
 - **E2E Tests (Playwright)**: 45 tests across 14 files using a multi-project setup:
   - `setup` — Authenticates via local credentials and saves session state.
   - `unauthenticated` — Tests login flow, RBAC redirects, health API, and 404 handling.

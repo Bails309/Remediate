@@ -9,11 +9,11 @@ const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
     collaboratorIds: z.array(z.string().uuid()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
-    status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR"]).optional(),
+    status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR", "Sunset"]).optional(),
     crNumber: z.string().optional(),
 });
 
-const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR"];
+const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR", "Sunset"];
 
 interface VulnerabilityWithCollaborators {
     id: string;

@@ -3,7 +3,7 @@ import { getReportConfig } from "./reports";
 import { sendEmail } from "./email";
 import { renderWeeklyAssignmentEmail, AssignmentItem } from "./assignment-email";
 // Using internal types to bypass environment-specific Prisma export issues while maintaining lint compliance
-type VulnerabilityStatusLabel = "Open" | "InProgress" | "InProgressWithCR" | "Remediated" | "FalsePositive" | "NoFixAvailable";
+type VulnerabilityStatusLabel = "Open" | "InProgress" | "InProgressWithCR" | "Remediated" | "FalsePositive" | "NoFixAvailable" | "Sunset";
 const VulnerabilityStatus = {
     Open: "Open" as VulnerabilityStatusLabel,
     InProgress: "InProgress" as VulnerabilityStatusLabel,
