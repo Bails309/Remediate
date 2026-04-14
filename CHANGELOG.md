@@ -3,6 +3,10 @@
 All notable changes to this project are documented in this file.
 
 
+## [2.5.1] - 2026-04-14
+### Security
+- **Dependency Bumps**: Updated `next` and `eslint-config-next` to version `16.2.3`. Bumped `nodemailer` to `8.0.5`. Overrode transitive dependencies for `vite` (`8.0.5`) and `defu` (`6.1.6`) to address latest security patches.
+
 ## [2.5.0] - 2026-04-02
 ### Added
 - **Sunset Status**: New `Sunset` vulnerability status that keeps items visible in the triage queue while excluding them from all core analytics metrics. Supported across single, bulk, and inline update paths.
