@@ -2,7 +2,22 @@
 
 A high-level view of Remediate components and interactions.
 
+> **Current release**: `v2.5.2` (2026-05-12). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
+
 ![Architecture diagram](docs/images/architecture-diagram.svg)
+
+## Runtime Stack
+| Layer | Technology | Pinned Version |
+| :--- | :--- | :--- |
+| Web framework | Next.js (App Router, React 19) | `^16.2.3` |
+| ORM | Prisma | `^6.19.2` |
+| Job queue | BullMQ | `^5.76.0` |
+| Cache / queue backend | Redis (ioredis) | `^5.10.0` |
+| Database | PostgreSQL | 14+ |
+| Auth | NextAuth (Auth.js v5 beta) + OIDC | `^5.0.0-beta.30` |
+| Validation | Zod | `^4.3.6` |
+| UI primitives | Tailwind CSS, lucide-react, recharts, shepherd.js | — |
+| Pentest backend | Express + tsx | `^4.19.2` |
 
 ## Core Components
 - **`app` (Next.js)**: User-facing web UI and API routes. Exposes endpoints for admin management and vulnerability ingestion. Runs on port 3000.
@@ -56,3 +71,10 @@ A high-level view of Remediate components and interactions.
 - **Background Workers**: `lib/ingest.ts`, `lib/queue.ts`, `lib/threat-intelligence/worker.ts`
 - **DB Schema**: `prisma/schema.prisma`
 - **Pentest Service**: `pentest-backend/`
+
+## Versioning & Release Management
+- **SemVer**: Versions follow `MAJOR.MINOR.PATCH`. Breaking schema or API changes bump `MAJOR`; user-visible features bump `MINOR`; bug-fix and dependency-only releases bump `PATCH`.
+- **Source of truth**: `package.json#version`. Container images receive the same value via the `APP_VERSION` build-arg, surfaced on `/admin/health`.
+- **Changelog**: All notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) under the relevant version heading.
+- **What's New**: User-visible releases ship a one-time card (`components/WhatsNew.tsx`) gated by a tour ID stored in `User.completedTours`. Tour IDs must be added to the whitelist in `app/api/tours/complete/route.ts` before they will be accepted.
+- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively (e.g. `fast-xml-builder@1.2.0`, `fast-xml-parser@5.5.7`).

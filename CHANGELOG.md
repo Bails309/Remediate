@@ -1,7 +1,20 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`) and the [Keep a Changelog](https://keepachangelog.com/) conventions.
 
+> **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
+
+## [2.5.2] - 2026-05-12
+### Security
+- **Dependency Bumps (Dependabot)**:
+  - `bullmq` `^5.41.0` → `^5.76.0` — pulls in the latest job queue fixes and the upstream `ioredis` `5.10.1` runtime.
+  - `fast-xml-builder` `1.1.4` → `1.2.0` — pinned via the root `overrides` block to flow through the `@azure/storage-blob` → `@azure/core-xml` → `fast-xml-parser` chain.
+  - `uuid` — confirmed `11.1.0` continues to satisfy `bullmq`'s exact-version pin; no further override required.
+- **Lockfile Integrity**: Regenerated `package-lock.json` so the shipped image installs the resolved versions deterministically. `npm ls` now reports `bullmq@5.76.0`, `fast-xml-builder@1.2.0 (overridden)`, and `uuid@11.1.0` against `app@2.5.2`.
+
+### Changed
+- **Documentation Pass**: Refreshed every top-level documentation surface to reflect the 2.5.2 release — `README.md` version banner and release-notes block, `ARCHITECTURE.md` runtime stack, `SECURITY.md` dependency-management section, `DEPLOYMENT.md` image/version notes, and added a new consolidated [`docs/API.md`](docs/API.md) covering every route under `app/api`.
+- **What's New Card**: Added a May 2026 platform-hardening card (`whats-new-may-2026`) so existing users see a one-time summary of the dependency hygiene release.
 
 ## [2.5.1] - 2026-04-14
 ### Security

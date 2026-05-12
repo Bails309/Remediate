@@ -3,42 +3,42 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, Sun, BarChart3, MessageSquare, MessageCircle } from "lucide-react";
+import { Sparkles, ShieldCheck, PackageCheck, Cog, BookOpen } from "lucide-react";
 
-const TOUR_ID = "whats-new-apr-2026";
+const TOUR_ID = "whats-new-may-2026";
 
 const features = [
   {
-    icon: Sun,
-    accent: "text-amber-500 dark:text-amber-400",
-    bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Sunset Status",
-    description:
-      "Mark vulnerabilities as Sunset to keep them visible in your triage queue while excluding them from analytics metrics.",
-  },
-  {
-    icon: BarChart3,
-    accent: "text-violet-500 dark:text-violet-400",
-    bg: "bg-violet-100 dark:bg-violet-500/15",
-    title: "Sunset Analytics",
-    description:
-      "A dedicated section in Analytics tracks all sunset items with risk breakdown and host distribution charts.",
-  },
-  {
-    icon: MessageSquare,
-    accent: "text-cyan-500 dark:text-cyan-400",
-    bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Comments Revamp",
-    description:
-      "Add, edit, and delete comments on vulnerabilities. Admins, assignees, and collaborators can all participate.",
-  },
-  {
-    icon: MessageCircle,
+    icon: ShieldCheck,
     accent: "text-emerald-500 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Comment Indicators",
+    title: "Platform Hardening",
     description:
-      "A comment count badge now appears on each issue row so you can see active discussions at a glance.",
+      "Dependency hygiene release: bullmq, fast-xml-builder, and the wider ioredis runtime have been bumped to their latest patched versions to keep the queue and Azure Blob pipelines current.",
+  },
+  {
+    icon: PackageCheck,
+    accent: "text-cyan-500 dark:text-cyan-400",
+    bg: "bg-cyan-100 dark:bg-cyan-500/15",
+    title: "Deterministic Builds",
+    description:
+      "package-lock.json has been regenerated and pinned overrides re-asserted so every container build resolves to the exact same dependency tree as CI.",
+  },
+  {
+    icon: Cog,
+    accent: "text-violet-500 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-500/15",
+    title: "Background Worker Refresh",
+    description:
+      "The BullMQ worker now runs on 5.76.0, bringing upstream stability fixes for delayed jobs, repeatable schedules, and Redis cluster failover handling.",
+  },
+  {
+    icon: BookOpen,
+    accent: "text-amber-500 dark:text-amber-400",
+    bg: "bg-amber-100 dark:bg-amber-500/15",
+    title: "Refreshed Documentation",
+    description:
+      "Every top-level doc — README, Architecture, Security, Deployment, and a brand-new API reference — has been updated to match the 2.5.2 release.",
   },
 ];
 
@@ -82,9 +82,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">April 2026 Update</h2>
+          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.5.2</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Here&apos;s what&apos;s been added since your last visit.
+            A focused platform-hardening release covering dependencies, build determinism, and documentation.
           </p>
         </div>
 

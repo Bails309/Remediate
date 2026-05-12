@@ -2,6 +2,8 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
+> **Targeted release**: `v2.5.2` (2026-05-12). The runtime expects Node.js 20 LTS, Next.js `^16.2.3`, BullMQ `^5.76.0`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+
 ## Modes
 - CI-driven (recommended for production): run migrations and DB optimizations in CI before updating containers. See `.github/workflows/migrations.yml`.
 - Runtime fallback: containers run `scripts/migrate.js` on startup (advisory-lock protected) to apply any missing migrations and regenerate the Prisma Client. If migration deploy fails, the container startup fails rather than continuing on a partial schema.
