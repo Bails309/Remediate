@@ -8,10 +8,15 @@ This file lists practical security controls and best practices for running Remed
 - Credential values (connection strings, account keys, SAS tokens) are never written to application logs.
 
 ## Encryption
-- `AUTH_SECRET` is used to encrypt OIDC, SMTP, Azure storage, and **PDF Processing API** configuration stored in Postgres — keep it safe and rotate periodically.
+- `AUTH_SECRET` is used to encrypt OIDC, SMTP, and Azure storage configuration stored in Postgres — keep it safe and rotate periodically.
 - All secrets use AES-256-GCM via `lib/crypto.ts` (`encrypt` / `decrypt`). A SHA-256 fingerprint (`fingerprintSecret`) is surfaced for verification without ever returning plaintext.
-- The PDF Processing API key is only decrypted in-process inside the upload worker when issuing the outbound request, and inside the connectivity-test endpoint when the operator clicks **Test Connection**. It is never logged.
-- Use TLS for all external services (Postgres endpoint, Redis, SMTP, PDF Processing API endpoint).
+- Use TLS for all external services (Postgres endpoint, Redis, SMTP).
+
+## Pentest PDF Processing
+- As of `v2.6.1`, pentest PDF ingestion is **entirely in-process**. There is no outbound PDF Processing API call, no encrypted API key, no admin configuration page, and no `PdfProcessingConfig` table.
+- The built-in parser (`lib/pentest-pdf-builtin.ts`) uses `pdf-parse` for text extraction and `pdfjs-dist` (legacy build, loaded dynamically) for yellow-highlight detection. Both libraries run in the worker process; PDF bytes never leave the deployment.
+- Yellow-highlight spans are emitted as `\u0001HL\u0002 … \u0001/HL\u0002` private-use markers in the persisted Examples payload. The client (`renderPluginOutput` in `vulnerabilities-client.tsx`) HTML-escapes the payload **before** unwrapping the markers into `<mark>` spans, preventing XSS even if the source PDF contains HTML-like text inside a highlighted region.
+- The pentest upload route (`POST /api/uploads/pentest`) is still gated by `requireAdmin()`, a 25 MB size cap, the per-bucket Redis advisory lock, and the global rate limiter.
 
 ## Authentication
 - Local credential comparison uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
@@ -44,7 +49,7 @@ This file lists practical security controls and best practices for running Remed
 ## Dependencies
 - Keep `npm` dependencies up to date. Run periodic `npm audit` and address critical findings.
 - **Dependabot** is enabled for the `npm` ecosystem and opens PRs against direct and transitive dependencies. Review weekly and merge after CI is green.
-- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.6.0`) is:
+- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.6.2`) is:
   - `nodemailer@8.0.5`
   - `vite@8.0.5`
   - `defu@6.1.6`
@@ -53,10 +58,12 @@ This file lists practical security controls and best practices for running Remed
   - `lodash@4.18.1`
   - `brace-expansion@2.0.3`
   - `flatted@3.4.2`
-  - `fast-xml-parser@5.5.7`
+  - `fast-xml-parser@5.8.0`
   - `fast-xml-builder@1.2.0`
+  - `postcss@8.5.10` (closes GHSA-qx2v-qp2m-jg93 for the copy pulled in by Next.js)
+  - `uuid@14.0.0` (belt-and-braces pin past the vulnerable 11.x range)
 - **Lockfile policy**: `package-lock.json` is committed and authoritative — CI runs `npm ci`, never `npm install`. Regenerate locally with `npm install --package-lock-only` after editing dependency ranges or overrides.
-- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog.
+- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. The `v2.6.2` release ships with `npm audit --audit-level=high --omit=dev` reporting **0 vulnerabilities**.
 
 ## Vulnerability Reporting
 If you believe you have found a security issue, please report it privately rather than opening a public GitHub issue. Contact the repository administrator listed in `package.json` or via your organisation's security channel. Provide:

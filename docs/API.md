@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.5.2` (2026-05-12). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.6.2` (2026-05-14). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -62,7 +62,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/uploads/nessus` | 🔒 | Multipart upload of a Nessus CSV. Stores the payload in Redis (2-hour TTL) and enqueues a BullMQ job. |
-| `POST` | `/api/uploads/pentest` | 👑 | Multipart upload of a penetration-test PDF (≤25 MB). Persists the binary as base64 in the active storage provider, then enqueues a job on the dedicated `{pentest-pdf-queue}` for the worker to forward to the configured PDF Processing API. Returns HTTP 412 if PDF Processing is not enabled. |
+| `POST` | `/api/uploads/pentest` | 👑 | Multipart upload of a penetration-test PDF (≤25 MB). Persists the binary as base64 in the active storage provider, then enqueues a job on the dedicated `{pentest-pdf-queue}` for the worker to parse in-process via the built-in Trustmarque CHECK parser (`lib/pentest-pdf-builtin.ts`). Returns `{ uploadId, status: "queued" }` on success. No admin configuration is required. |
 | `GET` | `/api/uploads/history` | 🔒 | Paginated upload history (status, counts, processing duration). |
 | `GET` | `/api/uploads/progress` | 🔒 | Snapshot of all in-flight uploads for the current user. |
 | `GET` | `/api/uploads/{uploadId}/progress` | 🔒 | Per-upload progress (counts, current phase). |

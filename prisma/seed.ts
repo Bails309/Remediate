@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const adminEmail = process.env.ADMIN_EMAIL ?? "admin@example.com";
 
 async function main() {
-  const allTours = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"];
+  const allTours = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "whats-new-may-2026", "whats-new-may-2026-pdf", "whats-new-may-2026-v262", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"];
 
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },

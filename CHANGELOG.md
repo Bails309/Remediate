@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.6.2] - 2026-05-14
+### Security
+- **Dependency upgrades to clear `npm audit` advisories (6 vulnerabilities, 1 high / 5 moderate)**:
+  - `next` `^16.2.3` → `^16.2.6` — patches GHSA advisories for cache poisoning in RSC responses, middleware/proxy bypass via segment-prefetch and i18n routes, SSRF via WebSocket upgrades, XSS via CSP nonces and `beforeInteractive` scripts, DoS in Image Optimization API and Cache Components, and the segment-prefetch incomplete-fix follow-up.
+  - `bullmq` `^5.76.0` → `^5.76.8` — pulls in a non-vulnerable `uuid` (transitive fix for GHSA-w5hq-g745-h8pq, missing buffer bounds check in v3/v5/v6).
+  - `overrides.fast-xml-parser` `5.5.7` → `5.8.0` — patches GHSA-gh4j-gqv2-49f6 (XMLBuilder comment / CDATA injection via unescaped delimiters); also clears the transitive advisory on `@azure/core-xml`.
+  - Added `overrides.postcss` `8.5.10` — patches GHSA-qx2v-qp2m-jg93 (XSS via unescaped `</style>` in CSS stringify output) for the copy pulled in by Next.js.
+  - Added `overrides.uuid` `14.0.0` — belt-and-braces pin to the patched line in case any other transitive dependency drags in the vulnerable 11.x range.
+  - `npm audit --audit-level=high --omit=dev` now reports **0 vulnerabilities**.
+
 ## [2.6.1] - 2026-05-13
 ### Added
 - **Pentest PDF — Examples & References on vulnerability details**: The built-in Trustmarque parser now persists each finding's **Examples** block (proof-of-concept payloads, request/response evidence) into `Vulnerability.pluginOutput`, and its **References** list into `Vulnerability.seeAlso`. The Vulnerability Details side-sheet renders the examples in the existing monospace panel (now labelled **"Examples / Plugin Output"** with `white-space: pre-wrap` so long URLs and request bodies stay readable) and adds a new **References** section that splits the stored string on newlines/commas and renders each `http(s)://` entry as a clickable link.

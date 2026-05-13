@@ -2,20 +2,21 @@
 
 A high-level view of Remediate components and interactions.
 
-> **Current release**: `v2.6.0` (2026-05-12). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
+> **Current release**: `v2.6.2` (2026-05-14). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
 
 ![Architecture diagram](docs/images/architecture-diagram.svg)
 
 ## Runtime Stack
 | Layer | Technology | Pinned Version |
 | :--- | :--- | :--- |
-| Web framework | Next.js (App Router, React 19) | `^16.2.3` |
+| Web framework | Next.js (App Router, React 19) | `^16.2.6` |
 | ORM | Prisma | `^6.19.2` |
-| Job queue | BullMQ | `^5.76.0` |
-| Cache / queue backend | Redis (ioredis) | `^5.10.0` |
+| Job queue | BullMQ | `^5.76.8` |
+| Cache / queue backend | Redis (ioredis) | `^5.10.1` |
 | Database | PostgreSQL | 14+ |
 | Auth | NextAuth (Auth.js v5 beta) + OIDC | `^5.0.0-beta.30` |
 | Validation | Zod | `^4.3.6` |
+| PDF parsing (in-process) | pdf-parse + pdfjs-dist (legacy build) | `^2.4.5` / `^4.7.76` |
 | UI primitives | Tailwind CSS, lucide-react, recharts, shepherd.js | — |
 | Pentest backend | Express + tsx | `^4.19.2` |
 
@@ -23,10 +24,10 @@ A high-level view of Remediate components and interactions.
 - **`app` (Next.js)**: User-facing web UI and API routes. Exposes endpoints for admin management and vulnerability ingestion. Runs on port 3000.
 - **`worker` (BullMQ)**: Background job processor running **two parallel workers**:
     - **CSV ingest** — Nessus upload parsing, diffing, and historical archival on the `{queue-name}` queue.
-    - **Pentest PDF ingest** — Downloads PDFs from the configured storage provider, forwards them to the **PDF Processing API**, and writes the returned findings into the same `Vulnerability` table on the `{pentest-pdf-queue}` queue (concurrency 2).
+    - **Pentest PDF ingest** — Downloads PDFs from the configured storage provider, parses them in-process via `lib/pentest-pdf-builtin.ts` (the built-in Trustmarque CHECK parser), and writes the returned findings into the same `Vulnerability` table on the `{pentest-pdf-queue}` queue (concurrency 2). No external API or admin configuration is required.
     - **Threat Intelligence Sync**: Hourly delta and daily full syncs from NVD, OSV, and CISA KEV.
     - **Notification Dispatcher**: Daily 08:00 AM email digests based on user-defined risk filters.
-- **PDF Processing API (external)**: A configurable HTTP endpoint (typically Azure Logic Apps backed by Document Intelligence) that accepts a `multipart/form-data` POST with a `file` field and returns a normalised JSON document of findings. Authentication scheme is selectable (`X-API-Key`, `Authorization: Bearer`, both, or none) to match upstream requirements. The API key is encrypted at rest in `PdfProcessingConfig.apiKeyEnc` using AES-256-GCM (`AUTH_SECRET`) and only decrypted in-process inside the upload worker.
+- **Built-in Pentest PDF Parser** (`lib/pentest-pdf-builtin.ts`): In-process Trustmarque CHECK PDF parser. Uses [`pdf-parse`](https://www.npmjs.com/package/pdf-parse) for raw text extraction and [`pdfjs-dist`](https://www.npmjs.com/package/pdfjs-dist) (legacy build, loaded dynamically) for yellow-highlight detection via operator-list inspection. Yellow rectangles are intersected with text items per-page, joined into phrase buckets, and emitted as `\u0001HL\u0002...\u0001/HL\u0002` private-use markers in the persisted Examples payload. The client (`renderPluginOutput`) HTML-escapes the payload, then unwraps the markers into XSS-safe `<mark>` spans.
 - **Threat Intelligence Centre (Frontend)**: Real-time vulnerability feed with source-aware external linking.
 - **Unified Risk Schema (Prisma)**: Relational datastore for Nessus findings, global threats, and user-specific intelligence subscriptions.
 - **Redis**: Job coordination via BullMQ, worker heartbeats, and temporary upload cache.
@@ -34,8 +35,8 @@ A high-level view of Remediate components and interactions.
 
 ## Data Flow
 1. **Ingestion (CSV)**: User uploads Nessus CSV. The API saves the payload to Redis (2-hour TTL) and enqueues a BullMQ job on the `{queue-name}` queue.
-2. **Ingestion (PDF)**: User uploads a pentest PDF via the Uploads → PDF toggle. The API persists the binary to the active storage provider as base64 (`pentest-${uploadId}.pdf.b64`) and enqueues a job on the `{pentest-pdf-queue}` queue. The endpoint returns HTTP 412 when PDF Processing is disabled or incompletely configured.
-3. **Processing**: The matching worker dequeues the job, parses or forwards the payload, filters results based on grace periods, and diffs against existing vulnerabilities. Pentest payloads are flattened by `lib/pentest-pdf.ts#flattenPentestPayload` and severity values are normalised case-insensitively into Critical/High/Medium/Low/Info; comma-separated ports are exploded into individual rows; each finding is keyed by the report's stable identifier (e.g. `PT3195-WEB-001`) so the unique `(siteId, pluginId, host, port, cve)` index continues to drive deduplication.
+2. **Ingestion (PDF)**: User uploads a pentest PDF via the Uploads → PDF toggle. The API persists the binary to the active storage provider as base64 (`pentest-${uploadId}.pdf.b64`) and enqueues a job on the `{pentest-pdf-queue}` queue. Uploads always succeed provided the file is a PDF ≤ 25 MB (no admin configuration is required).
+3. **Processing**: The matching worker dequeues the job, parses the payload in-process (CSV via `lib/ingest.ts`, PDF via `lib/pentest-pdf-builtin.ts`), filters results based on grace periods, and diffs against existing vulnerabilities. Pentest payloads are flattened by `lib/pentest-pdf.ts#flattenPentestPayload` and severity values are normalised case-insensitively into Critical/High/Medium/Low/Info; comma-separated ports are exploded into individual rows; each finding is keyed by the report's stable identifier (e.g. `PT3195-WEB-001`) so the unique `(siteId, pluginId, host, port, cve)` index continues to drive deduplication. Each finding's Examples block is persisted to `Vulnerability.pluginOutput` and its References list to `Vulnerability.seeAlso`; PDF yellow highlights become `<mark>` spans in the rendered Examples panel.
 4. **Persistence**: Current findings are written to the `Vulnerability` table, and remediated items are archived to `VulnerabilityHistory`.
 5. **Intelligence Aggregation**: Global threats are fetched, normalized via fallbacks (NVD Crisis logic), and stored with enrichment (CVSS/CISA KEV).
 6. **Notification**: The dispatcher matches new threats against user preferences (Risk level/CISA status) and sends scheduled email digests.
@@ -81,4 +82,4 @@ A high-level view of Remediate components and interactions.
 - **Source of truth**: `package.json#version`. Container images receive the same value via the `APP_VERSION` build-arg, surfaced on `/admin/health`.
 - **Changelog**: All notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) under the relevant version heading.
 - **What's New**: User-visible releases ship a one-time card (`components/WhatsNew.tsx`) gated by a tour ID stored in `User.completedTours`. Tour IDs must be added to the whitelist in `app/api/tours/complete/route.ts` before they will be accepted.
-- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively (e.g. `fast-xml-builder@1.2.0`, `fast-xml-parser@5.5.7`).
+- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively. As of `v2.6.2` the pinned set covers `nodemailer`, `vite`, `defu`, `magicast`, `picomatch`, `lodash`, `brace-expansion`, `flatted`, `fast-xml-parser@5.8.0`, `fast-xml-builder@1.2.0`, `postcss@8.5.10`, and `uuid@14.0.0`. `npm audit --audit-level=high --omit=dev` reports **0 vulnerabilities** at the time of release.
