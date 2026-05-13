@@ -27,7 +27,7 @@
     "@azure/storage-blob": "^12.26.0",
     "@azure/storage-file-share": "^12.26.0",
     "@prisma/client": "^6.19.2",
-    "bullmq": "^5.76.0",
+    "bullmq": "^5.76.8",
     "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
