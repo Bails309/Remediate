@@ -2,7 +2,7 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.5.2` (2026-05-12). The runtime expects Node.js 20 LTS, Next.js `^16.2.3`, BullMQ `^5.76.0`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.6.0` (2026-05-12). The runtime expects Node.js 20 LTS, Next.js `^16.2.3`, BullMQ `^5.76.0`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
 
 ## Modes
 - CI-driven (recommended for production): run migrations and DB optimizations in CI before updating containers. See `.github/workflows/migrations.yml`.
@@ -54,7 +54,13 @@ This document summarizes recommended deployment patterns for Remediate.
 - `remediate-worker` (Background Jobs) - **Minimal Config**:
    - `DATABASE_URL` (Required)
    - `REDIS_URL` (Required)
-   - `AUTH_SECRET` (Required - Must match the App node)
+   - `AUTH_SECRET` (Required - Must match the App node. Decrypts the PDF Processing API key in-process when forwarding pentest PDFs to the configured external API.)
+
+### PDF Processing Integration (v2.6.0+)
+
+The PDF upload pipeline parses pentest reports in-process using the built-in Trustmarque CHECK parser (`lib/pentest-pdf-builtin.ts`) — no admin configuration, API keys, or outbound network calls required.
+
+1. Sign in as a site admin. Operators can toggle between **CSV** and **PDF** on the Uploads page. PDFs ≤25 MB are persisted via the active storage provider, then handled by the dedicated worker running on the `{pentest-pdf-queue}` BullMQ queue.
 
 - `remediate-pentest-backend` (Pentest Toolkit) - **Minimal Config**:
    - `DATABASE_URL`: Your production PostgreSQL connection string.

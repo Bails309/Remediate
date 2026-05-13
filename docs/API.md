@@ -62,6 +62,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/uploads/nessus` | 🔒 | Multipart upload of a Nessus CSV. Stores the payload in Redis (2-hour TTL) and enqueues a BullMQ job. |
+| `POST` | `/api/uploads/pentest` | 👑 | Multipart upload of a penetration-test PDF (≤25 MB). Persists the binary as base64 in the active storage provider, then enqueues a job on the dedicated `{pentest-pdf-queue}` for the worker to forward to the configured PDF Processing API. Returns HTTP 412 if PDF Processing is not enabled. |
 | `GET` | `/api/uploads/history` | 🔒 | Paginated upload history (status, counts, processing duration). |
 | `GET` | `/api/uploads/progress` | 🔒 | Snapshot of all in-flight uploads for the current user. |
 | `GET` | `/api/uploads/{uploadId}/progress` | 🔒 | Per-upload progress (counts, current phase). |

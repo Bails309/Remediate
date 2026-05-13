@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.5.2 (2026-05-12)</p>
+  <p><strong>Version:</strong> 2.6.0 (2026-05-12)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -285,6 +285,16 @@ Cookie: <session cookie>
 Supports filtering by `action` and `entityType`. Returns paginated results with total count.
 
 ## Release notes
+
+### [2.6.1] - 2026-05-13
+- **External PDF Processing API removed**: The optional external API path (Azure Logic App / Document Intelligence) is gone. Pentest PDFs are now parsed exclusively in-process by the built-in Trustmarque CHECK parser — no admin configuration, no encrypted API key, no outbound network calls. The `/admin/pdf-processing` settings page, its API routes, and the `PdfProcessingConfig` table / `PdfProcessor` + `PdfApiAuthScheme` enums have all been dropped.
+- **Pentest PDF parser hardening**: Hostnames that wrap onto a second line in the Systems Affected table are now merged with their IP/port row before tokenising (fixes duplicate findings on reports like `PT3195-EPT-002`). Where the report supplies both a hostname and an IP, the ingested host is now the hostname.
+
+### [2.6.0] - 2026-05-12
+- **PDF Upload Pipeline**: New CSV/PDF toggle on the Uploads page. Penetration-test PDFs (≤25 MB) are persisted via the configured storage provider and ingested in-process as `Vulnerability` rows that inherit the existing assign / archive / remediate workflows. Severities are normalised into Critical/High/Medium/Low/Info and deduplicated against the report's stable plugin identifier.
+- **Animated Live Progress**: The Uploads → Live Progress card now has a pulsing dot, a shimmering progress bar, a live elapsed timer, and a rotating tip strip so multi-minute PDF processing never looks frozen.
+- **Dual Worker Runtime**: `scripts/worker.ts` now starts two BullMQ workers (CSV ingest + pentest PDF ingest) backed by the dedicated `{pentest-pdf-queue}` so large PDF processing never starves CSV ingest.
+- **Schema**: Adds `enum UploadType { CSV, PDF }`, the `UploadHistory.uploadType` column (defaults to `CSV`), the singleton `PdfProcessingConfig` model, and `enum PdfApiAuthScheme { X_API_KEY, BEARER, BOTH, NONE }` with the `PdfProcessingConfig.authScheme` column. Migrations `20260512100000_add_pdf_processing` and `20260512140000_pdf_api_auth_scheme` ship the changes.
 
 ### [2.5.2] - 2026-05-12
 - **Security**: Dependabot dependency bumps applied — `bullmq` `^5.41.0` → `^5.76.0`, `fast-xml-builder` `1.1.4` → `1.2.0` (via root override), and confirmation of `uuid@11.1.0` as the bullmq-pinned runtime.

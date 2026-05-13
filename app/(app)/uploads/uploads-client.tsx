@@ -9,6 +9,7 @@ import { Settings, Cloud, Upload, Activity, CheckCircle2, AlertCircle, X, Save, 
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { toast } from "@/lib/toast";
 import { cn } from "@/components/cn";
+import { LiveProgressDisplay } from "@/components/LiveProgressDisplay";
 
 export type Site = { 
   id: string; 
@@ -78,8 +79,9 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
   const [siteImportAliases, setSiteImportAliases] = useState<string[]>([]);
   const [newAlias, setNewAlias] = useState("");
   const [siteId, setSiteId] = useState("");
+  const [uploadType, setUploadType] = useState<"CSV" | "PDF">("CSV");
   const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState<{ step: string; progress: number } | null>(null);
+  const [progress, setProgress] = useState<{ step: string; progress: number; error?: string } | null>(null);
   const [nextPollCountdown, setNextPollCountdown] = useState<string>("");
   const [isRunningPoll, setIsRunningPoll] = useState(false);
 
@@ -251,13 +253,26 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       return;
     }
 
+    // Validate extension matches the chosen pipeline up-front so users get an immediate error
+    // instead of a 400 from the API.
+    const lowerName = file.name.toLowerCase();
+    if (uploadType === "CSV" && !lowerName.endsWith(".csv")) {
+      toast.error("Selected file is not a .csv");
+      return;
+    }
+    if (uploadType === "PDF" && !lowerName.endsWith(".pdf")) {
+      toast.error("Selected file is not a .pdf");
+      return;
+    }
+
     setProgress({ step: "Uploading file", progress: 0 });
 
     const formData = new FormData();
     formData.append("siteId", siteId);
     formData.append("file", file);
 
-    const response = await fetch("/api/uploads/nessus", {
+    const endpoint = uploadType === "PDF" ? "/api/uploads/pentest" : "/api/uploads/nessus";
+    const response = await fetch(endpoint, {
       method: "POST",
       body: formData,
     });
@@ -286,7 +301,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       }
     };
 
-    const finalize = (status: "Completed" | "Failed") => {
+    const finalize = (status: "Completed" | "Failed", errorMessage?: string) => {
       if (settled) {
         return;
       }
@@ -297,7 +312,10 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       if (status === "Completed") {
         toast.success("Upload completed");
       } else {
-        toast.error("Upload failed");
+        // Surface the worker-reported failure reason (e.g. "PDF Processing API returned
+        // 401 Unauthorized") instead of a generic "Upload failed". Full text also stays
+        // visible in the Live Progress panel via the Failure reason banner below.
+        toast.error(errorMessage ? `Upload failed: ${errorMessage}` : "Upload failed");
       }
       refreshHistory();
     };
@@ -307,13 +325,13 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       if (!progressResponse.ok) {
         return;
       }
-      const payload = (await progressResponse.json()) as { progress: { step: string; progress: number } | null };
+      const payload = (await progressResponse.json()) as { progress: { step: string; progress: number; error?: string } | null };
       if (!payload.progress) {
         return;
       }
       setProgress(payload.progress);
       if (payload.progress.step === "Completed" || payload.progress.step === "Failed") {
-        finalize(payload.progress.step);
+        finalize(payload.progress.step, payload.progress.error);
       }
     };
 
@@ -340,7 +358,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     await waitForEventsEndpoint(uploadId, 6, 300);
     const eventSource = new EventSource(`/api/uploads/events?uploadId=${uploadId}`);
     eventSource.addEventListener("progress", (event) => {
-      const data = JSON.parse((event as MessageEvent).data) as { step: string; progress: number };
+      const data = JSON.parse((event as MessageEvent).data) as { step: string; progress: number; error?: string };
       setProgress(data);
       if (data.step === "Completed") {
         eventSource.close();
@@ -348,7 +366,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       }
       if (data.step === "Failed") {
         eventSource.close();
-        finalize("Failed");
+        finalize("Failed", data.error);
       }
     });
     eventSource.onerror = () => {
@@ -373,8 +391,8 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     <div className="space-y-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">CSV Uploads</h2>
-          <p className="text-sm opacity-70">Manage security remediation CSVs and automation.</p>
+          <h2 className="text-2xl font-semibold">Uploads</h2>
+          <p className="text-sm opacity-70">Manage Nessus CSV scans and pentest PDF reports.</p>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
           <button
@@ -413,30 +431,50 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                 ]}
               />
 
+              <div className="flex gap-2 rounded-2xl bg-slate-100 dark:bg-slate-800/60 p-1" role="tablist" aria-label="Upload type">
+                <button
+                  type="button"
+                  onClick={() => { setUploadType("CSV"); setFile(null); }}
+                  className={cn(
+                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
+                    uploadType === "CSV" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  )}
+                >
+                  Nessus CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setUploadType("PDF"); setFile(null); }}
+                  className={cn(
+                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
+                    uploadType === "PDF" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  )}
+                >
+                  Pentest PDF
+                </button>
+              </div>
+
               <label
                 className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
-                title="Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
+                title={uploadType === "PDF" ? "Accepts pentest report PDFs (.pdf). The file is forwarded to the configured PDF Processing API." : "Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."}
               >
-                <input type="file" accept=".csv" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-                {file ? file.name : "Drop or select CSV file"}
+                <input
+                  type="file"
+                  accept={uploadType === "PDF" ? ".pdf,application/pdf" : ".csv"}
+                  className="hidden"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                />
+                {file ? file.name : uploadType === "PDF" ? "Drop or select PDF file" : "Drop or select CSV file"}
               </label>
 
-              <Button onClick={startUpload} title="Begin upload and processing of the selected CSV for the chosen bucket">Start Upload</Button>
+              <Button onClick={startUpload} title="Begin upload and processing of the selected file for the chosen bucket">Start Upload</Button>
             </div>
           </div>
 
           <div className="rounded-[28px] border border-[color:var(--color-border)] p-6">
             <h3 className="text-lg font-semibold text-[color:var(--color-accent)]">Live Progress</h3>
             {progress ? (
-              <>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-[color:var(--color-muted)] shadow-inner">
-                  <div
-                    className="h-full bg-gradient-to-r from-[color:var(--color-accent)] to-indigo-500 transition-all duration-1000"
-                    style={{ width: `${progress.progress}%` }}
-                  />
-                </div>
-                <p className="mt-4 text-xs font-black uppercase tracking-wider opacity-40">{progress.step}</p>
-              </>
+              <LiveProgressDisplay progress={progress} />
             ) : (
               <div className="mt-4">
                 <EmptyState

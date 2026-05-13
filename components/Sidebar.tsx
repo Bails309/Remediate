@@ -18,7 +18,7 @@ export const baseNav = [
 ];
 
 export const adminNavItems = [
-  { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage CSV uploads and processing" },
+  { href: "/uploads", label: "Uploads", icon: Upload, title: "Manage Nessus CSV and pentest PDF uploads" },
   { href: "/buckets", label: "Buckets", icon: Shield, title: "Manage tracked buckets and their settings" },
   { href: "/admin/settings", label: "Settings", icon: Settings, title: "Configure Auth, Storage, Imports and Reporting" },
   { href: "/admin/operations", label: "System Status", icon: Activity, title: "Inspect infrastructure health and dead-letter queues" },

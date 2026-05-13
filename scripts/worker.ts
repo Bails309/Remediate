@@ -1,8 +1,9 @@
 import { prisma } from "../lib/prisma";
 import { setProgress } from "../lib/progress";
-import { uploadQueue } from "../lib/queue";
+import { uploadQueue, pentestPdfQueue } from "../lib/queue";
 import { redis } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
+import { processPentestPdfUpload } from "../lib/pentest-pdf";
 // Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
 import { startNotificationScheduler } from "../lib/notification-scheduler";
@@ -92,6 +93,39 @@ async function run() {
 
   worker.on('failed', (job: Job<{ uploadId: string; storageKey: string }> | undefined, err: Error) => {
     console.error(`Job ${job?.id} failed with ${err.message}`);
+  });
+
+  // Dedicated worker for pentest PDF uploads. Uses the same payload shape as the CSV worker so
+  // dead-letter management UI can re-queue with the existing helpers.
+  const pentestWorker = new Worker(pentestPdfQueue.name, async (job: Job<{ uploadId: string; storageKey: string }>) => {
+    const { uploadId, storageKey } = job.data;
+    const upload = await prisma.uploadHistory.findUnique({ where: { id: uploadId } });
+    if (!upload) return;
+    try {
+      await setProgress(uploadId, { step: "Processing", progress: 15 });
+      await processPentestPdfUpload({ uploadId, siteId: upload.siteId, storageKey });
+    } catch (error) {
+      console.error('Error processing pentest PDF', uploadId, error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (job.attemptsMade >= (job.opts.attempts || 1) - 1) {
+        await prisma.uploadHistory.update({ where: { id: uploadId }, data: { status: "Failed" as const } });
+        // Surface the underlying error (e.g. "PDF Processing API returned 401 Unauthorized")
+        // so the operator isn't left guessing why the upload failed.
+        await setProgress(uploadId, { step: "Failed", progress: 100, error: message });
+      }
+      throw error;
+    }
+  }, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    connection: redis as any,
+    concurrency: 2,
+  });
+
+  pentestWorker.on('completed', job => {
+    console.log(`Pentest PDF job ${job.id} completed!`);
+  });
+  pentestWorker.on('failed', (job, err) => {
+    console.error(`Pentest PDF job ${job?.id} failed with ${err.message}`);
   });
 
   console.log("BullMQ Worker is listening for jobs...");

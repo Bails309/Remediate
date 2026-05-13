@@ -3,42 +3,58 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, ShieldCheck, PackageCheck, Cog, BookOpen } from "lucide-react";
+import { Sparkles, FileText, Settings, Workflow, FileSearch, KeyRound, Activity } from "lucide-react";
 
-const TOUR_ID = "whats-new-may-2026";
+const TOUR_ID = "whats-new-may-2026-pdf";
 
 const features = [
   {
-    icon: ShieldCheck,
-    accent: "text-emerald-500 dark:text-emerald-400",
-    bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Platform Hardening",
+    icon: FileText,
+    accent: "text-rose-500 dark:text-rose-400",
+    bg: "bg-rose-100 dark:bg-rose-500/15",
+    title: "Pentest PDF Uploads",
     description:
-      "Dependency hygiene release: bullmq, fast-xml-builder, and the wider ioredis runtime have been bumped to their latest patched versions to keep the queue and Azure Blob pipelines current.",
+      "The Uploads page now has a CSV / PDF toggle. Pentest reports submitted as PDFs are forwarded to a configurable PDF Processing API and the returned findings are ingested into the same vulnerability table — inheriting assign, archive, and remediation workflows.",
   },
   {
-    icon: PackageCheck,
+    icon: Settings,
     accent: "text-cyan-500 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Deterministic Builds",
+    title: "PDF Processing Settings",
     description:
-      "package-lock.json has been regenerated and pinned overrides re-asserted so every container build resolves to the exact same dependency tree as CI.",
+      "A new Admin → Settings → PDF Processing tab lets you configure the API URL, API key, request timeout, and a master enable switch. The key is encrypted at rest with AUTH_SECRET, never echoed back, and surfaces a fingerprint for verification.",
   },
   {
-    icon: Cog,
+    icon: KeyRound,
+    accent: "text-emerald-500 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    title: "Configurable Auth Scheme",
+    description:
+      "Choose how Remediate authenticates to the PDF Processing API: X-API-Key, Authorization: Bearer, both, or none. Logic App–backed APIs that reject dual-scheme requests are now first-class citizens.",
+  },
+  {
+    icon: FileSearch,
     accent: "text-violet-500 dark:text-violet-400",
     bg: "bg-violet-100 dark:bg-violet-500/15",
-    title: "Background Worker Refresh",
+    title: "Test With a Real PDF",
     description:
-      "The BullMQ worker now runs on 5.76.0, bringing upstream stability fixes for delayed jobs, repeatable schedules, and Redis cluster failover handling.",
+      "The Test Connection panel now has a drop-zone for an optional real pentest PDF. The file is sent once to your configured API and discarded — never stored, never ingested. It's the definitive end-to-end check for upstream services that trip on the synthetic 50-byte test PDF.",
   },
   {
-    icon: BookOpen,
+    icon: Activity,
     accent: "text-amber-500 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Refreshed Documentation",
+    title: "Live Progress, Now Actually Live",
     description:
-      "Every top-level doc — README, Architecture, Security, Deployment, and a brand-new API reference — has been updated to match the 2.5.2 release.",
+      "Long extraction waits no longer feel frozen. A pulsing dot, a shimmering progress bar, a live elapsed timer, and a rotating tip strip keep you informed while the upstream API works through your report.",
+  },
+  {
+    icon: Workflow,
+    accent: "text-sky-500 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-500/15",
+    title: "Dual Worker Runtime",
+    description:
+      "The background worker now runs CSV and PDF pipelines in parallel on dedicated BullMQ queues, so large pentest reports never block live Nessus ingest.",
   },
 ];
 
@@ -82,9 +98,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.5.2</h2>
+          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.6.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            A focused platform-hardening release covering dependencies, build determinism, and documentation.
+            Pentest PDF uploads, configurable auth, real-PDF testing, and a live progress UI that finally feels alive.
           </p>
         </div>
 

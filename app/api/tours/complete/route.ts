@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const VALID_TOURS = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "whats-new-may-2026", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"] as const;
+const VALID_TOURS = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "whats-new-may-2026", "whats-new-may-2026-pdf", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"] as const;
 const tourSchema = z.object({
     tourId: z.enum(VALID_TOURS),
 });

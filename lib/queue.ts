@@ -2,8 +2,10 @@ import { Queue, Job } from "bullmq";
 import { redis } from "@/lib/redis";
 
 export const QUEUE_NAME = "{upload-queue}";
+export const PENTEST_QUEUE_NAME = "{pentest-pdf-queue}";
 
 let _realQueue: Queue | undefined;
+let _pentestQueue: Queue | undefined;
 
 function buildQueue() {
   if (!_realQueue) {
@@ -58,6 +60,41 @@ export function getLockKey(siteId: string) {
 export async function enqueueUpload(uploadId: string, storageKey: string) {
   // Use uploadId as jobId for easy lookup in dead-letter management
   await uploadQueue.add(uploadId, { uploadId, storageKey }, { jobId: uploadId });
+}
+
+function buildPentestQueue() {
+  if (!_pentestQueue) {
+    _pentestQueue = new Queue(PENTEST_QUEUE_NAME, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      connection: redis as any,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 30_000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    });
+  }
+  return _pentestQueue;
+}
+
+const pentestQueueHandler: ProxyHandler<Queue> = {
+  get(_, prop) {
+    const q = buildPentestQueue();
+    const value = Reflect.get(q, prop);
+    if (typeof value === "function") return value.bind(q);
+    return value;
+  },
+  set(_, prop, val) {
+    const q = buildPentestQueue();
+    return Reflect.set(q, prop, val);
+  },
+};
+
+export const pentestPdfQueue = new Proxy({} as unknown as Queue, pentestQueueHandler);
+
+export async function enqueuePentestPdf(uploadId: string, storageKey: string) {
+  await pentestPdfQueue.add(uploadId, { uploadId, storageKey }, { jobId: uploadId });
 }
 
 export async function listDeadLetters(limit: number = 50) {
