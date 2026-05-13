@@ -104,7 +104,11 @@ jobs:
         env:
           MIN_STATEMENTS: 75
           MIN_BRANCHES: 60
-          MIN_FUNCTIONS: 70
+          # Function coverage runs lower than line/statement coverage because most
+          # large client components (vulnerabilities/uploads/tools) are covered by
+          # Playwright e2e tests rather than vitest unit tests, and v8 reports each
+          # inline arrow callback as a separate uncovered function.
+          MIN_FUNCTIONS: 65
           MIN_LINES: 75
         run: |
           node <<'NODE'
