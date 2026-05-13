@@ -8,8 +8,10 @@ This file lists practical security controls and best practices for running Remed
 - Credential values (connection strings, account keys, SAS tokens) are never written to application logs.
 
 ## Encryption
-- `AUTH_SECRET` is used to encrypt OIDC/SMTP configuration stored in Postgres — keep it safe and rotate periodically.
-- Use TLS for all external services (Postgres endpoint, Redis, SMTP).
+- `AUTH_SECRET` is used to encrypt OIDC, SMTP, Azure storage, and **PDF Processing API** configuration stored in Postgres — keep it safe and rotate periodically.
+- All secrets use AES-256-GCM via `lib/crypto.ts` (`encrypt` / `decrypt`). A SHA-256 fingerprint (`fingerprintSecret`) is surfaced for verification without ever returning plaintext.
+- The PDF Processing API key is only decrypted in-process inside the upload worker when issuing the outbound request, and inside the connectivity-test endpoint when the operator clicks **Test Connection**. It is never logged.
+- Use TLS for all external services (Postgres endpoint, Redis, SMTP, PDF Processing API endpoint).
 
 ## Authentication
 - Local credential comparison uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
@@ -41,6 +43,28 @@ This file lists practical security controls and best practices for running Remed
 
 ## Dependencies
 - Keep `npm` dependencies up to date. Run periodic `npm audit` and address critical findings.
+- **Dependabot** is enabled for the `npm` ecosystem and opens PRs against direct and transitive dependencies. Review weekly and merge after CI is green.
+- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.6.0`) is:
+  - `nodemailer@8.0.5`
+  - `vite@8.0.5`
+  - `defu@6.1.6`
+  - `magicast@0.3.5`
+  - `picomatch@4.0.4`
+  - `lodash@4.18.1`
+  - `brace-expansion@2.0.3`
+  - `flatted@3.4.2`
+  - `fast-xml-parser@5.5.7`
+  - `fast-xml-builder@1.2.0`
+- **Lockfile policy**: `package-lock.json` is committed and authoritative — CI runs `npm ci`, never `npm install`. Regenerate locally with `npm install --package-lock-only` after editing dependency ranges or overrides.
+- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog.
+
+## Vulnerability Reporting
+If you believe you have found a security issue, please report it privately rather than opening a public GitHub issue. Contact the repository administrator listed in `package.json` or via your organisation's security channel. Provide:
+1. A description of the issue and its impact.
+2. Reproduction steps or a proof-of-concept.
+3. The Remediate version (`/admin/health`) and deployment platform.
+
+We aim to acknowledge reports within two business days.
 
 ## Backups & DR
 - Schedule regular backups for Postgres and snapshot retention for Redis (or use managed service backups).

@@ -3,42 +3,58 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, Sun, BarChart3, MessageSquare, MessageCircle } from "lucide-react";
+import { Sparkles, FileText, Settings, Workflow, FileSearch, KeyRound, Activity } from "lucide-react";
 
-const TOUR_ID = "whats-new-apr-2026";
+const TOUR_ID = "whats-new-may-2026-pdf";
 
 const features = [
   {
-    icon: Sun,
-    accent: "text-amber-500 dark:text-amber-400",
-    bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Sunset Status",
+    icon: FileText,
+    accent: "text-rose-500 dark:text-rose-400",
+    bg: "bg-rose-100 dark:bg-rose-500/15",
+    title: "Pentest PDF Uploads",
     description:
-      "Mark vulnerabilities as Sunset to keep them visible in your triage queue while excluding them from analytics metrics.",
+      "The Uploads page now has a CSV / PDF toggle. Pentest reports submitted as PDFs are forwarded to a configurable PDF Processing API and the returned findings are ingested into the same vulnerability table — inheriting assign, archive, and remediation workflows.",
   },
   {
-    icon: BarChart3,
-    accent: "text-violet-500 dark:text-violet-400",
-    bg: "bg-violet-100 dark:bg-violet-500/15",
-    title: "Sunset Analytics",
-    description:
-      "A dedicated section in Analytics tracks all sunset items with risk breakdown and host distribution charts.",
-  },
-  {
-    icon: MessageSquare,
+    icon: Settings,
     accent: "text-cyan-500 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Comments Revamp",
+    title: "PDF Processing Settings",
     description:
-      "Add, edit, and delete comments on vulnerabilities. Admins, assignees, and collaborators can all participate.",
+      "A new Admin → Settings → PDF Processing tab lets you configure the API URL, API key, request timeout, and a master enable switch. The key is encrypted at rest with AUTH_SECRET, never echoed back, and surfaces a fingerprint for verification.",
   },
   {
-    icon: MessageCircle,
+    icon: KeyRound,
     accent: "text-emerald-500 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Comment Indicators",
+    title: "Configurable Auth Scheme",
     description:
-      "A comment count badge now appears on each issue row so you can see active discussions at a glance.",
+      "Choose how Remediate authenticates to the PDF Processing API: X-API-Key, Authorization: Bearer, both, or none. Logic App–backed APIs that reject dual-scheme requests are now first-class citizens.",
+  },
+  {
+    icon: FileSearch,
+    accent: "text-violet-500 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-500/15",
+    title: "Test With a Real PDF",
+    description:
+      "The Test Connection panel now has a drop-zone for an optional real pentest PDF. The file is sent once to your configured API and discarded — never stored, never ingested. It's the definitive end-to-end check for upstream services that trip on the synthetic 50-byte test PDF.",
+  },
+  {
+    icon: Activity,
+    accent: "text-amber-500 dark:text-amber-400",
+    bg: "bg-amber-100 dark:bg-amber-500/15",
+    title: "Live Progress, Now Actually Live",
+    description:
+      "Long extraction waits no longer feel frozen. A pulsing dot, a shimmering progress bar, a live elapsed timer, and a rotating tip strip keep you informed while the upstream API works through your report.",
+  },
+  {
+    icon: Workflow,
+    accent: "text-sky-500 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-500/15",
+    title: "Dual Worker Runtime",
+    description:
+      "The background worker now runs CSV and PDF pipelines in parallel on dedicated BullMQ queues, so large pentest reports never block live Nessus ingest.",
   },
 ];
 
@@ -82,9 +98,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">April 2026 Update</h2>
+          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.6.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Here&apos;s what&apos;s been added since your last visit.
+            Pentest PDF uploads, configurable auth, real-PDF testing, and a live progress UI that finally feels alive.
           </p>
         </div>
 

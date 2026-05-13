@@ -11,7 +11,33 @@ import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
-import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronRight, Globe, MessageSquare } from "lucide-react";
+
+// Pentest issues (imported from Trustmarque PDF) all target internet-facing systems and
+// carry a `PT`-prefixed pluginId. Surface them visually so operators triage them first.
+const isInternetFacing = (pluginId: string | null | undefined) => /^PT/i.test(pluginId ?? "");
+const InternetFacingBadge = ({ className = "" }: { className?: string }) => (
+  <span
+    title="Internet-facing — pentest finding (prioritise)"
+    className={`inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-tight text-amber-800 ring-1 ring-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/30 ${className}`}
+  >
+    <Globe size={10} />
+    Internet-facing
+  </span>
+);
+
+// Render the Examples / Plugin Output. PDF-imported findings embed `\u0001HL\u0002 … \u0001/HL\u0002`
+// markers around phrases that were yellow-highlighted in the source PDF. We HTML-escape the
+// whole string first, then unwrap the markers into `<mark>` so the highlights survive into
+// the side sheet. Other (CSV-imported) records carry no markers and render as plain text.
+function renderPluginOutput(raw: string | null | undefined): string {
+  const text = raw ?? "No examples or plugin output recorded.";
+  const esc = text.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
+  return esc.replace(
+    /\u0001HL\u0002([\s\S]*?)\u0001\/HL\u0002/g,
+    '<mark class="bg-yellow-300/80 dark:bg-yellow-400/40 text-slate-900 dark:text-slate-50 rounded px-0.5">$1</mark>',
+  );
+}
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Dialog } from "@/components/Dialog";
 
@@ -81,6 +107,7 @@ type Vulnerability = {
   description?: string | null;
   solution?: string | null;
   pluginOutput?: string | null;
+  seeAlso?: string | null;
   groupCount?: number;
   groupIds?: string;
   groupCves?: string;
@@ -1058,7 +1085,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                       )}
                     </td>
                     <td className="p-4">
-                      <p className="font-bold text-slate-900 dark:text-white mb-0.5">{item.name}</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {isInternetFacing(item.pluginId) && <InternetFacingBadge />}
+                        <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
+                      </div>
                       <div className="flex items-center gap-2">
                         <p className="text-[11px] font-bold uppercase tracking-tight text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60">Plugin {item.pluginId}</p>
                         {(item.commentCount ?? 0) > 0 && (
@@ -1124,7 +1154,10 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                         {isExpanded ? <ChevronDown size={16} className="text-slate-600 dark:text-slate-400" /> : <ChevronRight size={16} className="text-slate-600 dark:text-slate-400" />}
                       </button>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white mb-0.5">{group.name}</p>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {isInternetFacing(group.pluginId) && <InternetFacingBadge />}
+                          <p className="font-bold text-slate-900 dark:text-white">{group.name}</p>
+                        </div>
                         <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 opacity-90 dark:opacity-60 uppercase tracking-tight">Plugin {group.pluginId} • {group.groupCount} issues</p>
                       </div>
                       {(group.commentCount ?? 0) > 0 && (
@@ -1245,6 +1278,12 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
         title="Vulnerability Details"
       >
         <div className="space-y-4">
+          {detail && isInternetFacing(detail.pluginId) && (
+            <div className="flex items-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs font-semibold text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
+              <Globe size={14} />
+              <span>Internet-facing pentest finding — prioritise remediation.</span>
+            </div>
+          )}
           {detailIsArchived && (
             <div className="rounded-2xl border border-amber-300/50 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
               This record is archived history. It remains searchable for audit and reference, but it is not part of the active remediation queue.
@@ -1263,11 +1302,44 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             <p className="mt-2 text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.solution ?? "No solution provided."}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Plugin Output</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Examples / Plugin Output</p>
             <div className="mt-2 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/50 overflow-x-auto">
-              <pre className="text-[11px] font-mono text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.pluginOutput ?? "No plugin output."}</pre>
+              <pre
+                className="text-[11px] font-mono text-slate-900 dark:text-slate-100 leading-relaxed whitespace-pre-wrap break-words"
+                dangerouslySetInnerHTML={{ __html: renderPluginOutput(detail?.pluginOutput) }}
+              />
             </div>
           </div>
+          {detail?.seeAlso ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">References</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {detail.seeAlso
+                  .split(/[\n,]+/)
+                  .map((entry) => entry.trim())
+                  .filter(Boolean)
+                  .map((entry, idx) => {
+                    const isUrl = /^https?:\/\//i.test(entry);
+                    return (
+                      <li key={`${entry}-${idx}`} className="text-slate-900 dark:text-slate-100 leading-relaxed break-words">
+                        {isUrl ? (
+                          <a
+                            href={entry}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sky-600 hover:underline dark:text-sky-400"
+                          >
+                            {entry}
+                          </a>
+                        ) : (
+                          entry
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <div className="pt-6 border-t border-slate-200 dark:border-white/10 space-y-4">

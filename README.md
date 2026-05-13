@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.5.0 (2026-04-02)</p>
+  <p><strong>Version:</strong> 2.6.0 (2026-05-12)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -222,6 +222,21 @@ CI example: see `.github/workflows/migrations.yml` which runs migrations and DB 
 - Dockerfile: Multi-stage container build
 - docker-compose.yml: Local dev stack (app, Postgres, Redis)
 
+## Documentation Map
+
+| Document | Purpose |
+| :--- | :--- |
+| [README.md](README.md) | Operator-facing overview, environment variables, and quick-start. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Component breakdown, data flow, and runtime stack. |
+| [SECURITY.md](SECURITY.md) | Security controls, secrets handling, and dependency policy. |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Container build, ACA deployment, and migration patterns. |
+| [CHANGELOG.md](CHANGELOG.md) | Full release history (Keep a Changelog + SemVer). |
+| [docs/API.md](docs/API.md) | Comprehensive HTTP API reference for every route under `app/api`. |
+| [docs/AZURE_ENV_VARS.md](docs/AZURE_ENV_VARS.md) | Azure-specific environment variable reference. |
+| [docs/DEPLOY_AZURE_CONTAINER_APPS.md](docs/DEPLOY_AZURE_CONTAINER_APPS.md) | Detailed ACA deployment walkthrough. |
+| [docs/LOCAL_DOCKER.md](docs/LOCAL_DOCKER.md) | Local Docker development workflows. |
+| [docs/PRODUCT_TOUR_DEBUG.md](docs/PRODUCT_TOUR_DEBUG.md) | Debugging the Shepherd-based product tours. |
+
 ## Feedback & Audit APIs
 
 ### Submit Feedback (authenticated users)
@@ -270,6 +285,24 @@ Cookie: <session cookie>
 Supports filtering by `action` and `entityType`. Returns paginated results with total count.
 
 ## Release notes
+
+### [2.6.1] - 2026-05-13
+- **External PDF Processing API removed**: The optional external API path (Azure Logic App / Document Intelligence) is gone. Pentest PDFs are now parsed exclusively in-process by the built-in Trustmarque CHECK parser — no admin configuration, no encrypted API key, no outbound network calls. The `/admin/pdf-processing` settings page, its API routes, and the `PdfProcessingConfig` table / `PdfProcessor` + `PdfApiAuthScheme` enums have all been dropped.
+- **Pentest PDF parser hardening**: Hostnames that wrap onto a second line in the Systems Affected table are now merged with their IP/port row before tokenising (fixes duplicate findings on reports like `PT3195-EPT-002`). Where the report supplies both a hostname and an IP, the ingested host is now the hostname.
+
+### [2.6.0] - 2026-05-12
+- **PDF Upload Pipeline**: New CSV/PDF toggle on the Uploads page. Penetration-test PDFs (≤25 MB) are persisted via the configured storage provider and ingested in-process as `Vulnerability` rows that inherit the existing assign / archive / remediate workflows. Severities are normalised into Critical/High/Medium/Low/Info and deduplicated against the report's stable plugin identifier.
+- **Animated Live Progress**: The Uploads → Live Progress card now has a pulsing dot, a shimmering progress bar, a live elapsed timer, and a rotating tip strip so multi-minute PDF processing never looks frozen.
+- **Dual Worker Runtime**: `scripts/worker.ts` now starts two BullMQ workers (CSV ingest + pentest PDF ingest) backed by the dedicated `{pentest-pdf-queue}` so large PDF processing never starves CSV ingest.
+- **Schema**: Adds `enum UploadType { CSV, PDF }`, the `UploadHistory.uploadType` column (defaults to `CSV`), the singleton `PdfProcessingConfig` model, and `enum PdfApiAuthScheme { X_API_KEY, BEARER, BOTH, NONE }` with the `PdfProcessingConfig.authScheme` column. Migrations `20260512100000_add_pdf_processing` and `20260512140000_pdf_api_auth_scheme` ship the changes.
+
+### [2.5.2] - 2026-05-12
+- **Security**: Dependabot dependency bumps applied — `bullmq` `^5.41.0` → `^5.76.0`, `fast-xml-builder` `1.1.4` → `1.2.0` (via root override), and confirmation of `uuid@11.1.0` as the bullmq-pinned runtime.
+- **Build**: Regenerated `package-lock.json` so deterministic installs reflect the new versions.
+- **Docs**: Refreshed README, Architecture, Security, Deployment, and added a consolidated [API reference](docs/API.md). What's New card refreshed with a May 2026 hardening summary.
+
+### [2.5.1] - 2026-04-14
+- **Security**: Bumped `next` and `eslint-config-next` to `16.2.3`, `nodemailer` to `8.0.5`, and overrode transitive `vite` (`8.0.5`) and `defu` (`6.1.6`) for the latest patches.
 
 ### [2.5.0] - 2026-04-02
 - **Feature**: Sunset Status — new lifecycle state that keeps vulnerabilities in the triage queue while excluding them from analytics.

@@ -2,26 +2,44 @@
 
 A high-level view of Remediate components and interactions.
 
+> **Current release**: `v2.6.0` (2026-05-12). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
+
 ![Architecture diagram](docs/images/architecture-diagram.svg)
+
+## Runtime Stack
+| Layer | Technology | Pinned Version |
+| :--- | :--- | :--- |
+| Web framework | Next.js (App Router, React 19) | `^16.2.3` |
+| ORM | Prisma | `^6.19.2` |
+| Job queue | BullMQ | `^5.76.0` |
+| Cache / queue backend | Redis (ioredis) | `^5.10.0` |
+| Database | PostgreSQL | 14+ |
+| Auth | NextAuth (Auth.js v5 beta) + OIDC | `^5.0.0-beta.30` |
+| Validation | Zod | `^4.3.6` |
+| UI primitives | Tailwind CSS, lucide-react, recharts, shepherd.js | — |
+| Pentest backend | Express + tsx | `^4.19.2` |
 
 ## Core Components
 - **`app` (Next.js)**: User-facing web UI and API routes. Exposes endpoints for admin management and vulnerability ingestion. Runs on port 3000.
-- **`worker` (BullMQ)**: Background job processor that handles:
-    - Nessus upload parsing and diffing.
+- **`worker` (BullMQ)**: Background job processor running **two parallel workers**:
+    - **CSV ingest** — Nessus upload parsing, diffing, and historical archival on the `{queue-name}` queue.
+    - **Pentest PDF ingest** — Downloads PDFs from the configured storage provider, forwards them to the **PDF Processing API**, and writes the returned findings into the same `Vulnerability` table on the `{pentest-pdf-queue}` queue (concurrency 2).
     - **Threat Intelligence Sync**: Hourly delta and daily full syncs from NVD, OSV, and CISA KEV.
     - **Notification Dispatcher**: Daily 08:00 AM email digests based on user-defined risk filters.
+- **PDF Processing API (external)**: A configurable HTTP endpoint (typically Azure Logic Apps backed by Document Intelligence) that accepts a `multipart/form-data` POST with a `file` field and returns a normalised JSON document of findings. Authentication scheme is selectable (`X-API-Key`, `Authorization: Bearer`, both, or none) to match upstream requirements. The API key is encrypted at rest in `PdfProcessingConfig.apiKeyEnc` using AES-256-GCM (`AUTH_SECRET`) and only decrypted in-process inside the upload worker.
 - **Threat Intelligence Centre (Frontend)**: Real-time vulnerability feed with source-aware external linking.
 - **Unified Risk Schema (Prisma)**: Relational datastore for Nessus findings, global threats, and user-specific intelligence subscriptions.
 - **Redis**: Job coordination via BullMQ, worker heartbeats, and temporary upload cache.
 - **Azure Blob Storage (Optional)**: Persistent storage for upload payloads as an alternative to Redis (recommended for production clusters).
 
 ## Data Flow
-1. **Ingestion**: User uploads Nessus CSV. The API saves the payload to Redis (2-hour TTL) and enqueues a BullMQ job.
-2. **Processing**: The `worker` dequeues the job, parses the CSV, filters results based on grace periods, and diffs against existing vulnerabilities.
-3. **Persistence**: Current findings are written to the `Vulnerability` table, and remediated items are archived to `VulnerabilityHistory`.
-4. **Intelligence Aggregation**: Global threats are fetched, normalized via fallbacks (NVD Crisis logic), and stored with enrichment (CVSS/CISA KEV).
-5. **Notification**: The dispatcher matches new threats against user preferences (Risk level/CISA status) and sends scheduled email digests.
-6. **Analytics**: The UI queries aggregates to render dashboard metrics and the live intelligence feed.
+1. **Ingestion (CSV)**: User uploads Nessus CSV. The API saves the payload to Redis (2-hour TTL) and enqueues a BullMQ job on the `{queue-name}` queue.
+2. **Ingestion (PDF)**: User uploads a pentest PDF via the Uploads → PDF toggle. The API persists the binary to the active storage provider as base64 (`pentest-${uploadId}.pdf.b64`) and enqueues a job on the `{pentest-pdf-queue}` queue. The endpoint returns HTTP 412 when PDF Processing is disabled or incompletely configured.
+3. **Processing**: The matching worker dequeues the job, parses or forwards the payload, filters results based on grace periods, and diffs against existing vulnerabilities. Pentest payloads are flattened by `lib/pentest-pdf.ts#flattenPentestPayload` and severity values are normalised case-insensitively into Critical/High/Medium/Low/Info; comma-separated ports are exploded into individual rows; each finding is keyed by the report's stable identifier (e.g. `PT3195-WEB-001`) so the unique `(siteId, pluginId, host, port, cve)` index continues to drive deduplication.
+4. **Persistence**: Current findings are written to the `Vulnerability` table, and remediated items are archived to `VulnerabilityHistory`.
+5. **Intelligence Aggregation**: Global threats are fetched, normalized via fallbacks (NVD Crisis logic), and stored with enrichment (CVSS/CISA KEV).
+6. **Notification**: The dispatcher matches new threats against user preferences (Risk level/CISA status) and sends scheduled email digests.
+7. **Analytics**: The UI queries aggregates to render dashboard metrics and the live intelligence feed.
 
 ## Scalability & Resiliency
 - Stateless `app` and `worker` images support horizontal scaling.
@@ -33,7 +51,7 @@ A high-level view of Remediate components and interactions.
 - **RBAC**: Enforced at the API level for sensitive admin and pentest tool routes. Role hierarchy prevents non-site-admins from escalating privileges. Last-admin protections use database transactions to prevent race conditions.
 - **Input Validation**: All API boundaries validate inputs with Zod schemas — status enums, UUID formats, content length limits, regex patterns, and page/limit caps.
 - **Inter-service Auth**: Communication with the pentest backend is secured with short-lived, signed JWTs using `AUTH_SECRET`.
-- **Encryption**: OIDC and SMTP configuration secrets are stored encrypted in Postgres.
+- **Encryption**: OIDC, SMTP, and Azure storage credentials are stored encrypted in Postgres using AES-256-GCM via `AUTH_SECRET`.
 - **CSP**: Middleware generates a cryptographic nonce (`crypto.randomUUID`) per request for script and style sources.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
 
@@ -53,6 +71,14 @@ A high-level view of Remediate components and interactions.
 
 ## Key File Locations
 - **Threat Intelligence**: `lib/threat-intelligence/`, `app/api/threat-intelligence/`, `app/(app)/threat-intelligence/`
-- **Background Workers**: `lib/ingest.ts`, `lib/queue.ts`, `lib/threat-intelligence/worker.ts`
+- **Background Workers**: `lib/ingest.ts`, `lib/queue.ts`, `lib/threat-intelligence/worker.ts`, `lib/pentest-pdf.ts`, `scripts/worker.ts`
+- **PDF Processing**: `lib/pentest-pdf.ts` (ingestion pipeline), `lib/pentest-pdf-builtin.ts` (in-process Trustmarque CHECK parser), `app/api/uploads/pentest/` (operator upload)
 - **DB Schema**: `prisma/schema.prisma`
 - **Pentest Service**: `pentest-backend/`
+
+## Versioning & Release Management
+- **SemVer**: Versions follow `MAJOR.MINOR.PATCH`. Breaking schema or API changes bump `MAJOR`; user-visible features bump `MINOR`; bug-fix and dependency-only releases bump `PATCH`.
+- **Source of truth**: `package.json#version`. Container images receive the same value via the `APP_VERSION` build-arg, surfaced on `/admin/health`.
+- **Changelog**: All notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) under the relevant version heading.
+- **What's New**: User-visible releases ship a one-time card (`components/WhatsNew.tsx`) gated by a tour ID stored in `User.completedTours`. Tour IDs must be added to the whitelist in `app/api/tours/complete/route.ts` before they will be accepted.
+- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively (e.g. `fast-xml-builder@1.2.0`, `fast-xml-parser@5.5.7`).
