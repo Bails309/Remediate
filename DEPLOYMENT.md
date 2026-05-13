@@ -2,7 +2,7 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.6.0` (2026-05-12). The runtime expects Node.js 20 LTS, Next.js `^16.2.3`, BullMQ `^5.76.0`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.6.2` (2026-05-14). The runtime expects Node.js 20 LTS, Next.js `^16.2.6`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
 
 ## Modes
 - CI-driven (recommended for production): run migrations and DB optimizations in CI before updating containers. See `.github/workflows/migrations.yml`.
@@ -54,13 +54,15 @@ This document summarizes recommended deployment patterns for Remediate.
 - `remediate-worker` (Background Jobs) - **Minimal Config**:
    - `DATABASE_URL` (Required)
    - `REDIS_URL` (Required)
-   - `AUTH_SECRET` (Required - Must match the App node. Decrypts the PDF Processing API key in-process when forwarding pentest PDFs to the configured external API.)
+   - `AUTH_SECRET` (Required - Must match the App node. Used for inter-service JWT signing and for OIDC/SMTP/storage secret decryption.)
 
-### PDF Processing Integration (v2.6.0+)
+### Pentest PDF Processing (v2.6.1+)
 
-The PDF upload pipeline parses pentest reports in-process using the built-in Trustmarque CHECK parser (`lib/pentest-pdf-builtin.ts`) — no admin configuration, API keys, or outbound network calls required.
+Pentest PDF ingestion is **entirely in-process**. The worker uses the built-in Trustmarque CHECK parser (`lib/pentest-pdf-builtin.ts`) — backed by `pdf-parse` for text extraction and `pdfjs-dist` (legacy build, loaded dynamically) for yellow-highlight detection. No external API, no encrypted API key, no admin configuration, and no outbound network calls are involved.
 
-1. Sign in as a site admin. Operators can toggle between **CSV** and **PDF** on the Uploads page. PDFs ≤25 MB are persisted via the active storage provider, then handled by the dedicated worker running on the `{pentest-pdf-queue}` BullMQ queue.
+- **Operator workflow**: Sign in as a site admin, switch the Uploads page to **PDF**, drop a Trustmarque CHECK PDF (≤ 25 MB), and the dedicated worker on the `{pentest-pdf-queue}` BullMQ queue will parse it and write findings into the same `Vulnerability` table that drives the CSV pipeline. Each finding inherits assign / archive / remediate workflows, audit history, threat-intelligence enrichment, and analytics surfaces.
+- **Node configuration**: `lib/pentest-pdf-builtin.ts` and `pdfjs-dist` must be listed in `next.config.ts#serverExternalPackages` so Next.js doesn't try to bundle them. This is already configured in the shipped image.
+- **No 412 responses**: `POST /api/uploads/pentest` no longer returns HTTP 412 — the endpoint succeeds for any admin-uploaded PDF ≤ 25 MB. Worker failures (corrupt or non-Trustmarque PDFs) surface on the Live Progress card.
 
 - `remediate-pentest-backend` (Pentest Toolkit) - **Minimal Config**:
    - `DATABASE_URL`: Your production PostgreSQL connection string.

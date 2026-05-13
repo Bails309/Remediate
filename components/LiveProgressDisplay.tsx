@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Animated progress display for upload pipelines.
@@ -57,11 +57,21 @@ export function LiveProgressDisplay({
     const [stepStartedAt, setStepStartedAt] = useState(() => Date.now());
     const [now, setNow] = useState(() => Date.now());
     const [tipIndex, setTipIndex] = useState(0);
+    const prevStepRef = useRef(progress.step);
 
-    // Reset the elapsed timer whenever the step label changes.
+    // Reset the elapsed timer whenever the step label changes. This is a legitimate
+    // "synchronise an external clock with a prop change" case: we want the elapsed counter
+    // to restart at 0 the instant the step transitions, which can't be expressed as either
+    // a pure derivation (Date.now() is impure) or an external-system subscription. The
+    // single follow-up render is intentional and bounded by the step changing.
     useEffect(() => {
-        setStepStartedAt(Date.now());
-        setNow(Date.now());
+        if (prevStepRef.current === progress.step) return;
+        prevStepRef.current = progress.step;
+        const ts = Date.now();
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setStepStartedAt(ts);
+        setNow(ts);
+        /* eslint-enable react-hooks/set-state-in-effect */
     }, [progress.step]);
 
     // 1s heartbeat for the elapsed counter — only while still in progress.

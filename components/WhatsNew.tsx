@@ -3,58 +3,58 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, FileText, Settings, Workflow, FileSearch, KeyRound, Activity } from "lucide-react";
+import { Sparkles, FileText, ShieldCheck, ListChecks, Highlighter, Globe, PackageCheck } from "lucide-react";
 
-const TOUR_ID = "whats-new-may-2026-pdf";
+const TOUR_ID = "whats-new-may-2026-v262";
 
 const features = [
   {
     icon: FileText,
     accent: "text-rose-500 dark:text-rose-400",
     bg: "bg-rose-100 dark:bg-rose-500/15",
-    title: "Pentest PDF Uploads",
+    title: "Built-in Pentest PDF Parser",
     description:
-      "The Uploads page now has a CSV / PDF toggle. Pentest reports submitted as PDFs are forwarded to a configurable PDF Processing API and the returned findings are ingested into the same vulnerability table — inheriting assign, archive, and remediation workflows.",
+      "Trustmarque CHECK reports are now parsed entirely in-process — no external API, no encrypted API key, no outbound network calls, no admin configuration. Upload a PDF on the Uploads page and findings land in the same vulnerability table that drives assign / archive / remediate.",
   },
   {
-    icon: Settings,
+    icon: ListChecks,
     accent: "text-cyan-500 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "PDF Processing Settings",
+    title: "Examples & References on Vulnerability Details",
     description:
-      "A new Admin → Settings → PDF Processing tab lets you configure the API URL, API key, request timeout, and a master enable switch. The key is encrypted at rest with AUTH_SECRET, never echoed back, and surfaces a fingerprint for verification.",
+      "Each finding's Examples block (proof-of-concept payloads, request/response evidence) is persisted to plugin output and rendered in a wrapped monospace panel. References are split out as clickable links so you can jump straight to the source guidance.",
   },
   {
-    icon: KeyRound,
-    accent: "text-emerald-500 dark:text-emerald-400",
-    bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Configurable Auth Scheme",
-    description:
-      "Choose how Remediate authenticates to the PDF Processing API: X-API-Key, Authorization: Bearer, both, or none. Logic App–backed APIs that reject dual-scheme requests are now first-class citizens.",
-  },
-  {
-    icon: FileSearch,
-    accent: "text-violet-500 dark:text-violet-400",
-    bg: "bg-violet-100 dark:bg-violet-500/15",
-    title: "Test With a Real PDF",
-    description:
-      "The Test Connection panel now has a drop-zone for an optional real pentest PDF. The file is sent once to your configured API and discarded — never stored, never ingested. It's the definitive end-to-end check for upstream services that trip on the synthetic 50-byte test PDF.",
-  },
-  {
-    icon: Activity,
+    icon: Highlighter,
     accent: "text-amber-500 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Live Progress, Now Actually Live",
+    title: "Highlighted Evidence Preserved",
     description:
-      "Long extraction waits no longer feel frozen. A pulsing dot, a shimmering progress bar, a live elapsed timer, and a rotating tip strip keep you informed while the upstream API works through your report.",
+      "Yellow highlights from the source PDF — the assessor's focal points — are surfaced inline in the Examples panel as <mark> spans, scoped to the exact finding and occurrence the assessor flagged. No bleed across findings, no fragment artefacts.",
   },
   {
-    icon: Workflow,
+    icon: Globe,
+    accent: "text-violet-500 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-500/15",
+    title: "Internet-Facing Badge",
+    description:
+      "Findings whose plugin id starts with `PT` are flagged with an amber globe badge across the vulnerabilities list and the details side-sheet, so external-attack-surface issues stand out at a glance.",
+  },
+  {
+    icon: PackageCheck,
+    accent: "text-emerald-500 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    title: "Parser Hardening",
+    description:
+      "Multi-line hostnames in Systems Affected tables are merged with their IP/port row (no more duplicate findings), hostnames win over IPs when both are present, and stray Wingdings bullet glyphs that decoded to a trailing `n` are now stripped from issue titles.",
+  },
+  {
+    icon: ShieldCheck,
     accent: "text-sky-500 dark:text-sky-400",
     bg: "bg-sky-100 dark:bg-sky-500/15",
-    title: "Dual Worker Runtime",
+    title: "Six Advisories Cleared",
     description:
-      "The background worker now runs CSV and PDF pipelines in parallel on dedicated BullMQ queues, so large pentest reports never block live Nessus ingest.",
+      "v2.6.2 patches one high-severity and five moderate-severity npm advisories: Next.js 16.2.6 (13 GHSA fixes), bullmq 5.76.8 (uuid bounds check), fast-xml-parser 5.8.0, postcss 8.5.10, uuid 14.0.0. `npm audit --audit-level=high --omit=dev` now reports 0 vulnerabilities.",
   },
 ];
 
@@ -98,14 +98,14 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.6.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">May 2026 Update — v2.6.2</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Pentest PDF uploads, configurable auth, real-PDF testing, and a live progress UI that finally feels alive.
+            A self-contained pentest PDF pipeline, richer finding evidence, internet-facing visibility, and a clean security audit.
           </p>
         </div>
 
         {/* Feature list */}
-        <div className="px-8 py-5 space-y-4">
+        <div className="px-8 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {features.map((f) => (
             <div key={f.title} className="flex items-start gap-4">
               <div className={cn("shrink-0 rounded-xl p-2.5", f.bg)}>

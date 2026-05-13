@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.6.0 (2026-05-12)</p>
+  <p><strong>Version:</strong> 2.6.2 (2026-05-14)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -286,8 +286,15 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 
 ## Release notes
 
+### [2.6.2] - 2026-05-14
+- **Security**: Cleared all six outstanding `npm audit` advisories (1 high, 5 moderate). `next` `^16.2.3` → `^16.2.6` (13 GHSA fixes spanning cache poisoning, middleware bypass, SSRF, XSS, and DoS), `bullmq` `^5.76.0` → `^5.76.8` (transitive `uuid` fix), and added/updated `overrides` for `fast-xml-parser@5.8.0`, `postcss@8.5.10`, and `uuid@14.0.0`. `npm audit --audit-level=high --omit=dev` now reports **0 vulnerabilities**.
+- **Vulnerabilities UI**: Findings whose plugin id starts with `PT` are now flagged with an amber **Internet-Facing** badge (single rows, grouped rows, expanded members, and the side-sheet banner) so external-attack-surface issues stand out.
+- **Examples — Highlighted Evidence**: Yellow highlights from the source PDF are now extracted and surfaced inline in the Examples panel as `<mark>` spans, scoped to the exact finding and occurrence the assessor highlighted.
+- **Parser hardening**: Stripped the `PT…-EX-NNN` header row from Examples blocks, removed the stray ASCII `n` produced when older Trustmarque templates render the severity bullet as a Wingdings glyph, and tightened ID normalisation so `pdfjs`-split hyphens (`PT3195 - EPT - 001`) no longer confuse the per-page highlight scoper.
+
 ### [2.6.1] - 2026-05-13
 - **External PDF Processing API removed**: The optional external API path (Azure Logic App / Document Intelligence) is gone. Pentest PDFs are now parsed exclusively in-process by the built-in Trustmarque CHECK parser — no admin configuration, no encrypted API key, no outbound network calls. The `/admin/pdf-processing` settings page, its API routes, and the `PdfProcessingConfig` table / `PdfProcessor` + `PdfApiAuthScheme` enums have all been dropped.
+- **Examples & References on vulnerability details**: Each finding's Examples block is persisted to `Vulnerability.pluginOutput` and its References list to `Vulnerability.seeAlso`. The side-sheet renders both — a wrapped monospace **Examples / Plugin Output** panel and a clickable References list.
 - **Pentest PDF parser hardening**: Hostnames that wrap onto a second line in the Systems Affected table are now merged with their IP/port row before tokenising (fixes duplicate findings on reports like `PT3195-EPT-002`). Where the report supplies both a hostname and an IP, the ingested host is now the hostname.
 
 ### [2.6.0] - 2026-05-12
