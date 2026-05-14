@@ -24,30 +24,38 @@ Additionally, Remediate features an isolated pentest toolkit service. The main a
 
 ## Local Development (Docker)
 1. Copy env file:
-   ```bash
-  # Windows (PowerShell)
-  copy .env.example .env
 
-  # macOS / Linux
-  cp .env.example .env
+   ```bash
+   # Windows (PowerShell)
+   copy .env.example .env
+
+   # macOS / Linux
+   cp .env.example .env
    ```
+
 2. Start services:
-   ```bash
-  docker compose up -d --build
-   ```
-3. Open http://localhost:3000
-4. Apply Prisma schema:
-  ```bash
-  # Alternatively run migrations from the host
-  npx prisma migrate dev
 
-  # Or inside a container (Windows example)
-  docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:push
-  ```
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open http://localhost:3000
+
+4. Apply Prisma schema:
+
+   ```bash
+   # Alternatively run migrations from the host
+   npx prisma migrate dev
+
+   # Or inside a container (Windows example)
+   docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:push
+   ```
+
 5. Optional seed data:
-  ```bash
-  docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
-  ```
+
+   ```bash
+   docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
+   ```
 
 ## Seed Data
 Seed an admin user and a sample bucket:
