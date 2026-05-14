@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  # Cancel any in-flight CI run for the same ref (branch or PR) when a new commit
+  # lands. Saves runner minutes and avoids flaky overlapping Playwright sessions.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   docker-build:
     runs-on: ubuntu-latest
