@@ -1,0 +1,53 @@
+name: Semgrep
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Weekly scan catches new rules / advisories landing between PRs.
+    - cron: "37 4 * * 1"
+
+concurrency:
+  group: semgrep-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  semgrep:
+    name: Semgrep OSS scan
+    runs-on: ubuntu-latest
+    # Semgrep's official container ships the CLI + all dependencies.
+    container:
+      image: semgrep/semgrep
+    # Skip on the semgrep app's own PRs to avoid duplicate runs.
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        # --error makes the job fail on any finding at the configured severity.
+        # Rulesets chosen for this stack:
+        #   p/owasp-top-ten   — generic web-app vulns (injection, SSRF, auth, etc.)
+        #   p/typescript      — TS-specific bug patterns
+        #   p/react           — React/Next anti-patterns and XSS sinks
+        #   p/nodejsscan      — Node-side issues (eval, child_process, path traversal)
+        #   p/secrets         — committed secrets / credentials
+        run: |
+          semgrep scan \
+            --config p/owasp-top-ten \
+            --config p/typescript \
+            --config p/react \
+            --config p/nodejsscan \
+            --config p/secrets \
+            --error \
+            --severity ERROR \
+            --severity WARNING \
+            --metrics=off \
+            --exclude coverage \
+            --exclude playwright-report \
+            --exclude test-results \
+            --exclude "**/*.test.ts" \
+            --exclude "**/*.test.tsx" \
+            --exclude "tests/**"
