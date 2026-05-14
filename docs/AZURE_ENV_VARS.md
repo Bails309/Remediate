@@ -2,20 +2,40 @@
 
 Store these values as ACA secrets (or map to Key Vault):
 
-- DATABASE_URL: Postgres connection string (use Azure Database for PostgreSQL Flexible Server)
-- REDIS_URL: Redis connection string (Azure Cache for Redis)
-- NEXTAUTH_URL: Public URL of the app (e.g., https://app.example.com)
-- NEXTAUTH_SECRET: Strong random secret for NextAuth
-- AUTH_SECRET: Application encryption key used for storing encrypted data (OIDC config, report settings)
-- ADMIN_EMAIL: Primary administrator email populated by seed script
-- PENTEST_BACKEND_URL: (Optional) URL to the pentest backend service
-- TOOLS_CONFIG_PATH: (Optional) Path inside pentest backend for tools config (default `/config/tools.json`)
-- NODE_ENV=production
+## Required on every container (app, worker, pentest-backend)
+- `DATABASE_URL`: Postgres connection string (use Azure Database for PostgreSQL Flexible Server). Append `?sslmode=require` for managed Postgres.
+- `AUTH_SECRET`: Application encryption key used for OIDC/SMTP/storage secret encryption and inter-service JWT signing. Must be identical across every container.
+- `PENTEST_JWT_SECRET`: Shared secret used by the app to sign — and by the pentest backend to verify — short-lived JWTs that authorize toolkit calls. Must be identical across every container. Generate with `npx auth secret` or `openssl rand -base64 48`.
+- `NODE_ENV=production`
 
-Optional (local/dev):
-- LOCAL_AUTH_ENABLED, LOCAL_AUTH_USER, LOCAL_AUTH_PASS, LOCAL_AUTH_EMAIL
+## App + worker
+- `REDIS_URL`: Redis connection string (Azure Cache for Redis). Use `rediss://` for TLS.
+- `REDIS_CLUSTER_MODE=true`: **Mandatory** if Azure Cache for Redis has clustering enabled.
 
-Recommendations
+## App only
+- `NEXTAUTH_URL` / `AUTH_URL`: Public URL of the app (e.g., `https://app.example.com`).
+- `NEXTAUTH_SECRET`: Strong random secret for NextAuth session encryption.
+- `ADMIN_EMAIL`: Primary administrator email populated by the seed script.
+- `BLOCK_UNKNOWN_SSO`: Defaults to blocking unknown SSO logins. Set to `false` only when auto-provisioning is desired.
+- `PENTEST_BACKEND_URL`: Internal URL of the pentest backend container (e.g., `https://pentest-backend.internal...`).
+
+## Pentest backend only
+- `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE`: JWT validation claims. Default to `remediate-prod` / `pentest-backend-prod` — override only if you intentionally differ from the app.
+- `AUTH_TRUST_HOST=true`: Required when running behind the ACA ingress proxy.
+- `TOOLS_CONFIG_PATH`: *(Optional)* Override path to `tools.json` (defaults to `/config/tools.json`).
+- `PORT`: *(Optional)* Listen port (defaults to `8000`).
+
+## Optional (Azure Blob Storage)
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_STORAGE_ACCOUNT_NAME` / `AZURE_STORAGE_ACCOUNT_KEY`
+- `AZURE_STORAGE_SAS_TOKEN`
+- `AZURE_STORAGE_CONTAINER_NAME` (required when any of the above is set)
+
+## Optional (local/dev only)
+- `LOCAL_AUTH_ENABLED`, `LOCAL_AUTH_USER`, `LOCAL_AUTH_PASS`, `LOCAL_AUTH_EMAIL`, `LOCAL_AUTH_NAME`
+
+## Recommendations
 - Keep secrets in Azure Key Vault and reference them via ACA Key Vault integration.
-- Use managed identities for accessing other Azure resources.
-- Ensure `DATABASE_URL` uses SSL (Azure-managed DBs require TLS). Example: `postgresql://user:pass@host:5432/db?sslmode=require`
+- Use managed identities for accessing other Azure resources where possible.
+- Ensure `DATABASE_URL` uses SSL — Azure-managed Postgres requires TLS. Example: `postgresql://user:pass@host:5432/db?sslmode=require`.
+- Rotate `AUTH_SECRET` and `PENTEST_JWT_SECRET` together — desynchronized values will silently fail every toolkit call.

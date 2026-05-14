@@ -75,51 +75,56 @@ docker run --rm -v "%cd%:/app" -w /app node:lts-slim npm run db:seed
 
 ## Environment Variables
 
+> **TL;DR — minimum required to boot a production deployment**: `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` / `AUTH_URL`, `PENTEST_JWT_SECRET` (must match across **app**, **worker**, and **pentest-backend** containers), and `ADMIN_EMAIL`.
+
 ### Core (All Nodes)
-- `DATABASE_URL`: Postgres connection string.
-- `AUTH_SECRET`: Shared secret used for encryption and JWT signing. Must be consistent across all nodes.
-- `NVD_API_KEY`: (Optional) NIST NVD API Key to increase rate limits for threat intelligence sync.
+- `DATABASE_URL`: Postgres connection string. **Required.**
+- `AUTH_SECRET`: Application encryption key used for OIDC/SMTP/storage secret encryption and inter-service JWT signing. **Required**, must be identical on every node.
+- `PENTEST_JWT_SECRET`: Shared secret used by the app to sign — and by the pentest backend to verify — short-lived JWTs that authorize toolkit calls. **Required**, must be identical on the **app**, **worker**, and **pentest-backend** containers. Generate with `npx auth secret` or `openssl rand -base64 48`.
+- `NVD_API_KEY`: *(Optional)* NIST NVD API key. Raises rate limits for the threat-intelligence sync.
+- `NODE_ENV`: `production` for deployed environments.
 
 ### App Node (`remediate-app`)
-- `REDIS_URL`: Redis connection string.
-- `NEXTAUTH_URL` / `AUTH_URL`: Public URL of the application.
-- `NEXTAUTH_SECRET`: Random string for session encryption.
-- `ADMIN_EMAIL`: Initial admin account.
+- `REDIS_URL`: Redis connection string. **Required.**
+- `NEXTAUTH_URL` / `AUTH_URL`: Public URL of the application. **Required** for OIDC/SSO redirects.
+- `NEXTAUTH_SECRET`: Random string for session encryption. **Required.**
+- `ADMIN_EMAIL`: Initial admin account (also used as the bootstrap account that is always allowed to sign in). **Recommended.**
+- `BLOCK_UNKNOWN_SSO`: When unset or any value other than the literal `false`, unknown SSO/OIDC sign-ins are blocked to prevent silent account creation. Set to `false` to permit auto-provisioning. **Recommended default: blocked.**
+- `PENTEST_BACKEND_URL`: URL of the pentest backend (defaults to `http://pentest-backend:8000` inside Docker; required when the backend lives on a separate hostname).
 - **Local Auth**:
-  - `LOCAL_AUTH_ENABLED`: Set to `true` to enable credentials-based login.
-  - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS`: Credentials for the local admin.
+  - `LOCAL_AUTH_ENABLED`: Set to `true` to enable credentials-based login (useful for first-time bootstrap).
+  - `LOCAL_AUTH_USER` / `LOCAL_AUTH_PASS` / `LOCAL_AUTH_EMAIL` / `LOCAL_AUTH_NAME`: Credentials for the local admin.
 
 ### Worker Node (`remediate-worker`)
-- `REDIS_URL`: Redis connection string.
-- `NVD_API_KEY`: (Optional) API key for authenticated NVD requests.
+- `DATABASE_URL`, `REDIS_URL`, `AUTH_SECRET`, `PENTEST_JWT_SECRET` (all **Required** — values must match the app node).
+- `NVD_API_KEY`: *(Optional)* API key for authenticated NVD requests during threat-intelligence syncs.
 
 ### Pentest Node (`remediate-pentest-backend`)
-- `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE`: Optional JWT validation overrides.
+- `DATABASE_URL`, `REDIS_URL`: **Required** if the backend logs executions to the shared store.
+- `PENTEST_JWT_SECRET`: **Required.** Must match the app and worker values exactly.
+- `PENTEST_JWT_ISSUER` / `PENTEST_JWT_AUDIENCE`: *(Optional in dev, recommended in prod)* JWT validation claims. Default to `remediate-prod` / `pentest-backend-prod`.
+- `AUTH_TRUST_HOST`: Set to `true` when running behind a proxy (e.g., Azure Container Apps).
+- `TOOLS_CONFIG_PATH`: *(Optional)* Override path to `tools.json` (defaults to `/config/tools.json`).
+- `PORT`: *(Optional)* Listen port, defaults to `8000`.
 
-Pentest toolkit:
-- PENTEST_BACKEND_URL (defaults to http://pentest-backend:8000 in Docker)
-
-AUTH_SECRET is used to encrypt OIDC config stored in Postgres.
-
-External DB/Redis/Storage support:
-- Set `DATABASE_URL` and `REDIS_URL` to your external services.
-- The app does not depend on container-local storage for either service.
-- **Azure Blob Storage**: Optionally use Azure Blob Storage for persistent upload storage. Configure via the Admin dashboard or env vars:
-  - `AZURE_STORAGE_CONNECTION_STRING`
-  - `AZURE_STORAGE_ACCOUNT_NAME` / `AZURE_STORAGE_ACCOUNT_KEY`
-  - `AZURE_STORAGE_SAS_TOKEN`
-  - `AZURE_STORAGE_CONTAINER_NAME` (required for Azure)
+### Azure Blob Storage (Optional)
+Configure via the Admin dashboard or env vars when persistent upload storage is desired:
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_STORAGE_ACCOUNT_NAME` / `AZURE_STORAGE_ACCOUNT_KEY`
+- `AZURE_STORAGE_SAS_TOKEN`
+- `AZURE_STORAGE_CONTAINER_NAME` (required when any Azure storage var is set)
 
 ### Redis Requirements
 - **Modules**: None required.
 - **Eviction Policy**: `noeviction` is strongly recommended. Redis is used for job queueing and temporary payload storage; enabling eviction may lead to silent job loss if memory limits are reached.
 - **Protocol Support**: Supports `redis://` (standard) and `rediss://` (TLS). TLS certificate validation can be toggled via `REDIS_TLS_REJECT_UNAUTHORIZED`.
+- **Clustered Redis**: Set `REDIS_CLUSTER_MODE=true` on **all** containers when targeting Azure Cache for Redis with clustering enabled. BullMQ keys are tagged with `{bull}` to keep related keys on the same shard.
 - **Recommended Sizing**:
-  - **Small/Standard**: 1GB - 2GB (e.g., Azure Cache for Redis C0/C1). Suitable for most use cases with moderate upload sizes and concurrency.
+  - **Small/Standard**: 1GB – 2GB (e.g., Azure Cache for Redis C0/C1). Suitable for most use cases with moderate upload sizes and concurrency.
   - **Large/Enterprise**: 4GB+ (e.g., Azure Cache for Redis C2+). Recommended if you frequently process very large Nessus CSVs (>100MB) or have high concurrent upload activity.
   - **Note**: Memory usage is driven by CSV payloads which are stored in Redis for up to 2 hours during processing.
 
-Docker compose overrides DATABASE_URL and REDIS_URL to use the db/redis service names.
+Docker compose overrides `DATABASE_URL` and `REDIS_URL` to use the `db`/`redis` service names.
 
 ## Upload Processing
 - Uploads are queued in Redis and processed by the `worker` service.
