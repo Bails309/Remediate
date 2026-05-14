@@ -14,7 +14,7 @@ test.describe('Analytics Page', () => {
 
     test('bucket filter is present on analytics', async ({ page }) => {
         await page.goto('/analytics');
-        // BucketFilter renders as a select or combobox
-        await expect(page.locator('select, [role="combobox"]').first()).toBeVisible({ timeout: 15000 });
+        // BucketFilter renders as a MultiSelect trigger button (aria-haspopup=listbox)
+        await expect(page.locator('button[aria-haspopup="listbox"]').first()).toBeVisible({ timeout: 15000 });
     });
 });
