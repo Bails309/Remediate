@@ -26,7 +26,8 @@ export function decrypt(cipherText: string) {
   const tag = Buffer.from(tagB64, "base64");
   const data = Buffer.from(dataB64, "base64");
   const key = getKey();
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  // authTagLength pinned to 16 bytes so we never accept a shorter (forgeable) GCM tag.
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv, { authTagLength: 16 });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }

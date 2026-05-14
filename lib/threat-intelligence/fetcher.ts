@@ -66,6 +66,7 @@ async function fetchWithBackoff(url: string, headers: Record<string, string>, re
             
             if (res.status === 403 || res.status === 429) {
                 // Add jitter to prevent concurrent bulk collisions
+                // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator -- backoff jitter, not security-relevant
                 const jitter = Math.random() * 1000;
                 const totalDelay = delay + jitter;
                 
@@ -80,6 +81,7 @@ async function fetchWithBackoff(url: string, headers: Record<string, string>, re
             return res.json();
         } catch (err) {
             if (i === retries - 1) throw err;
+            // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator -- backoff jitter, not security-relevant
             const jitter = Math.random() * 500;
             await new Promise(resolve => setTimeout(resolve, delay + jitter));
             delay *= 2;

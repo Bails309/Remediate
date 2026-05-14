@@ -16,6 +16,8 @@ RUN npm install --include=dev --legacy-peer-deps
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
+# Drop privileges for dev container as well — node:lts-slim ships a UID 1000 'node' user.
+USER node
 CMD ["sh", "-c", "npm run migrate && npm run dev"]
 
 FROM node:lts-slim AS builder
@@ -44,6 +46,10 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/next-env.d.ts ./next-env.d.ts
 COPY --from=builder /app/auth.ts /app/auth.config.ts /app/proxy.ts /app/middleware.ts* ./
 RUN chmod +x /app/scripts/app-entrypoint.sh /app/scripts/worker-entrypoint.sh
+# Run as the non-root 'node' user (UID 1000) baked into the official Node image.
+# Done in base-runner so both app-runner and worker-runner inherit it.
+RUN chown -R node:node /app
+USER node
 
 # Target for Main Application
 FROM base-runner AS app-runner

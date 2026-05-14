@@ -101,6 +101,7 @@ export class AzureFileShareService {
         const regex = new RegExp(s.importPattern, "i");
         // Test with a short string length limit to mitigate catastrophic backtracking
         const testStr = filename.slice(0, 500);
+        // nosemgrep: ajinabraham.njsscan.dos.regex_dos.regex_dos -- input is admin-defined importPattern, tested against a 500-char-capped string
         return regex.test(testStr);
       } catch {
         return false;

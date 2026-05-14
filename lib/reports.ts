@@ -16,6 +16,9 @@ export type ReportSettings = {
   smtpFrom: string;
 };
 
+// nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
+// Not a credential — this is a sentinel string returned to the UI to indicate
+// that an SMTP password has been set without exposing the value.
 export const SMTP_PASS_PLACEHOLDER = "__SMTP_PASS_SET__";
 
 export async function getReportConfig(decryptPassword = false): Promise<(ReportSettings & { lastSentAt?: string | null }) | null> {
