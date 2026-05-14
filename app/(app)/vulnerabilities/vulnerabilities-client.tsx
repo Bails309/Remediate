@@ -793,6 +793,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             { label: "High", value: "High" },
             { label: "Medium", value: "Medium" },
             { label: "Low", value: "Low" },
+            { label: "None", value: "None" },
           ]}
         />
         <Select
