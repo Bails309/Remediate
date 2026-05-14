@@ -24,17 +24,21 @@ interface DashboardCount {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ bucketId?: string }>;
+  searchParams: Promise<{ bucketId?: string; bucketIds?: string }>;
 }) {
   const params = await searchParams;
-  const bucketId = params.bucketId;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const bucketIds = (params.bucketIds ? params.bucketIds.split(",") : params.bucketId ? [params.bucketId] : [])
+    .map((s) => s.trim())
+    .filter((s) => UUID_RE.test(s));
 
   // Get counts of logical issues (unique groups) per risk
   const conditions: string[] = [`status IN ('Open', 'InProgress', 'InProgressWithCR')`];
   const values: (string | number)[] = [];
-  if (bucketId) {
-    conditions.push(`"siteId" = $1::uuid`);
-    values.push(bucketId);
+  if (bucketIds.length > 0) {
+    const placeholders = bucketIds.map((_, i) => `$${i + 1}::uuid`).join(", ");
+    conditions.push(`"siteId" IN (${placeholders})`);
+    values.push(...bucketIds);
   }
   const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
@@ -64,7 +68,7 @@ export default async function DashboardPage({
         ) as groups
     `, ...values) as Promise<DashboardCount[]>,
     prisma.vulnerability.findMany({
-      where: bucketId ? { siteId: bucketId } : {},
+      where: bucketIds.length > 0 ? { siteId: { in: bucketIds } } : {},
       select: { risk: true },
     }),
   ]);
@@ -99,7 +103,7 @@ export default async function DashboardPage({
         </div>
         <div className="tour-bucket-filter glass glass-edge px-4 py-2 rounded-2xl flex items-center gap-4">
           <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Filter</span>
-          <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
+          <BucketFilter buckets={buckets} selected={bucketIds} />
         </div>
       </div>
 

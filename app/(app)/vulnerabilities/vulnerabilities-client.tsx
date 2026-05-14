@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
+import { MultiSelect } from "@/components/MultiSelect";
 import { Badge } from "@/components/Badge";
 import { toast } from "@/lib/toast";
 import type { Session } from "next-auth";
@@ -163,7 +164,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeta, setSelectedMeta] = useState<Record<string, SelectedAssignmentMeta>>({});
   const [viewScope, setViewScope] = useState<ViewScope>("active");
-  const [siteId, setSiteId] = useState("");
+  const [siteIds, setSiteIds] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [risk, setRisk] = useState("");
   const [archivedFrom, setArchivedFrom] = useState("");
@@ -204,7 +205,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     params.set("scope", viewScope);
-    if (siteId) params.set("siteId", siteId);
+    if (siteIds.length === 1) params.set("siteId", siteIds[0]);
+    else if (siteIds.length > 1) params.set("siteIds", siteIds.join(","));
     if (status) params.set("status", status);
     if (risk) params.set("risk", risk);
     if (isArchivedView && archivedFrom) params.set("archivedFrom", archivedFrom);
@@ -224,7 +226,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     const payload = await response.json();
     setData(payload.items ?? []);
     setTotal(payload.total ?? 0);
-  }, [viewScope, siteId, status, risk, archivedFrom, archivedTo, query, assigneeId, idFilter, foldDuplicates, page, pageSize, isArchivedView]);
+  }, [viewScope, siteIds, status, risk, archivedFrom, archivedTo, query, assigneeId, idFilter, foldDuplicates, page, pageSize, isArchivedView]);
 
   const fetchComments = async (id: string) => {
     const res = await fetch(`/api/vulnerabilities/${id}/comments`);
@@ -457,7 +459,8 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
       gParams.set("gPort", group.port);
       gParams.set("gPluginId", group.pluginId);
       gParams.set("scope", viewScope);
-      if (siteId) gParams.set("siteId", siteId);
+      if (siteIds.length === 1) gParams.set("siteId", siteIds[0]);
+      else if (siteIds.length > 1) gParams.set("siteIds", siteIds.join(","));
       if (isArchivedView && archivedFrom) gParams.set("archivedFrom", archivedFrom);
       if (isArchivedView && archivedTo) gParams.set("archivedTo", archivedTo);
 
@@ -767,14 +770,12 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             { label: "Archived Findings", value: "archived" },
           ]}
         />
-        <Select
-          value={siteId}
-          onChange={(v) => { setSiteId(v); setPage(1); }}
+        <MultiSelect
+          value={siteIds}
+          onChange={(vals) => { setSiteIds(vals); setPage(1); }}
           placeholder="All buckets"
-          options={[
-            { label: "All buckets", value: "" },
-            ...sites.map((site) => ({ label: site.name, value: site.id }))
-          ]}
+          allLabel="All buckets"
+          options={sites.map((site) => ({ label: site.name, value: site.id }))}
         />
         <Select
           value={status}

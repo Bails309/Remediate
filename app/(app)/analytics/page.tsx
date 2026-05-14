@@ -26,10 +26,13 @@ interface TrendDataPoint {
 export default async function AnalyticsPage({
     searchParams,
 }: {
-    searchParams: Promise<{ bucketId?: string; range?: string }>;
+    searchParams: Promise<{ bucketId?: string; bucketIds?: string; range?: string }>;
 }) {
     const params = await searchParams;
-    const bucketId = params.bucketId;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bucketIds = (params.bucketIds ? params.bucketIds.split(",") : params.bucketId ? [params.bucketId] : [])
+        .map((s) => s.trim())
+        .filter((s) => UUID_RE.test(s));
     const range = params.range || "7d";
     const nowVal = new Date().getTime();
 
@@ -38,9 +41,10 @@ export default async function AnalyticsPage({
     // Define common where conditions for raw SQL
     const conditions: string[] = [];
     const values: (string | number)[] = [];
-    if (bucketId) {
-        conditions.push(`"siteId" = $1::uuid`);
-        values.push(bucketId);
+    if (bucketIds.length > 0) {
+        const placeholders = bucketIds.map((_, i) => `$${i + 1}::uuid`).join(", ");
+        conditions.push(`"siteId" IN (${placeholders})`);
+        values.push(...bucketIds);
     }
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -56,9 +60,11 @@ export default async function AnalyticsPage({
 
     const trendValues: (string | number)[] = [interval];
     let trendWhere = "";
-    if (bucketId) {
-        trendWhere = `AND "siteId" = $2::uuid`;
-        trendValues.push(bucketId);
+    if (bucketIds.length > 0) {
+        // $1 is the interval param; bucket placeholders start at $2.
+        const placeholders = bucketIds.map((_, i) => `$${i + 2}::uuid`).join(", ");
+        trendWhere = `AND "siteId" IN (${placeholders})`;
+        trendValues.push(...bucketIds);
     }
 
     interface TrendGroupRow { day: Date; risk: string; count: number }
@@ -181,7 +187,7 @@ export default async function AnalyticsPage({
             Low: counts.Low,
             Total: counts.Critical + counts.High + counts.Medium + counts.Low
         };
-    }).filter((s: BucketDataEntry) => s.Total > 0 && (!bucketId || s.id === bucketId));
+    }).filter((s: BucketDataEntry) => s.Total > 0 && (bucketIds.length === 0 || bucketIds.includes(s.id)));
 
     // 4. Tasks By Tech (Logical)
     const users = await prisma.user.findMany();
@@ -432,7 +438,7 @@ export default async function AnalyticsPage({
                         <h2 className="text-2xl font-semibold">Analytics Overview</h2>
                         <p className="text-sm opacity-70">Visualizing vulnerability metrics across buckets.</p>
                     </div>
-                    <BucketFilter buckets={buckets} selected={bucketId ?? ""} />
+                    <BucketFilter buckets={buckets} selected={bucketIds} />
                 </div>
 
                 <div id="tour-analytics-trend" className="mt-8 overflow-hidden rounded-[24px] border border-[color:var(--color-border)] bg-[color:var(--color-card)]/50 pt-6">

@@ -52,6 +52,12 @@ export async function GET(request: NextRequest) {
     await requireUser();
     const { searchParams } = new URL(request.url);
   const siteId = searchParams.get("siteId") ?? undefined;
+  // Multi-select bucket filter: ?siteIds=uuid1,uuid2 (UUIDs only; invalid values silently dropped)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const siteIdsParam = searchParams.get("siteIds");
+  const siteIdsList = siteIdsParam
+    ? siteIdsParam.split(",").map((s) => s.trim()).filter((s) => UUID_RE.test(s))
+    : [];
   const status = searchParams.get("status") ?? undefined;
   const risk = searchParams.get("risk") ?? undefined;
   const query = searchParams.get("q") ?? undefined;
@@ -112,7 +118,11 @@ export async function GET(request: NextRequest) {
     const values: (string | number)[] = [];
     let valIdx = 1;
 
-    if (siteId) {
+    if (siteIdsList.length > 0) {
+      const placeholders = siteIdsList.map(() => `$${valIdx++}::uuid`).join(", ");
+      conditions.push(`"siteId" IN (${placeholders})`);
+      values.push(...siteIdsList);
+    } else if (siteId) {
       conditions.push(`"siteId" = $${valIdx++}::uuid`);
       values.push(siteId);
     }
@@ -207,7 +217,11 @@ export async function GET(request: NextRequest) {
   }
 
   const where = {
-    ...(siteId ? { siteId } : {}),
+    ...(siteIdsList.length > 0
+      ? { siteId: { in: siteIdsList } }
+      : siteId
+        ? { siteId }
+        : {}),
     ...(status ? { status: status as VulnerabilityStatus } : {}),
     ...(risk ? { risk: risk as Risk } : {}),
     ...(isArchivedScope && (archivedFrom || archivedTo)
