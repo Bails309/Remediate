@@ -99,10 +99,10 @@ export class AzureFileShareService {
       if (!s.importPattern) return false;
       try {
         const regex = new RegExp(s.importPattern, "i");
-        // Test with a short string length limit to mitigate catastrophic backtracking
+        // Test with a short string length limit to mitigate catastrophic backtracking.
+        // Pattern is admin-defined in the sites table, not user input.
         const testStr = filename.slice(0, 500);
-        // nosemgrep: ajinabraham.njsscan.dos.regex_dos.regex_dos -- input is admin-defined importPattern, tested against a 500-char-capped string
-        return regex.test(testStr);
+        return regex.test(testStr); // nosemgrep: ajinabraham.njsscan.dos.regex_dos.regex_dos
       } catch {
         return false;
       }
