@@ -1319,7 +1319,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   .map((entry) => entry.trim())
                   .filter(Boolean)
                   .map((entry, idx) => {
-                    const isUrl = /^https?:\/\//i.test(entry);
+                    const isUrl = /^https?:\/\//i.test(entry); // nosemgrep: ajinabraham.njsscan.dos.regex_dos.regex_dos -- anchored prefix check, no overlapping quantifiers, not ReDoS-prone
                     return (
                       <li key={`${entry}-${idx}`} className="text-slate-900 dark:text-slate-100 leading-relaxed break-words">
                         {isUrl ? (
