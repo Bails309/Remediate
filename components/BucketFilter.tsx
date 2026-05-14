@@ -1,35 +1,51 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Select } from "@/components/Select";
+import { MultiSelect } from "@/components/MultiSelect";
 
 type Bucket = { id: string; name: string };
 
-export function BucketFilter({ buckets, selected }: { buckets: Bucket[]; selected: string }) {
+export function BucketFilter({
+  buckets,
+  selected,
+}: {
+  buckets: Bucket[];
+  /**
+   * Currently selected bucket ids. Accepts a string (legacy `bucketId` searchParam)
+   * or a string array (new `bucketIds` searchParam) for backwards compatibility.
+   */
+  selected: string | string[];
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
 
-  const onChange = (value: string) => {
+  const selectedIds = Array.isArray(selected)
+    ? selected.filter(Boolean)
+    : selected
+      ? [selected]
+      : [];
+
+  const onChange = (values: string[]) => {
     const next = new URLSearchParams(params?.toString() || "");
-    if (value) {
-      next.set("bucketId", value);
-    } else {
-      next.delete("bucketId");
+    next.delete("bucketId");
+    next.delete("bucketIds");
+    if (values.length === 1) {
+      next.set("bucketId", values[0]);
+    } else if (values.length > 1) {
+      next.set("bucketIds", values.join(","));
     }
-    router.push(`${pathname}?${next.toString()}`);
+    const qs = next.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
-  const options = [
-    { label: "All Buckets", value: "" },
-    ...buckets.map((bucket) => ({ label: bucket.name, value: bucket.id }))
-  ];
-
   return (
-    <Select
-      value={selected}
-      onChange={(val) => onChange(val)}
-      options={options}
+    <MultiSelect
+      value={selectedIds}
+      onChange={onChange}
+      placeholder="All Buckets"
+      allLabel="All Buckets"
+      options={buckets.map((bucket) => ({ label: bucket.name, value: bucket.id }))}
     />
   );
 }
