@@ -29,6 +29,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "tests/e2e/.auth/**",
+    // Fixture directory contains non-source files (.gitignore, README.md) that
+    // ESLint's default file matcher attempts to parse as JS otherwise.
+    "tests/lib/__fixtures__/**",
   ]),
 ]);
 

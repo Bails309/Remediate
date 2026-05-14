@@ -209,6 +209,7 @@ export function ToolsClient({ session }: { session: Session }) {
         "Finalizing results..."
       ];
       setRunningStatus((prev) => {
+        // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator -- UI message rotation, not security-relevant
         const next = messages[Math.floor(Math.random() * messages.length)];
         return next === prev ? messages[(messages.indexOf(next) + 1) % messages.length] : next;
       });
@@ -217,6 +218,7 @@ export function ToolsClient({ session }: { session: Session }) {
     const progressInterval = setInterval(() => {
       setProgressValue((prev) => {
         if (prev >= 92) return prev;
+        // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator -- UI progress increment, not security-relevant
         return prev + Math.random() * 8;
       });
     }, 1500);
