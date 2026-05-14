@@ -106,7 +106,7 @@ export function MultiSelect({
         role="listbox"
         aria-multiselectable="true"
         className={cn(
-          "absolute z-[100] w-full min-w-max overflow-hidden rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl text-slate-900 shadow-2xl animate-in fade-in zoom-in-95 duration-200",
+          "absolute right-0 z-[100] w-full min-w-[14rem] max-w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl text-slate-900 shadow-2xl animate-in fade-in zoom-in-95 duration-200",
           "dark:border-white/10 dark:bg-[#0A0F1C]/95 dark:text-gray-100",
           direction === "up" ? "bottom-full mb-3 origin-bottom" : "top-full mt-3 origin-top",
         )}
