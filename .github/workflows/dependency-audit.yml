@@ -1,0 +1,56 @@
+name: Dependency Audit
+
+# `actions/dependency-review-action` requires GitHub Advanced Security on private
+# repos, which is not available on this plan. This workflow uses `npm audit` to
+# achieve the same outcome — failing PRs that introduce high/critical advisories
+# in npm dependencies — without requiring GHAS.
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dep-audit-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  audit:
+    name: npm audit (high severity gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (no scripts, no audit on install)
+        # --ignore-scripts avoids running arbitrary lifecycle scripts of incoming
+        # deps before we've audited them. --no-audit suppresses the duplicate
+        # audit call npm runs by default during install.
+        run: npm ci --ignore-scripts --no-audit
+
+      - name: Audit production dependencies
+        # `npm audit` exits non-zero when any advisory at or above
+        # --audit-level=high is found. We scope to production deps so dev-only
+        # advisories (e.g. test tooling) don't block merges — they're still
+        # surfaced in the JSON report uploaded below.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Generate full JSON audit report (informational)
+        if: always()
+        run: npm audit --json > npm-audit.json || true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit.json
+          retention-days: 30
