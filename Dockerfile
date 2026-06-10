@@ -44,6 +44,12 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/next-env.d.ts ./next-env.d.ts
+# `next.config.ts` MUST be present at runtime even though `next build` already
+# read it. `next start` re-loads it on boot to apply runtime-only flags such
+# as `poweredByHeader: false`, `serverExternalPackages`, custom `headers()`,
+# etc. Omitting this file silently restores Next.js defaults — most visibly
+# the `X-Powered-By: Next.js` response header.
+COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/auth.ts /app/auth.config.ts /app/proxy.ts /app/middleware.ts* ./
 RUN chmod +x /app/scripts/app-entrypoint.sh /app/scripts/worker-entrypoint.sh
 # Run as the non-root 'node' user (UID 1000) baked into the official Node image.
