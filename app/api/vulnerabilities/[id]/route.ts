@@ -3,6 +3,15 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma, VulnerabilityStatus, Risk } from "@prisma/client";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import {
+    getGroupContext,
+    canEditVulnerability,
+    canSelfAssign,
+    canReassign,
+    canViewVulnerability,
+    canChangeGroup,
+    isLeaderOf,
+} from "@/lib/group-rbac";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit-log";
 
@@ -10,6 +19,7 @@ const patchSchema = z.object({
     askForHelp: z.boolean().optional(),
     collaboratorIds: z.array(z.string().uuid()).optional(),
     assigneeId: z.string().uuid().nullable().optional(),
+    groupId: z.string().uuid().nullable().optional(),
     status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR", "Sunset"]).optional(),
     crNumber: z.string().optional(),
 });
@@ -19,6 +29,7 @@ const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR", "Sunset"];
 interface VulnerabilityWithCollaborators {
     id: string;
     assigneeId: string | null;
+    groupId: string | null;
     siteId: string;
     lastSeenAt: Date;
     createdAt: Date;
@@ -79,41 +90,66 @@ export async function PATCH(
     if (!result.success) {
         return NextResponse.json({ error: result.error.format() }, { status: 400 });
     }
-    const { askForHelp, collaboratorIds, assigneeId, status, crNumber } = result.data;
+    const { askForHelp, collaboratorIds, assigneeId, groupId, status, crNumber } = result.data;
 
-    // RBAC Rules for Non-Admins:
-    // 1. Cannot assign to anyone other than themselves or "Unassigned".
-    // 2. If not the current owner, can ONLY perform self-assignment (no other changes).
-    // 3. If the current owner, can perform all changes but still cannot assign to others.
+    // Group RBAC: visibility wall + leader privileges.
+    const ctx = await getGroupContext(user.id);
+    if (!canViewVulnerability(isAdmin, ctx, vulnerability)) {
+        // Don't reveal existence of items the user shouldn't see.
+        return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
+    }
+
     const isAssignee = vulnerability.assigneeId === user.id;
+    const isLeader = isLeaderOf(ctx, vulnerability.groupId);
+    const canEdit = canEditVulnerability(isAdmin, ctx, user.id, vulnerability);
     const isTargetingSelf = assigneeId === user.id;
     const isTargetingNull = assigneeId === null;
 
-    if (!isAdmin) {
-        // Prevent assigning to others
-        if (assigneeId !== undefined && !isTargetingSelf && !isTargetingNull) {
-            return NextResponse.json({ 
-                error: "Standard users can only assign to themselves or Unassigned" 
-            }, { status: 403 });
-        }
+    // Only admins can move a vulnerability between groups.
+    if (groupId !== undefined && groupId !== vulnerability.groupId && !canChangeGroup(isAdmin)) {
+        return NextResponse.json(
+            { error: "Only administrators can change a vulnerability's group" },
+            { status: 403 }
+        );
+    }
 
-        // If not the current owner
-        if (!isAssignee) {
-            if (isTargetingSelf) {
-                // Limit to self-assignment only
-                const modifiedKeys = Object.keys(result.data).filter(
-                    (k) => result.data[k as keyof typeof result.data] !== undefined
-                );
-                if (modifiedKeys.length > 1) {
-                    return NextResponse.json({ 
-                        error: "You must take ownership before making other changes" 
-                    }, { status: 403 });
-                }
-            } else {
-                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-            }
+    // If a non-admin attempts to assign to someone other than themselves / null,
+    // they must be a leader of the assigned group AND the target must be in that group.
+    if (assigneeId !== undefined && !isTargetingSelf && !isTargetingNull) {
+        const allowed = await canReassign(isAdmin, ctx, user.id, vulnerability, assigneeId);
+        if (!allowed) {
+            return NextResponse.json(
+                { error: "You can only assign to yourself, unassign, or (as group leader) assign to a member of your group" },
+                { status: 403 }
+            );
         }
     }
+
+    // Self-assign requires the user to be allowed to see (and therefore pick up) the item.
+    if (isTargetingSelf && !canSelfAssign(isAdmin, ctx, vulnerability)) {
+        return NextResponse.json({ error: "You must be a member of this group to take ownership" }, { status: 403 });
+    }
+
+    if (!canEdit) {
+        // Visible-but-uneditable user: only self-assignment (or unassign of own item) is allowed,
+        // and no other fields may be set in the same request.
+        const allowedKeysWithoutEdit = new Set(["assigneeId"]);
+        const modifiedKeys = Object.keys(result.data).filter(
+            (k) => result.data[k as keyof typeof result.data] !== undefined
+        );
+        const violatingKey = modifiedKeys.find((k) => !allowedKeysWithoutEdit.has(k));
+        if (violatingKey) {
+            return NextResponse.json(
+                { error: "You must take ownership before making other changes" },
+                { status: 403 }
+            );
+        }
+        if (assigneeId === undefined) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+    }
+    // Suppress unused-variable warnings for context flags retained for readability.
+    void isAssignee; void isLeader;
 
     // Manual validation that respects existing database state
     const effectiveStatus = status || vulnerability.status;
@@ -130,6 +166,7 @@ export async function PATCH(
         // Archiving logic: move to history and delete from active
         const now = new Date();
         const updatedAssigneeId = assigneeId !== undefined ? assigneeId : vulnerability.assigneeId;
+        const updatedGroupId = groupId !== undefined ? groupId : vulnerability.groupId;
 
         const history = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const h = await tx.vulnerabilityHistory.create({
@@ -137,6 +174,7 @@ export async function PATCH(
                     id: vulnerabilityId,
                     siteId: vulnerability.siteId,
                     assigneeId: updatedAssigneeId,
+                    groupId: updatedGroupId,
                     status: status as VulnerabilityStatus,
                     lastSeenAt: vulnerability.lastSeenAt,
                     archivedAt: now,
@@ -160,6 +198,7 @@ export async function PATCH(
                 },
                 include: {
                     assignee: { select: { id: true, name: true } },
+                    group: { select: { id: true, name: true } },
                 }
             });
 
@@ -203,6 +242,18 @@ export async function PATCH(
         }
     }
 
+    if (groupId !== undefined) {
+        if (groupId) {
+            const groupExists = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } });
+            if (!groupExists) {
+                return NextResponse.json({ error: "Group not found" }, { status: 400 });
+            }
+            updateData.group = { connect: { id: groupId } };
+        } else {
+            updateData.group = { disconnect: true };
+        }
+    }
+
     if (status && ACTIVE_STATUSES.includes(status)) {
         updateData.status = status as VulnerabilityStatus;
     }
@@ -229,6 +280,7 @@ export async function PATCH(
             data: updateData,
             include: {
                 assignee: { select: { id: true, name: true } },
+                group: { select: { id: true, name: true } },
                 collaborators: { select: { id: true, name: true, email: true } },
             },
         });
@@ -278,8 +330,20 @@ export async function PATCH(
             action: "vulnerability.assigned",
             entityType: "Vulnerability",
             entityId: vulnerabilityId,
-            oldValue: vulnerability.assigneeId,
-            newValue: assigneeId,
+            oldValue: vulnerability.assigneeId ? `user:${vulnerability.assigneeId}` : "unassigned",
+            newValue: assigneeId ? `user:${assigneeId}` : "unassigned",
+        });
+    }
+
+    if (groupId !== undefined && groupId !== vulnerability.groupId) {
+        writeAuditLog({
+            userId: user.id,
+            userEmail: session.user.email!,
+            action: "vulnerability.group_changed",
+            entityType: "Vulnerability",
+            entityId: vulnerabilityId,
+            oldValue: vulnerability.groupId ? `group:${vulnerability.groupId}` : "none",
+            newValue: groupId ? `group:${groupId}` : "none",
         });
     }
 
@@ -296,16 +360,32 @@ export async function GET(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { id: true, roles: true },
+    });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const isAdmin = ((user.roles as string[]) || []).some((r) =>
+        (WEB_APP_ADMIN_ROLES as readonly string[]).includes(r)
+    );
+
     const vulnerability = await prisma.vulnerability.findUnique({
         where: { id: vulnerabilityId },
         include: {
             assignee: { select: { id: true, name: true } },
+            group: { select: { id: true, name: true } },
             collaborators: { select: { id: true, name: true } },
             site: true,
         }
     });
 
     if (!vulnerability) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const ctx = await getGroupContext(user.id);
+    if (!canViewVulnerability(isAdmin, ctx, vulnerability)) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

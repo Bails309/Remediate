@@ -4,6 +4,7 @@ const mockPrisma = {
   vulnerability: { findMany: vi.fn(), count: vi.fn(), delete: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   vulnerabilityHistory: { createMany: vi.fn() },
   assignmentNotification: { createMany: vi.fn() },
+  groupMembership: { findMany: vi.fn().mockResolvedValue([]) },
   $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -68,6 +69,9 @@ describe("/api/vulnerabilities/bulk POST", () => {
     vi.mocked(requireUser).mockResolvedValue({
       user: { id: "u1", roles: ["web_app_user"] },
     } as any);
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: validId, assigneeId: null, groupId: null },
+    ]);
     const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
     const res = await POST(
       postReq({ ids: [validId], assigneeId: validId2 }) as any
@@ -79,6 +83,9 @@ describe("/api/vulnerabilities/bulk POST", () => {
     vi.mocked(requireUser).mockResolvedValue({
       user: { id: "u1", roles: ["web_app_user"] },
     } as any);
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: validId, assigneeId: "someone-else", groupId: null },
+    ]);
     mockPrisma.vulnerability.count.mockResolvedValue(0); // user doesn't own any
     const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
     const res = await POST(
@@ -143,6 +150,9 @@ describe("/api/vulnerabilities/bulk POST", () => {
     vi.mocked(requireUser).mockResolvedValue({
       user: { id: validId2, email: "u@u.com", roles: ["web_app_user"] },
     } as any);
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: validId, assigneeId: null, groupId: null },
+    ]);
     mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.assignmentNotification.createMany.mockResolvedValue({ count: 1 });
 
@@ -157,6 +167,10 @@ describe("/api/vulnerabilities/bulk POST", () => {
     vi.mocked(requireUser).mockResolvedValue({
       user: { id: "u1", email: "u@u.com", roles: ["web_app_user"] },
     } as any);
+    // User must be assignee of the item to unassign it (or admin/leader).
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: validId, assigneeId: "u1", groupId: null },
+    ]);
     mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
 
     const { POST } = await import("../../app/api/vulnerabilities/bulk/route");
@@ -188,6 +202,9 @@ describe("/api/vulnerabilities/bulk POST", () => {
     vi.mocked(requireUser).mockResolvedValue({
       user: { id: "u1", roles: ["web_app_user"] },
     } as any);
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: validId, assigneeId: "someone-else", groupId: null },
+    ]);
     mockPrisma.vulnerability.count.mockResolvedValue(0);
 
     const { POST } = await import("../../app/api/vulnerabilities/bulk/route");

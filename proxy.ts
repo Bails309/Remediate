@@ -87,8 +87,10 @@ export async function proxy(...args: Parameters<typeof proxyHandler>) {
     }
 
     // Add baseline security headers
+    // Note: X-Frame-Options is intentionally NOT set — it is deprecated and
+    // superseded by CSP `frame-ancestors 'none'` (set below). Sending both is
+    // redundant and was flagged in a pentest.
     response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('X-Frame-Options', 'DENY');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     response.headers.set('x-nonce', nonce);

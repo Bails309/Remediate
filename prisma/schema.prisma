@@ -17,6 +17,11 @@ enum UserRole {
   toolkit_user
 }
 
+enum GroupMemberRole {
+  member
+  leader
+}
+
 enum VulnerabilityStatus {
   Open
   Remediated
@@ -60,11 +65,39 @@ model User {
   pentestExecutions PentestExecution[]
   assignmentNotifications AssignmentNotification[]
   threatSubscription ThreatSubscription?
+  groupMemberships GroupMembership[]
   isNewUser     Boolean          @default(true)
   lastLoginAt   DateTime         @default(now())
   completedTours String[]        @default([])
   lastWeeklyAssignmentReportAt DateTime?
   createdAt     DateTime         @default(now())
+}
+
+model Group {
+  id             String              @id @default(uuid()) @db.Uuid
+  name           String              @unique
+  description    String?
+  idpGroupId     String?             // reserved for future OIDC/Entra group sync
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  memberships    GroupMembership[]
+  vulnerabilities Vulnerability[]
+  vulnerabilityHistory VulnerabilityHistory[]
+}
+
+model GroupMembership {
+  groupId   String          @db.Uuid
+  userId    String          @db.Uuid
+  role      GroupMemberRole @default(member)
+  createdAt DateTime        @default(now())
+
+  group     Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@index([groupId, role])
 }
 
 model Site {
@@ -83,6 +116,7 @@ model Vulnerability {
   id                       String               @id @default(uuid()) @db.Uuid
   siteId                   String               @db.Uuid
   assigneeId               String?              @db.Uuid
+  groupId                  String?              @db.Uuid
   status                   VulnerabilityStatus  @default(Open)
   isCurrent                Boolean              @default(true)
   lastSeenAt               DateTime
@@ -111,12 +145,14 @@ model Vulnerability {
 
   site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation("Assignee", fields: [assigneeId], references: [id])
+  group                    Group?               @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([siteId, pluginId, host, port])
   @@index([status])
   @@index([risk])
   @@index([siteId, status, risk])
   @@index([risk, lastSeenAt(sort: Desc)])
+  @@index([groupId, status])
 }
 
 model OidcConfig {
@@ -231,6 +267,7 @@ model VulnerabilityHistory {
   id                       String               @id @default(uuid()) @db.Uuid
   siteId                   String               @db.Uuid
   assigneeId               String?              @db.Uuid
+  groupId                  String?              @db.Uuid
   status                   VulnerabilityStatus  @default(Remediated)
   lastSeenAt               DateTime
   archivedAt               DateTime             @default(now())
@@ -254,10 +291,12 @@ model VulnerabilityHistory {
 
   site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation(fields: [assigneeId], references: [id])
+  group                    Group?               @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([lastSeenAt])
   @@index([archivedAt])
   @@index([siteId, risk])
+  @@index([groupId])
 }
 
 model Comment {

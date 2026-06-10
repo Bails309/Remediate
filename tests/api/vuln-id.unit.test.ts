@@ -5,6 +5,7 @@ const mockPrisma = {
   vulnerability: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   vulnerabilityHistory: { create: vi.fn() },
   assignmentNotification: { create: vi.fn(), createMany: vi.fn() },
+  groupMembership: { findMany: vi.fn().mockResolvedValue([]) },
   $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
