@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.6.2` (2026-05-14). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.7.0` (2026-06-10). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -42,11 +42,11 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/vulnerabilities` | 🔒 | Paginated search. Query: `q`, `status`, `risk`, `bucketId`, `assigneeId`, `id`/`ids`, `page` (≤10000), `limit`. ILIKE wildcards are escaped server-side. |
-| `GET` | `/api/vulnerabilities/{id}` | 🔒 | Returns a single vulnerability with assignee, collaborators, comment count, and history snippet. |
-| `PATCH` | `/api/vulnerabilities/{id}` | 🔒 | Update status, assignee, collaborators, CR number, or sunset flag. RBAC: standard users may only self-assign or unassign; CR number is required for `InProgressWithCR`. |
-| `POST` | `/api/vulnerabilities/bulk` | 🔒 | Bulk update across selected ids. Body: `{ "ids": string[], "patch": { ... }, "crNumber"?: string }`. Same RBAC as single update; CR prompt required for `InProgressWithCR`. |
-| `GET` | `/api/vulnerabilities/{id}/comments` | 🔒 | Lists comments visible to the requester (admins, assignees, collaborators when "Ask for Help" is enabled). |
+| `GET` | `/api/vulnerabilities` | 🔒 | Paginated search. Query: `q`, `status`, `risk`, `bucketId`, `assigneeId`, `groupIds`, `id`/`ids`, `page` (≤10000), `limit`. ILIKE wildcards are escaped server-side. **Group visibility wall**: non-admins always see ungrouped items plus items in groups they belong to; any `groupIds` token outside the requester's `memberOf` set is silently dropped before the SQL is built. Pass the keyword `unassigned` inside `groupIds` to include items with no group when also filtering by specific groups. |
+| `GET` | `/api/vulnerabilities/{id}` | 🔒 | Returns a single vulnerability with assignee, collaborators, comment count, and history snippet. Returns `403` if the requester cannot see the item under the group visibility wall. |
+| `PATCH` | `/api/vulnerabilities/{id}` | 🔒 | Update status, assignee, collaborators, CR number, sunset flag, or `groupId`. RBAC enforced via `lib/group-rbac.ts`: standard users may only self-assign or unassign; group leaders may edit any item their group owns and may reassign within their group; only admins may change `groupId`; CR number is required for `InProgressWithCR`. |
+| `POST` | `/api/vulnerabilities/bulk` | 🔒 | Bulk update across selected ids. Body: `{ "ids": string[], "patch": { ... }, "crNumber"?: string }`. The same per-item permission matrix as single update is applied; the request aborts with `403` on the first item the caller cannot mutate (no partial application). |
+| `GET` | `/api/vulnerabilities/{id}/comments` | 🔒 | Lists comments visible to the requester (admins, assignees, collaborators when "Ask for Help" is enabled). Re-checks the group visibility wall. |
 | `POST` | `/api/vulnerabilities/{id}/comments` | 🔒 | Adds a comment. Body: `{ "content": string }` (1–10,000 chars, Zod validated). |
 | `PATCH` | `/api/vulnerabilities/{id}/comments` | 🔒 | Edits a comment owned by the caller. Body: `{ "commentId": string, "content": string }`. |
 | `DELETE` | `/api/vulnerabilities/{id}/comments` | 🔒 | Deletes a comment. Author or admin only. Query: `commentId`. |
@@ -83,6 +83,44 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | `POST` | `/api/buckets` | 🛡️ | Creates a bucket. Body: `{ "name": string, "description"?: string, "importPatterns"?: string[], "aliases"?: string[] }`. Patterns and aliases are regex-validated and length-capped. |
 | `PUT` | `/api/buckets/{bucketId}` | 🛡️ | Updates a bucket. Same validation as create. |
 | `DELETE` | `/api/buckets/{bucketId}` | 👑 | Deletes a bucket. Refuses if associated vulnerabilities exist unless `?force=true`. |
+
+---
+
+## 5a. Groups / Departments (v2.7.0)
+
+Groups are an enterprise visibility wall layered on top of the existing single-team / individual-assignment model. See [`ARCHITECTURE.md`](../ARCHITECTURE.md#group--department-rbac-v270) for the full permission matrix and [`lib/group-rbac.ts`](../lib/group-rbac.ts) for the helper definitions.
+
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/groups` | 🔒 | Lists groups. Admins receive every group with `memberCount` + `vulnerabilityCount` and `viewerRole: null`. Non-admins receive only the groups they belong to, with `viewerRole: "leader" \| "member"`. |
+| `POST` | `/api/groups` | 👑 | Creates a group. Body: `{ "name": string (1–120), "description"?: string \| null (max 1000) }`. Returns `409` on duplicate name. Writes a `group.created` audit log entry. |
+| `GET` | `/api/groups/{id}` | 🔒 | Returns the group with `{ id, name, description, createdAt, vulnerabilityCount, members: [{ userId, name, email, role }], viewerCanManage: boolean }`. Returns `403` to non-admins who are not members of the group, `404` if missing. |
+| `PATCH` | `/api/groups/{id}` | 👑 | Updates `name` and/or `description`. Same Zod schema as create. Returns `409` on duplicate name, `404` if missing. Writes a `group.updated` audit log entry. |
+| `DELETE` | `/api/groups/{id}` | 👑 | Deletes the group. Returns `409 { "activeCount": number }` if the group still owns active vulnerabilities; pass `?force=true` to dissolve regardless (orphaned items revert to the open queue via `ON DELETE SET NULL`). Writes a `group.deleted` audit log entry capturing the dissolution count. |
+| `POST` | `/api/groups/{id}/members` | 🛡️ | Adds a member. Body: `{ "userId": uuid, "role"?: "member" \| "leader" (default `member`) }`. Authorised when the caller is an admin or a leader of the target group. Returns `409` if the user is already a member, `404` if the target user does not exist. Writes a `group.member_added` audit log entry. |
+| `PATCH` | `/api/groups/{id}/members` | 🛡️ | Changes an existing member's role. Body: `{ "userId": uuid, "role": "member" \| "leader" }`. **Last-leader guard**: a non-admin leader cannot demote the only remaining leader (returns `400 { "error": "Cannot demote the last leader of the group" }`); only an admin can. Returns `404` if the membership does not exist. Writes a `group.member_role_changed` audit log entry. |
+| `DELETE` | `/api/groups/{id}/members` | 🛡️ | Removes a member. Body: `{ "userId": uuid }`. Same last-leader guard as PATCH — non-admin leaders cannot remove the only remaining leader (returns `400`). Returns `404` if the membership does not exist. Writes a `group.member_removed` audit log entry. |
+
+### Permission matrix (mirrors `lib/group-rbac.ts`)
+
+| Action | Admin | Group leader | Group member | Outsider |
+| :--- | :---: | :---: | :---: | :---: |
+| See an ungrouped item | ✓ | ✓ | ✓ | ✓ |
+| See a grouped item | ✓ | ✓ (own group) | ✓ (own group) | ✗ (`403`) |
+| Self-assign | ✓ | ✓ (own group) | ✓ (own group) | ✗ |
+| Edit status / CR / collaboration | ✓ | ✓ (own group) | ✓ (only when current assignee) | ✗ |
+| Reassign to another user | ✓ (any) | ✓ (within own group only) | ✗ (self-assign only) | ✗ |
+| Change the `groupId` on a vulnerability | ✓ | ✗ | ✗ | ✗ |
+| Manage group membership | ✓ (any group) | ✓ (own group only) | ✗ | ✗ |
+
+### `groupIds` filter on `/api/vulnerabilities`
+The query parameter accepts a comma-separated list of UUIDs and the literal keyword `unassigned`:
+```
+GET /api/vulnerabilities?groupIds=11111111-...,22222222-...,unassigned
+```
+- Non-admins: any UUID not in the caller's `memberOf` set is silently dropped before the SQL is built (no information leak about unknown group ids).
+- `unassigned` includes items with `groupId IS NULL` (the open queue) alongside any explicit groups.
+- When the parameter is omitted entirely, the response defaults to the open queue plus every group the requester belongs to (admins see everything).
 
 ---
 

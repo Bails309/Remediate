@@ -29,6 +29,18 @@ This file lists practical security controls and best practices for running Remed
 - **Last-Admin Protection**: Role removal and user deletion for the last `site_admin` are guarded within database transactions to prevent race conditions.
 - **Rate Limiting**: Authenticated API routes key rate limits on user identity rather than client IP headers where possible.
 
+## Group / Department Visibility Wall (v2.7.0)
+Groups (departments) are enforced server-side as a **visibility wall**, not a UI filter. Read paths reject access to grouped items the caller does not belong to, regardless of how the URL or query was constructed:
+- **`GET /api/vulnerabilities`** intersects the requester's `groupIds` query token with their `memberOf` set **before** issuing the SQL. Non-members cannot widen scope by guessing group UUIDs; admin status is the only bypass.
+- **`GET /api/vulnerabilities/{id}`** short-circuits with `403` when `canViewVulnerability` returns false, so direct-link access is also blocked.
+- **`/api/vulnerabilities/{id}/comments`** re-checks the wall before exposing collaborator content or accepting an `askForHelp` toggle.
+- **Mutation paths** (`PATCH`, bulk, group change, reassign) all run through `lib/group-rbac.ts` helpers; the bulk endpoint aborts on the first item the caller cannot mutate, never partially-applying a forbidden update.
+- **Group management** routes (`/api/groups/*`) gate every membership mutation through `canManageGroupMembership`, and the last-leader guard (PATCH demote + DELETE remove) protects non-admin leaders from accidentally dissolving their own group; only an admin can.
+
+## Clickjacking & Frame-Ancestors
+- The application sends `Content-Security-Policy: ... frame-ancestors 'none'` on every response via `proxy.ts`. This is the modern, browser-honoured directive that prevents the app from being framed.
+- As of `v2.7.0` the deprecated `X-Frame-Options: DENY` header is **no longer emitted**. Sending both is redundant and was flagged in an external penetration test. The relevant comment in `proxy.ts` documents the rationale so the header isn't reintroduced.
+
 ## Input Validation
 - All user-facing search queries escape SQL LIKE wildcards (`%`, `_`, `\`) to prevent pattern injection.
 - Vulnerability statuses are validated against a strict enum whitelist.
@@ -49,7 +61,7 @@ This file lists practical security controls and best practices for running Remed
 ## Dependencies
 - Keep `npm` dependencies up to date. Run periodic `npm audit` and address critical findings.
 - **Dependabot** is enabled for the `npm` ecosystem and opens PRs against direct and transitive dependencies. Review weekly and merge after CI is green.
-- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.6.2`) is:
+- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.7.0`) is:
   - `nodemailer@8.0.5`
   - `vite@8.0.5`
   - `defu@6.1.6`
@@ -63,7 +75,7 @@ This file lists practical security controls and best practices for running Remed
   - `postcss@8.5.10` (closes GHSA-qx2v-qp2m-jg93 for the copy pulled in by Next.js)
   - `uuid@14.0.0` (belt-and-braces pin past the vulnerable 11.x range)
 - **Lockfile policy**: `package-lock.json` is committed and authoritative — CI runs `npm ci`, never `npm install`. Regenerate locally with `npm install --package-lock-only` after editing dependency ranges or overrides.
-- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. The `v2.6.2` release ships with `npm audit --audit-level=high --omit=dev` reporting **0 vulnerabilities**.
+- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. The `v2.7.0` release ships with `npm audit --audit-level=high --omit=dev` reporting **0 vulnerabilities**.
 
 ## Vulnerability Reporting
 If you believe you have found a security issue, please report it privately rather than opening a public GitHub issue. Contact the repository administrator listed in `package.json` or via your organisation's security channel. Provide:

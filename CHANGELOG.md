@@ -4,6 +4,50 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.7.0] - 2026-06-10
+### Added
+- **Group / Department RBAC — Enterprise Visibility Wall**: Extends the single-team individual-assignment model to scope vulnerabilities to organisational groups (a.k.a. departments). Groups are a **visibility wall**, not just a filter — when a vulnerability is owned by a group, only members + leaders of that group plus site/web-app admins can see it. Items with no group remain in the open queue (legacy behaviour).
+  - **Data model** (`prisma/schema.prisma`, migration `20260610120000_add_groups`):
+    - New `Group` model (`id`, `name` unique, `description`, `idpGroupId` reserved for future OIDC/Entra group sync, `createdAt`, `updatedAt`).
+    - New `GroupMembership` model with composite key `(groupId, userId)` and `role` enum (`member` | `leader`). Cascade delete on both sides; indexed on `userId` and `(groupId, role)` for hot RBAC lookups.
+    - New `enum GroupMemberRole { member, leader }`.
+    - `Vulnerability.groupId` and `VulnerabilityHistory.groupId` (both nullable, `ON DELETE SET NULL`). Indexes `Vulnerability_groupId_status_idx` and `VulnerabilityHistory_groupId_idx` keep group-scoped listing and analytics queries on a single B-tree lookup.
+  - **RBAC helpers** (`lib/group-rbac.ts`):
+    - `getGroupContext(userId)` — one cheap query returning `{ memberOf: string[], leaderOf: string[] }`.
+    - `canViewVulnerability(isAdmin, ctx, vuln)` — enforces the visibility wall on every read path.
+    - `canSelfAssign(isAdmin, ctx, vuln)` — admins and group members can pick up unowned or in-group work.
+    - `canEditVulnerability(isAdmin, ctx, userId, vuln)` — admins, the current assignee, or any leader of the owning group can edit status / CR / collaboration.
+    - `canReassign(isAdmin, ctx, userId, vuln, targetUserId)` — admins can reassign to anyone; non-admin leaders may reassign within their group only; regular users may self-assign or unassign.
+    - `canChangeGroup(isAdmin)` — only admins can move an item between groups, remove a group, or add a group.
+    - `canManageGroupMembership(isAdmin, ctx, groupId)` — admins (any group) or leaders (their own group).
+  - **APIs**:
+    - **`GET /api/groups`** — admins see all groups with member + vulnerability counts; non-admins see only the groups they belong to with their `viewerRole` (`leader` | `member`).
+    - **`POST /api/groups`** *(admin only)* — `{ name, description? }`. Returns `409` on duplicate name.
+    - **`GET /api/groups/{id}`** — returns the group with `members[]` (each `{ userId, name, email, role }`), `vulnerabilityCount`, and `viewerCanManage` (true for admins and the group's leaders).
+    - **`PATCH /api/groups/{id}`** *(admin only)* — rename / re-describe. Returns `409` on duplicate name, `404` if missing.
+    - **`DELETE /api/groups/{id}`** *(admin only)* — refuses with `409 { activeCount }` if vulnerabilities are still assigned; pass `?force=true` to dissolve regardless. FK ON DELETE SET NULL means orphaned items revert to the open queue.
+    - **`POST /api/groups/{id}/members`** *(admin or leader)* — `{ userId, role? }`. Returns `409` if already a member, `404` if the target user or group is missing.
+    - **`PATCH /api/groups/{id}/members`** *(admin or leader)* — `{ userId, role }`. **Last-leader guard**: non-admin leaders cannot demote the only remaining leader (returns `400`); only an admin can dissolve a group's leadership.
+    - **`DELETE /api/groups/{id}/members`** *(admin or leader)* — `{ userId }`. Same last-leader guard.
+    - **`GET /api/vulnerabilities`** now accepts `groupIds=uuid1,uuid2[,unassigned]` and always enforces the visibility wall — non-admins see only ungrouped items plus the items belonging to their `memberOf` groups regardless of any explicit filter.
+    - **`PATCH /api/vulnerabilities/{id}`**, **`POST /api/vulnerabilities/bulk`**, and **`/api/vulnerabilities/{id}/comments`** apply the per-item permission matrix through `canEditVulnerability` / `canSelfAssign` / `canReassign` / `canChangeGroup`. Bulk updates abort with `403` on the first item the caller cannot mutate.
+  - **UI**:
+    - New **`/admin/groups`** page (`app/(app)/admin/groups/`) — searchable group list, create / rename / delete, add / promote / remove members. Visible only to admins; appears in the sidebar under the admin section.
+    - **Vulnerabilities client** (`app/(app)/vulnerabilities/vulnerabilities-client.tsx`) — new `Group` MultiSelect filter; **Leader** badge on rows the viewer leads; admin-only **Group** column with an inline change-group dropdown; **Assign to Me** scoped to items the viewer is allowed to self-assign.
+    - Sidebar gains a **Groups** entry under the admin nav.
+  - **Notifications**: The weekly assignment digest (`lib/assignment-notifications.ts`) now also sends every group leader a per-group **Leader Digest** email summarising every active item their group owns (open / in-progress / in-progress-with-CR), grouped by assignee with an "Unassigned" bucket. The digest links straight to `/vulnerabilities?groupIds={groupId}`.
+  - **Tests**: 39 new unit tests across `tests/lib/group-rbac.test.ts` (visibility / edit / reassign / membership-management matrix) and `tests/api/groups.unit.test.ts` (every status code on every group endpoint, including the last-leader guard, duplicate-name `409`, and missing-user `404`). Existing vulnerability test suites updated to mock `groupMembership.findMany` and reflect the new RBAC error messages.
+
+### Security
+- **Removed deprecated `X-Frame-Options` header** (`proxy.ts`): The clickjacking control is now provided exclusively by the existing `Content-Security-Policy: frame-ancestors 'none'` directive. Sending both is redundant and was flagged in an external penetration test; modern browsers honour the CSP directive in preference. The accompanying comment in `proxy.ts` documents the rationale so the header isn't reintroduced.
+- **Group visibility wall hardening**: The `GET /api/vulnerabilities` SQL builder intersects any user-supplied `groupIds` filter with the requester's `memberOf` set **before** issuing the query — a non-admin cannot bypass the wall by guessing group UUIDs. Read paths on `/api/vulnerabilities/{id}` short-circuit with `403` when `canViewVulnerability` returns false; comment routes additionally re-check the wall before disclosing collaborator content.
+
+### Changed
+- **CI coverage thresholds**: Line coverage now sits at **69.3%** (above the 68% floor), Statements **66.69%** (≥ 65), Branches **59.97%** (≥ 58), Functions **65.17%** (≥ 63). The added group-RBAC and group-API tests close the gap created by the new feature surface without lowering any threshold.
+
+### Database
+- Migration `20260610120000_add_groups` creates `Group`, `GroupMembership`, `enum GroupMemberRole`, adds `Vulnerability.groupId` + `VulnerabilityHistory.groupId` (both nullable, FK ON DELETE SET NULL), and the supporting indexes. The migration is additive and safe to re-apply — existing rows default to `groupId = NULL` and remain in the open queue.
+
 ## [2.6.2] - 2026-05-14
 ### Security
 - **Dependency upgrades to clear `npm audit` advisories (6 vulnerabilities, 1 high / 5 moderate)**:

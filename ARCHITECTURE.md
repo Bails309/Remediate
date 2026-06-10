@@ -2,7 +2,7 @@
 
 A high-level view of Remediate components and interactions.
 
-> **Current release**: `v2.6.2` (2026-05-14). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
+> **Current release**: `v2.7.0` (2026-06-10). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
 
 ![Architecture diagram](docs/images/architecture-diagram.svg)
 
@@ -62,6 +62,50 @@ A high-level view of Remediate components and interactions.
 - **Sunset**: Keeps items visible for tracking but excludes them from analytics metrics. A dedicated analytics section tracks sunset items separately.
 - **Comments**: Vulnerabilities support threaded comments. Admins, assignees, and collaborators can add, edit, and delete comments. Comment counts are surfaced as badges on table rows.
 
+## Group / Department RBAC (v2.7.0)
+Remediate models organisational ownership through **Groups** (departments) layered on top of the existing single-team / individual-assignment model. The implementation is a server-enforced **visibility wall**, not just a filter — a request that tries to read a grouped vulnerability outside the requester's group context is rejected at the API boundary regardless of how the URL was constructed.
+
+### Data model
+```
+Group (id, name UNIQUE, description, idpGroupId, createdAt, updatedAt)
+  │
+  ├── GroupMembership (groupId, userId, role: member|leader, createdAt)
+  │     PK = (groupId, userId)
+  │     IDX (userId), (groupId, role)
+  │
+  ├── Vulnerability.groupId       → FK ON DELETE SET NULL, IDX (groupId, status)
+  └── VulnerabilityHistory.groupId → FK ON DELETE SET NULL, IDX (groupId)
+```
+The `idpGroupId` column is reserved for future OIDC / Microsoft Entra ID group synchronisation — today the platform manages membership through the in-app `/admin/groups` console.
+
+### Permission helpers (`lib/group-rbac.ts`)
+| Helper | When it returns `true` |
+| :--- | :--- |
+| `getGroupContext(userId)` | Always — returns `{ memberOf, leaderOf }` for a single user (one indexed query). |
+| `canViewVulnerability(isAdmin, ctx, vuln)` | Admin, or `vuln.groupId === null`, or user is a member of `vuln.groupId`. |
+| `canSelfAssign(isAdmin, ctx, vuln)` | Same as `canViewVulnerability` — if you can see it you can pick it up. |
+| `canEditVulnerability(isAdmin, ctx, userId, vuln)` | Admin, current assignee, or leader of `vuln.groupId`. |
+| `canReassign(isAdmin, ctx, userId, vuln, targetUserId)` | Admin (any target), self-assign / unassign, or leader assigning to another member of the same group. |
+| `canChangeGroup(isAdmin)` | Admin only. Leaders are bounded to their own group's items. |
+| `canManageGroupMembership(isAdmin, ctx, groupId)` | Admin (any group), or leader of `groupId`. |
+
+### Enforcement points
+- **`GET /api/vulnerabilities`** — intersects any `groupIds=` query token with the requester's `memberOf` set **before** issuing the SQL, then `OR`s in `groupId IS NULL` for the open queue.
+- **`GET /api/vulnerabilities/{id}`** — short-circuits with `403` when `canViewVulnerability` returns `false`.
+- **`PATCH /api/vulnerabilities/{id}` & `POST /api/vulnerabilities/bulk`** — evaluate `canEditVulnerability` / `canSelfAssign` / `canReassign` per item; bulk updates abort on the first blocked item.
+- **`/api/vulnerabilities/{id}/comments`** — re-checks the visibility wall before exposing collaborator content or accepting an `askForHelp` toggle.
+- **`/api/groups/**`** — every membership-mutating route runs through `authoriseMembershipChange()` which calls `canManageGroupMembership`. The last-leader guard (PATCH demote + DELETE remove) protects non-admin leaders from accidentally dissolving their own group; only an admin can.
+
+### UI surfaces
+- **`/admin/groups`** — admin-only console for create / rename / delete groups and add / promote / remove members.
+- **Vulnerabilities table** — Group MultiSelect filter (admin-scoped tokens are intersected server-side anyway), a **Leader** badge on rows the viewer leads, an admin-only inline Group dropdown for moving items between groups, and a scope-aware Assign-to-Me bulk action.
+- **Sidebar** — new **Groups** entry under the admin navigation cluster.
+
+### Notifications
+The weekly assignment dispatcher (`lib/assignment-notifications.ts`) executes two passes:
+1. **Individual digest** (existing) — each assignee receives a per-user summary of their own active items.
+2. **Leader digest** (new) — each group leader receives a per-group summary of every active item the group owns (open / in-progress / in-progress-with-CR), grouped by assignee with an "Unassigned" bucket. Each digest links to `/vulnerabilities?groupIds={groupId}` for one-click triage.
+
 ## Testing
 - **Unit Tests (Vitest)**: 94 test files, 380+ tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
 - **E2E Tests (Playwright)**: 45 tests across 14 files using a multi-project setup:
@@ -71,6 +115,7 @@ A high-level view of Remediate components and interactions.
 - **CI/CD (GitHub Actions)**: Lint, unit tests (Postgres + Redis services), integration tests, E2E (Playwright with DB schema push + seed data), Docker build, and CodeQL security scanning.
 
 ## Key File Locations
+- **Group RBAC**: `lib/group-rbac.ts`, `app/api/groups/`, `app/(app)/admin/groups/`, `prisma/migrations/20260610120000_add_groups/`
 - **Threat Intelligence**: `lib/threat-intelligence/`, `app/api/threat-intelligence/`, `app/(app)/threat-intelligence/`
 - **Background Workers**: `lib/ingest.ts`, `lib/queue.ts`, `lib/threat-intelligence/worker.ts`, `lib/pentest-pdf.ts`, `scripts/worker.ts`
 - **PDF Processing**: `lib/pentest-pdf.ts` (ingestion pipeline), `lib/pentest-pdf-builtin.ts` (in-process Trustmarque CHECK parser), `app/api/uploads/pentest/` (operator upload)
@@ -82,4 +127,4 @@ A high-level view of Remediate components and interactions.
 - **Source of truth**: `package.json#version`. Container images receive the same value via the `APP_VERSION` build-arg, surfaced on `/admin/health`.
 - **Changelog**: All notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) under the relevant version heading.
 - **What's New**: User-visible releases ship a one-time card (`components/WhatsNew.tsx`) gated by a tour ID stored in `User.completedTours`. Tour IDs must be added to the whitelist in `app/api/tours/complete/route.ts` before they will be accepted.
-- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively. As of `v2.6.2` the pinned set covers `nodemailer`, `vite`, `defu`, `magicast`, `picomatch`, `lodash`, `brace-expansion`, `flatted`, `fast-xml-parser@5.8.0`, `fast-xml-builder@1.2.0`, `postcss@8.5.10`, and `uuid@14.0.0`. `npm audit --audit-level=high --omit=dev` reports **0 vulnerabilities** at the time of release.
+- **Dependency hygiene**: Dependabot opens PRs for direct and transitive bumps. Root `overrides` in `package.json` are used when an upstream package has not yet released a fix that flows through transitively. As of `v2.7.0` the pinned set covers `nodemailer`, `vite`, `defu`, `magicast`, `picomatch`, `lodash`, `brace-expansion`, `flatted`, `fast-xml-parser@5.8.0`, `fast-xml-builder@1.2.0`, `postcss@8.5.10`, and `uuid@14.0.0`. `npm audit --audit-level=high --omit=dev` reports **0 vulnerabilities** at the time of release.
