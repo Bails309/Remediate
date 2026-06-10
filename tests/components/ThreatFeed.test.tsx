@@ -55,14 +55,20 @@ describe("ThreatFeed component", () => {
 
     // Check links
     const links = screen.getAllByRole("link");
-    
+
+    // Helper avoids CodeQL js/incomplete-url-substring-sanitization: matching
+    // a full URL prefix (scheme + host + trailing slash) instead of a bare
+    // substring rules out look-alike hosts such as `evil-nvd.nist.gov.example`.
+    const hrefStartsWith = (prefix: string) =>
+      (el: Element) => el.getAttribute("href")?.startsWith(prefix) === true;
+
     // NVD Link
-    const nvdLink = links.find(l => l.getAttribute("href")?.includes("nvd.nist.gov"));
+    const nvdLink = links.find(hrefStartsWith("https://nvd.nist.gov/"));
     expect(nvdLink).toBeDefined();
     expect(nvdLink?.getAttribute("href")).toBe("https://nvd.nist.gov/vuln/detail/CVE-2024-0001");
 
     // OSV Link
-    const osvLink = links.find(l => l.getAttribute("href")?.includes("osv.dev"));
+    const osvLink = links.find(hrefStartsWith("https://osv.dev/"));
     expect(osvLink).toBeDefined();
     expect(osvLink?.getAttribute("href")).toBe("https://osv.dev/vulnerability/GHSA-xxxx");
   });

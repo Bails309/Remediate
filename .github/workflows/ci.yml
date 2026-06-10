@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# Default least-privilege token scope for every job. Jobs that need to write
+# (e.g. `security` uploads SARIF to code-scanning) override this with their
+# own `permissions:` block. CodeQL flags any workflow/job that doesn't pin a
+# permissions scope, since the default GITHUB_TOKEN otherwise gets write
+# access to the repository contents.
+permissions:
+  contents: read
+
 concurrency:
   # Cancel any in-flight CI run for the same ref (branch or PR) when a new commit
   # lands. Saves runner minutes and avoids flaky overlapping Playwright sessions.

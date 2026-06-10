@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Least-privilege token: the migration job only needs to read the repo to
+# check out source and run `prisma migrate deploy` against the database
+# defined by AUTH_SECRET/DATABASE_URL secrets. No write to repo contents.
+permissions:
+  contents: read
+
 jobs:
   migrate:
     runs-on: ubuntu-latest

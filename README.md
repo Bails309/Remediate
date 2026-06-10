@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.6.2 (2026-05-14)</p>
+  <p><strong>Version:</strong> 2.7.0 (2026-06-10)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -14,6 +14,8 @@
 Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
 
 The platform now features **Organizational Buckets** (formerly Sites), providing a more flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation**, a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
+
+**Group / Department RBAC** (v2.7.0) extends the single-team assignment model to enterprise group-based ownership: vulnerabilities can be scoped to organisational groups (departments) with member/leader roles, enforcing a server-side **visibility wall** so non-members cannot see grouped items even via direct URL or API. Group leaders receive a weekly Leader Digest summarising every active item their group owns.
 
 Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
@@ -298,6 +300,12 @@ Cookie: <session cookie>
 Supports filtering by `action` and `entityType`. Returns paginated results with total count.
 
 ## Release notes
+
+### [2.7.0] - 2026-06-10
+- **Group / Department RBAC**: Vulnerabilities can now be owned by organisational groups (departments). Groups are a server-enforced **visibility wall** — only members + leaders + admins can see grouped items, even via direct URL. New `/admin/groups` page for create / rename / delete / membership management. New `GET|POST /api/groups`, `GET|PATCH|DELETE /api/groups/{id}`, and `POST|PATCH|DELETE /api/groups/{id}/members` routes. New `Vulnerability.groupId` column (nullable, `ON DELETE SET NULL`) plus matching `VulnerabilityHistory.groupId`. Vulnerabilities client gains a Group MultiSelect filter, a Leader badge, an admin-only Group column, and scope-aware Assign-to-Me. Weekly assignment digest now also emails each group leader a per-group **Leader Digest** of every active item the group owns.
+- **Security — X-Frame-Options removed**: Deprecated header dropped in favour of the existing `Content-Security-Policy: frame-ancestors 'none'` directive (flagged in a pentest as redundant). No functional change — modern browsers continue to refuse framing.
+- **Schema**: Migration `20260610120000_add_groups` adds `Group`, `GroupMembership`, `enum GroupMemberRole { member, leader }`, `Vulnerability.groupId`, `VulnerabilityHistory.groupId`, and supporting indexes. Additive and safe to re-apply.
+- **Coverage**: 39 new unit tests across `lib/group-rbac.ts` and the new group endpoints. CI line coverage rises to **69.3%** (above the 68% floor) without lowering any threshold.
 
 ### [2.6.2] - 2026-05-14
 - **Security**: Cleared all six outstanding `npm audit` advisories (1 high, 5 moderate). `next` `^16.2.3` → `^16.2.6` (13 GHSA fixes spanning cache poisoning, middleware bypass, SSRF, XSS, and DoS), `bullmq` `^5.76.0` → `^5.76.8` (transitive `uuid` fix), and added/updated `overrides` for `fast-xml-parser@5.8.0`, `postcss@8.5.10`, and `uuid@14.0.0`. `npm audit --audit-level=high --omit=dev` now reports **0 vulnerabilities**.

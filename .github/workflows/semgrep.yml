@@ -9,6 +9,11 @@ on:
     # Weekly scan catches new rules / advisories landing between PRs.
     - cron: "37 4 * * 1"
 
+# Read-only default token. Semgrep only needs to read the source tree; it does
+# not upload results to code-scanning or comment on PRs in this configuration.
+permissions:
+  contents: read
+
 concurrency:
   group: semgrep-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
