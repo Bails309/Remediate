@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+# Nested workspaces (e.g. pentest-backend/) have their own node_modules trees.
+**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
