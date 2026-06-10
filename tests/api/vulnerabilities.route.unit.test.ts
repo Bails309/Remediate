@@ -22,6 +22,9 @@ const mockPrisma: any = {
     findUnique: vi.fn(),
     createMany: vi.fn(),
   },
+  groupMembership: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   $transaction: vi.fn(async (arg: any) => {
     if (typeof arg === "function") return await arg(mockPrisma);
     return Promise.all(arg);
@@ -41,7 +44,9 @@ import { auth } from "@/auth";
 describe("vulnerabilities route scope handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireUser).mockResolvedValue(undefined as never);
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: "scope-test-user", email: "s@e.com", roles: ["site_admin"] },
+    } as never);
     vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as never);
   });
 
@@ -186,10 +191,13 @@ describe("vulnerabilities RBAC Enforcement", () => {
 
     const res = await callPatch(MOCK_VULN_ID, { assigneeId: MOCK_PEER_ID });
     expect(res.status).toBe(403);
-    expect((await res.json()).error).toContain("Standard users can only assign to themselves or Unassigned");
+    expect((await res.json()).error).toContain("assign to yourself");
   });
 
   it("bulk update supports crNumber", async () => {
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: MOCK_VULN_ID, assigneeId: MOCK_USER_ID, groupId: null },
+    ]);
     mockPrisma.vulnerability.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.vulnerability.count.mockResolvedValue(1);
 
@@ -201,10 +209,14 @@ describe("vulnerabilities RBAC Enforcement", () => {
   });
 
   it("bulk update enforces ownership for metadata changes", async () => {
+    mockPrisma.vulnerability.findMany.mockResolvedValue([
+      { id: MOCK_VULN_ID, assigneeId: MOCK_USER_ID, groupId: null },
+      { id: "00000000-0000-4000-a000-000000000005", assigneeId: MOCK_PEER_ID, groupId: null },
+    ]);
     mockPrisma.vulnerability.count.mockResolvedValue(1); // Only 1 owned but 2 requested
 
     const res = await callBulk({ ids: [MOCK_VULN_ID, "00000000-0000-4000-a000-000000000005"], status: "InProgress" });
     expect(res.status).toBe(403);
-    expect((await res.json()).error).toContain("must take ownership of all selected items");
+    expect((await res.json()).error).toContain("take ownership");
   });
 });

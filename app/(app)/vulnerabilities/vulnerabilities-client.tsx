@@ -104,6 +104,8 @@ type Vulnerability = {
   lastSeenAt: string;
   assignee?: { id: string; name: string } | null;
   assigneeId?: string | null;
+  group?: { id: string; name: string } | null;
+  groupId?: string | null;
   synopsis?: string | null;
   description?: string | null;
   solution?: string | null;
@@ -123,6 +125,13 @@ type Vulnerability = {
 type Props = {
   sites: Site[];
   users: User[];
+  groups?: GroupInfo[];
+};
+
+type GroupInfo = {
+  id: string;
+  name: string;
+  viewerRole: "member" | "leader" | null;
 };
 
 type Comment = {
@@ -159,7 +168,7 @@ type PendingDetailAssignment = {
   currentAssigneeName: string;
 };
 
-export function VulnerabilitiesClient({ sites, users, session }: Props & { session?: Session | null }) {
+export function VulnerabilitiesClient({ sites, users, groups = [], session }: Props & { session?: Session | null }) {
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeta, setSelectedMeta] = useState<Record<string, SelectedAssignmentMeta>>({});
@@ -171,6 +180,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const [archivedTo, setArchivedTo] = useState("");
   const [query, setQuery] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [groupFilterIds, setGroupFilterIds] = useState<string[]>([]);
   const [detail, setDetail] = useState<Vulnerability | null>(null);
   const [idFilter, setIdFilter] = useState("");
   const [autoOpenTarget, setAutoOpenTarget] = useState<string | null>(null);
@@ -198,10 +208,17 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  const leaderGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole === "leader").map((g) => g.id)), [groups]);
+  const memberGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole !== null).map((g) => g.id)), [groups]);
   const isAssignee = Boolean(session?.user?.id && detail?.assigneeId && session.user.id === detail.assigneeId);
+  const isLeaderOfDetail = Boolean(detail?.groupId && leaderGroupIds.has(detail.groupId));
+  const isMemberOfDetail = Boolean(detail?.groupId && memberGroupIds.has(detail.groupId));
+  const canSelfAssignDetail = isWebAdmin || !detail?.groupId || isMemberOfDetail;
+  const canEditDetail = isWebAdmin || isAssignee || isLeaderOfDetail;
+  const canChangeGroupDetail = isWebAdmin;
   const isCollaborator = Boolean(session?.user?.id && detail?.askForHelp && (detail?.collaborators ?? []).some(c => c.id === session.user!.id));
-  const canEditCollaboration = isWebAdmin || isAssignee;
-  const canComment = isWebAdmin || isAssignee || isCollaborator;
+  const canEditCollaboration = canEditDetail;
+  const canComment = isWebAdmin || isAssignee || isLeaderOfDetail || isCollaborator || (detail?.askForHelp && isMemberOfDetail);
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     params.set("scope", viewScope);
@@ -213,6 +230,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     if (isArchivedView && archivedTo) params.set("archivedTo", archivedTo);
     if (query) params.set("q", query);
     if (assigneeId) params.set("assigneeId", assigneeId);
+    if (groupFilterIds.length > 0) params.set("groupIds", groupFilterIds.join(","));
     if (idFilter) params.set("id", idFilter);
     if (foldDuplicates) params.set("fold", "true");
     params.set("page", String(page));
@@ -226,7 +244,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     const payload = await response.json();
     setData(payload.items ?? []);
     setTotal(payload.total ?? 0);
-  }, [viewScope, siteIds, status, risk, archivedFrom, archivedTo, query, assigneeId, idFilter, foldDuplicates, page, pageSize, isArchivedView]);
+  }, [viewScope, siteIds, status, risk, archivedFrom, archivedTo, query, assigneeId, groupFilterIds, idFilter, foldDuplicates, page, pageSize, isArchivedView]);
 
   const fetchComments = async (id: string) => {
     const res = await fetch(`/api/vulnerabilities/${id}/comments`);
@@ -362,6 +380,26 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
     }
 
     void commitAssignment(nextAssigneeId);
+  };
+
+  const commitGroupAssignment = async (groupId: string | null | "none") => {
+    if (selected.length === 0) return;
+    const normalized = groupId === "none" || groupId === "" ? null : groupId;
+    const response = await fetch("/api/vulnerabilities/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: selected, groupId: normalized }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      toast.error(errorData.error || "Failed to update group");
+      return;
+    }
+    toast.success("Group updated");
+    setSelected([]);
+    setSubItems({});
+    setExpandedGroups(new Set());
+    fetchData();
   };
 
   const commitBulkStatus = async (value: string, crNumber?: string) => {
@@ -806,6 +844,18 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             ...users.map((user) => ({ label: user.name, value: user.id }))
           ]}
         />
+        {groups.length > 0 && (
+          <MultiSelect
+            value={groupFilterIds}
+            onChange={(vals) => { setGroupFilterIds(vals); setPage(1); }}
+            placeholder="All groups"
+            allLabel="All groups"
+            options={[
+              { label: "No group", value: "unassigned" },
+              ...groups.map((g) => ({ label: g.name, value: g.id })),
+            ]}
+          />
+        )}
         <Input
           value={query}
           onChange={(event) => { setQuery(event.target.value); setPage(1); }}
@@ -1031,6 +1081,20 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 ]}
               />
             </div>
+            {isWebAdmin && (
+              <div className="w-48">
+                <Select
+                  value=""
+                  onChange={(val) => void commitGroupAssignment(val)}
+                  placeholder="Set group"
+                  direction="up"
+                  options={[
+                    { label: "No group", value: "none" },
+                    ...groups.map((g) => ({ label: g.name, value: g.id })),
+                  ]}
+                />
+              </div>
+            )}
             <div className="w-48">
               <Select
                 value={bulkStatus}
@@ -1111,7 +1175,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                       </Badge>
                     </td>
                     <td className="p-4">{renderStatusBadge(item.status)}</td>
-                    <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">{item.assignee?.name ?? "Unassigned"}</td>
+                    <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">
+                      <div>{item.assignee?.name ?? "Unassigned"}</div>
+                      {item.group && (
+                        <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          {item.group.name}
+                        </div>
+                      )}
+                    </td>
                     <td className="p-4">
                       <ClientDate date={item.lastSeenAt} className="text-xs text-slate-500 dark:text-slate-400" />
                     </td>
@@ -1181,7 +1252,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                     </Badge>
                   </td>
                   <td className="p-4">{renderStatusBadge(group.status)}</td>
-                  <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">{group.assignee?.name ?? "Unassigned"}</td>
+                  <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">
+                    <div>{group.assignee?.name ?? "Unassigned"}</div>
+                    {group.group && (
+                      <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        {group.group.name}
+                      </div>
+                    )}
+                  </td>
                   <td className="p-4">
                     <ClientDate date={group.lastSeenAt} className="text-xs text-slate-500 dark:text-slate-400" />
                   </td>
@@ -1349,6 +1427,14 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Assignee</p>
               <p className="mt-2 text-base font-semibold text-slate-900 dark:text-white">{detail?.assignee?.name ?? "Unassigned"}</p>
+              {detail?.group ? (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Group: <span className="font-semibold text-slate-700 dark:text-slate-200">{detail.group.name}</span>
+                  {isLeaderOfDetail && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">You lead this group</span>}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No group assigned</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {detailIsArchived && detail?.archivedAt ? (
@@ -1411,12 +1497,17 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                 <div className="grid gap-3 sm:grid-cols-[1fr_1fr_220px]">
                   <Button
                     onClick={() => {
+                      if (!canSelfAssignDetail) {
+                        toast.error("This item is restricted to its group");
+                        return;
+                      }
                       if (session?.user?.id) {
                         startDetailAssignment(session.user.id);
                       } else {
                         toast.error("Missing user session");
                       }
                     }}
+                    disabled={!canSelfAssignDetail}
                     variant="outline"
                     className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
                   >
@@ -1424,6 +1515,7 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   </Button>
                   <Button
                     onClick={() => startDetailAssignment(null)}
+                    disabled={!canEditDetail}
                     variant="outline"
                     className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
                   >
@@ -1432,11 +1524,46 @@ export function VulnerabilitiesClient({ sites, users, session }: Props & { sessi
                   <Select
                     value=""
                     onChange={(value) => startDetailAssignment(value)}
-                    placeholder="Assign in detail"
+                    placeholder={canEditDetail ? "Assign in detail" : "Read-only"}
+                    disabled={!canEditDetail}
                     options={users.map((user) => ({ label: user.name, value: user.id }))}
                   />
                 </div>
               </div>
+
+              {canChangeGroupDetail && (
+                <div className="space-y-3 pt-6 border-t border-slate-200 dark:border-white/10">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Group ownership (admin)</p>
+                  <div className="max-w-[260px]">
+                    <Select
+                      value={detail?.groupId ?? "none"}
+                      onChange={async (value) => {
+                        if (!detail) return;
+                        const next = value === "none" ? null : value;
+                        const res = await fetch(`/api/vulnerabilities/${detail.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ groupId: next }),
+                        });
+                        if (!res.ok) {
+                          const e = await res.json().catch(() => ({}));
+                          toast.error(e.error || "Failed to update group");
+                          return;
+                        }
+                        toast.success("Group updated");
+                        const groupObj = next ? groups.find((g) => g.id === next) ?? null : null;
+                        setDetail({ ...detail, groupId: next, group: groupObj ? { id: groupObj.id, name: groupObj.name } : null });
+                        fetchData();
+                      }}
+                      placeholder="No group"
+                      options={[
+                        { label: "No group", value: "none" },
+                        ...groups.map((g) => ({ label: g.name, value: g.id })),
+                      ]}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3 pt-6 border-t border-slate-200 dark:border-white/10">
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Update Status</p>

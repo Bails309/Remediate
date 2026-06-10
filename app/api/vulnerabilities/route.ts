@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/rbac";
+import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { getGroupContext } from "@/lib/group-rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { Risk, VulnerabilityStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
@@ -49,7 +50,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    await requireUser();
+    const session = await requireUser();
+    const userId = session.user.id!;
+    const isAdmin = (session.user.roles || []).some((r) =>
+      (WEB_APP_ADMIN_ROLES as readonly string[]).includes(r)
+    );
+    const ctx = await getGroupContext(userId);
+
     const { searchParams } = new URL(request.url);
   const siteId = searchParams.get("siteId") ?? undefined;
   // Multi-select bucket filter: ?siteIds=uuid1,uuid2 (UUIDs only; invalid values silently dropped)
@@ -62,6 +69,20 @@ export async function GET(request: NextRequest) {
   const risk = searchParams.get("risk") ?? undefined;
   const query = searchParams.get("q") ?? undefined;
   const assigneeId = searchParams.get("assigneeId") ?? undefined;
+
+  // Group filter: ?groupIds=uuid1,uuid2  (or the keyword "unassigned" to include items with no group).
+  // Non-admins can only filter by groups they belong to; values outside their membership are dropped.
+  const groupIdsParam = searchParams.get("groupIds");
+  const rawGroupTokens = groupIdsParam
+    ? groupIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const wantsUngrouped = rawGroupTokens.includes("unassigned") || rawGroupTokens.includes("none");
+  const requestedGroupIds = rawGroupTokens.filter((t) => UUID_RE.test(t));
+  const allowedGroupIds = isAdmin
+    ? requestedGroupIds
+    : requestedGroupIds.filter((g) => ctx.memberOf.includes(g));
+  const hasExplicitGroupFilter = wantsUngrouped || allowedGroupIds.length > 0;
+
   const scope = normalizeScope(searchParams.get("scope"));
   const isArchivedScope = scope === "archived";
   const archivedFrom = isArchivedScope ? parseDateParam(searchParams.get("archivedFrom")) : undefined;
@@ -79,24 +100,57 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, Math.min(10000, parseInt(searchParams.get("page") ?? "1") || 1));
   const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get("pageSize") ?? "25") || 25));
 
+  // --- Group visibility wall (Prisma where fragment) ---
+  // Admins see everything. Everyone else sees vulns that either have NO group, or are in
+  // a group they belong to.
+  const visibilityWhere: Record<string, unknown> | undefined = isAdmin
+    ? undefined
+    : {
+        OR: [
+          { groupId: null },
+          ...(ctx.memberOf.length > 0 ? [{ groupId: { in: ctx.memberOf } }] : []),
+        ],
+      };
+
+  // --- Explicit group filter from the UI multi-select ---
+  const groupFilterWhere: Record<string, unknown> | undefined = hasExplicitGroupFilter
+    ? (() => {
+        if (allowedGroupIds.length > 0 && wantsUngrouped) {
+          return { OR: [{ groupId: null }, { groupId: { in: allowedGroupIds } }] };
+        }
+        if (allowedGroupIds.length > 0) {
+          return { groupId: { in: allowedGroupIds } };
+        }
+        return { groupId: null };
+      })()
+    : undefined;
+
+  const mergeAnd = (...clauses: Array<Record<string, unknown> | undefined>) => {
+    const present = clauses.filter((c): c is Record<string, unknown> => Boolean(c));
+    if (present.length === 0) return {};
+    if (present.length === 1) return present[0];
+    return { AND: present };
+  };
+
   if (ids || (gName && gHost && gPort && gPluginId)) {
-    const activeWhere = ids ? { id: { in: ids } } : {
+    const baseWhere = ids ? { id: { in: ids } } : {
       name: gName,
       host: gHost,
       port: gPort,
       pluginId: gPluginId,
       siteId: siteId ?? undefined,
     };
+    const activeWhere = mergeAnd(baseWhere, visibilityWhere);
 
     const items = isArchivedScope
       ? await prisma.vulnerabilityHistory.findMany({
         where: activeWhere,
-        include: { site: true, assignee: true },
+        include: { site: true, assignee: true, group: { select: { id: true, name: true } } },
         orderBy: { lastSeenAt: "desc" },
       })
       : await prisma.vulnerability.findMany({
         where: activeWhere,
-        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
+        include: { site: true, assignee: true, group: { select: { id: true, name: true } }, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
         orderBy: { lastSeenAt: "desc" },
       });
 
@@ -157,6 +211,30 @@ export async function GET(request: NextRequest) {
       values.push(archivedTo.toISOString());
     }
 
+    // Group visibility wall (raw-SQL twin of the Prisma fragment above).
+    if (!isAdmin) {
+      if (ctx.memberOf.length > 0) {
+        const memberPlaceholders = ctx.memberOf.map(() => `$${valIdx++}::uuid`).join(", ");
+        conditions.push(`("groupId" IS NULL OR "groupId" IN (${memberPlaceholders}))`);
+        values.push(...ctx.memberOf);
+      } else {
+        conditions.push(`"groupId" IS NULL`);
+      }
+    }
+
+    // Explicit group filter from the UI.
+    if (allowedGroupIds.length > 0 && wantsUngrouped) {
+      const gp = allowedGroupIds.map(() => `$${valIdx++}::uuid`).join(", ");
+      conditions.push(`("groupId" IS NULL OR "groupId" IN (${gp}))`);
+      values.push(...allowedGroupIds);
+    } else if (allowedGroupIds.length > 0) {
+      const gp = allowedGroupIds.map(() => `$${valIdx++}::uuid`).join(", ");
+      conditions.push(`"groupId" IN (${gp})`);
+      values.push(...allowedGroupIds);
+    } else if (wantsUngrouped) {
+      conditions.push(`"groupId" IS NULL`);
+    }
+
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // 1. Get total number of unique groups
@@ -194,6 +272,7 @@ export async function GET(request: NextRequest) {
           where: { id: item.id as string },
           include: {
             assignee: { select: { id: true, name: true } },
+            group: { select: { id: true, name: true } },
             site: true,
           }
         });
@@ -205,6 +284,7 @@ export async function GET(request: NextRequest) {
         where: { id: item.id as string },
         include: {
           assignee: { select: { id: true, name: true } },
+          group: { select: { id: true, name: true } },
           collaborators: { select: { id: true, name: true } },
           site: true,
           _count: { select: { comments: true } },
@@ -216,7 +296,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ total: count, items: hydratedItems, page, pageSize, scope });
   }
 
-  const where = {
+  const baseWhere = {
     ...(siteIdsList.length > 0
       ? { siteId: { in: siteIdsList } }
       : siteId
@@ -248,13 +328,14 @@ export async function GET(request: NextRequest) {
       }
       : {}),
   };
+  const where = mergeAnd(baseWhere, visibilityWhere, groupFilterWhere);
 
   if (isArchivedScope) {
     const [total, items] = await prisma.$transaction([
       prisma.vulnerabilityHistory.count({ where }),
       prisma.vulnerabilityHistory.findMany({
         where,
-        include: { site: true, assignee: true },
+        include: { site: true, assignee: true, group: { select: { id: true, name: true } } },
         orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -268,7 +349,7 @@ export async function GET(request: NextRequest) {
       prisma.vulnerability.count({ where }),
       prisma.vulnerability.findMany({
         where,
-        include: { site: true, assignee: true, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
+        include: { site: true, assignee: true, group: { select: { id: true, name: true } }, collaborators: { select: { id: true, name: true } }, _count: { select: { comments: true } } },
         orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,

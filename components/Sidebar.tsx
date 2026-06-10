@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { Shield, Activity, Upload, Users, Settings, LogOut, ChevronRight, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown } from "lucide-react";
+import { Shield, Activity, Upload, Users, Settings, LogOut, ChevronRight, LayoutGrid, PieChart, Bug, Wrench, Briefcase, ChevronDown, UsersRound } from "lucide-react";
 import { FeedbackButton } from "@/components/FeedbackButton";
 import type { Session } from "next-auth";
 import { useTheme } from "next-themes";
@@ -23,6 +23,7 @@ export const adminNavItems = [
   { href: "/admin/settings", label: "Settings", icon: Settings, title: "Configure Auth, Storage, Imports and Reporting" },
   { href: "/admin/operations", label: "System Status", icon: Activity, title: "Inspect infrastructure health and dead-letter queues" },
   { href: "/admin/users", label: "Users", icon: Users, title: "Manage application users and roles" },
+  { href: "/admin/groups", label: "Groups", icon: UsersRound, title: "Manage groups/departments and their members" },
 ];
 
 export const toolsNavItems = [

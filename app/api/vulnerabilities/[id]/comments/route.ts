@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import {
+    getGroupContext,
+    canViewVulnerability,
+    isLeaderOf,
+    isMemberOf,
+} from "@/lib/group-rbac";
 import { z } from "zod";
 
 const commentSchema = z.object({
@@ -41,7 +47,7 @@ export async function GET(
         (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
 
-    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
+    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null, groupId: string | null } | null> }).findUnique({
         where: { id: vulnerabilityId },
         include: {
             collaborators: { select: { id: true } },
@@ -52,18 +58,26 @@ export async function GET(
         return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
     }
 
+    const ctx = await getGroupContext(user.id);
+    if (!canViewVulnerability(isAdmin, ctx, vulnerability)) {
+        // Don't leak existence to non-members of the assigned group.
+        return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
+    }
+
     const isCollaborator = ((vulnerability.collaborators as { id: string }[]) || []).some((c) => c.id === user.id);
     const isAssignee = vulnerability.assigneeId === user.id;
+    const isLeader = isLeaderOf(ctx, vulnerability.groupId);
 
     // Visibility Rules:
-    // 1. Admins see all comments.
+    // 1. Admins and group leaders see all comments.
     // 2. If 'askForHelp' is true, collaborators and assignee see all comments.
-    // 3. Otherwise, users only see comments they authored.
+    // 3. Otherwise, users only see comments they authored (plus any non-private ones).
+    const seesAll = isAdmin || isLeader || (vulnerability?.askForHelp && (isCollaborator || isAssignee));
 
     const comments = await (prisma as unknown as { comment: { findMany: (a: unknown) => Promise<unknown[]> } }).comment.findMany({
         where: {
             vulnerabilityId,
-            OR: isAdmin || (vulnerability?.askForHelp && (isCollaborator || isAssignee))
+            OR: seesAll
                 ? undefined
                 : [
                     { authorId: user?.id },
@@ -107,7 +121,7 @@ export async function POST(
     }
     const { content, isPrivate = true } = parsed.data;
 
-    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null } | null> }).findUnique({
+    const vulnerability = await (prisma.vulnerability as unknown as { findUnique: (a: unknown) => Promise<{ askForHelp: boolean, collaborators: { id: string }[], assigneeId: string | null, groupId: string | null } | null> }).findUnique({
         where: { id: vulnerabilityId },
         include: { collaborators: { select: { id: true } } }
     });
@@ -119,11 +133,23 @@ export async function POST(
     const isAdmin = (user?.roles as string[] || []).some((role) =>
         (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role)
     );
+    const ctx = await getGroupContext(user.id);
+    if (!canViewVulnerability(isAdmin, ctx, vulnerability)) {
+        return NextResponse.json({ error: "Vulnerability not found" }, { status: 404 });
+    }
     const isCollaborator = (vulnerability?.collaborators as { id: string }[] || []).some((c) => c.id === user?.id);
     const isAssignee = vulnerability?.assigneeId === user?.id;
+    const isLeader = isLeaderOf(ctx, vulnerability.groupId);
+    const isGroupMember = isMemberOf(ctx, vulnerability.groupId);
 
-    // Admin, Assignee, or Collaborator (if askForHelp is true) can comment
-    const canComment = isAdmin || isAssignee || (vulnerability?.askForHelp && isCollaborator);
+    // Admin, Assignee, Leader, Collaborator (if askForHelp), or any group member
+    // (if askForHelp on a group-owned item) can comment.
+    const canComment =
+        isAdmin
+        || isAssignee
+        || isLeader
+        || (vulnerability?.askForHelp && isCollaborator)
+        || (vulnerability?.askForHelp && isGroupMember);
 
     if (!canComment) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

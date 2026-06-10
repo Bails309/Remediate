@@ -4,6 +4,7 @@ const mockPrisma = {
   user: { findUnique: vi.fn() },
   vulnerability: { findUnique: vi.fn() },
   comment: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  groupMembership: { findMany: vi.fn().mockResolvedValue([]) },
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
