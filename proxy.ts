@@ -94,7 +94,14 @@ export async function proxy(...args: Parameters<typeof proxyHandler>) {
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     response.headers.set('x-nonce', nonce);
-    
+
+    // Defence-in-depth: although next.config.ts sets `poweredByHeader: false`,
+    // this middleware reconstructs responses via NextResponse.next() and copies
+    // upstream headers across. Explicitly stripping the header here guarantees
+    // the framework fingerprint never leaks regardless of upstream source
+    // (route handlers, static assets, error pages, framework regressions, etc.).
+    response.headers.delete('x-powered-by');
+
     // Copy any Set-Cookie headers from our nonce generation
     responseHeaders.forEach((value, key) => {
         if (key.toLowerCase() === 'set-cookie') {
@@ -102,10 +109,31 @@ export async function proxy(...args: Parameters<typeof proxyHandler>) {
         }
     });
 
-    // Development tooling injects styles without a nonce. In dev we allow inline styles;
-    // in production we follow a strict script policy but allow inline styles for the tour.
-    const styleSrc = ["'self'", "'unsafe-inline'"];
-    const styleSrcElem = ["'self'", "'unsafe-inline'"];
+    // CSP style sources
+    // -----------------
+    // - style-src / style-src-elem: in production we rely solely on the
+    //   per-request nonce that Next.js injects into its emitted `<style>`
+    //   tags. `'unsafe-inline'` is dropped because pentest scanners flag it
+    //   as a weak construct that nullifies the nonce protection (a nonce is
+    //   only useful when `'unsafe-inline'` is absent — browsers ignore the
+    //   nonce when both are present).
+    // - style-src-attr: retained as `'unsafe-inline'` everywhere. React
+    //   components throughout the app set inline `style={{...}}` props
+    //   (charts, dialogs, animations, the AppLayout itself) which the
+    //   browser materialises as inline `style="..."` attributes. These
+    //   cannot carry a nonce, so removing this allowance would break
+    //   rendering. Scanners typically only flag `style-src 'unsafe-inline'`,
+    //   not the more specific `style-src-attr` directive.
+    // - Dev (Turbopack/Next dev): the dev server injects HMR/error-overlay
+    //   styles without applying the request nonce, so we keep
+    //   `'unsafe-inline'` on the parent directives in development only.
+    const isProduction = process.env.NODE_ENV === 'production';
+    const styleSrc = isProduction
+        ? ["'self'", `'nonce-${nonce}'`]
+        : ["'self'", "'unsafe-inline'"];
+    const styleSrcElem = isProduction
+        ? ["'self'", `'nonce-${nonce}'`]
+        : ["'self'", "'unsafe-inline'"];
     const styleSrcAttr = ["'unsafe-inline'"];
 
     let csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src ${styleSrc.join(" ")}; style-src-elem ${styleSrcElem.join(" ")}; style-src-attr ${styleSrcAttr.join(" ")}; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`;
