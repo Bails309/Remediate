@@ -12,7 +12,7 @@ import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
-import { ChevronDown, ChevronRight, Globe, MessageSquare } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Globe, MessageSquare } from "lucide-react";
 
 // Pentest issues (imported from Trustmarque PDF) all target internet-facing systems and
 // carry a `PT`-prefixed pluginId. Surface them visually so operators triage them first.
@@ -1142,21 +1142,22 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       {!isArchivedView && !isAuditor && selectedCount > 0 && (
         <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-3 animate-in slide-in-from-bottom-8 duration-500">
           {pendingAssignment && (
-            <div className="w-[min(92vw,42rem)] overflow-hidden rounded-[28px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),rgba(255,255,255,0.92)_45%)] px-5 py-4 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-[radial-gradient(circle_at_top,rgba(0,200,255,0.22),rgba(2,6,23,0.96)_45%)] dark:text-white dark:shadow-[0_30px_80px_rgba(0,0,0,0.45),0_0_40px_rgba(0,200,255,0.18)]">
+            <div className="w-[min(92vw,42rem)] glass glass-edge overflow-hidden rounded-[28px] border border-amber-400/40 px-5 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-amber-400/30">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <div className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3" />
                     Confirm Reassignment
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-slate-950 dark:text-white">
+                    <p className="text-base font-semibold text-slate-900 dark:text-white">
                       {pendingAssignment.conflicts.length} selected {pendingAssignment.conflicts.length === 1 ? "issue is" : "issues are"} already assigned.
                     </p>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       Reassigning will swap ownership to {pendingAssignment.assigneeName}. Current assignee{conflictingAssigneeNames.length === 1 ? "" : "s"}: {conflictingAssigneeNames.join(", ")}.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                     {pendingAssignment.conflicts.slice(0, 3).map((conflict) => (
                       <p key={conflict.id} className="truncate">
                         <span className="font-semibold">{conflict.name}</span>
@@ -1173,15 +1174,14 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                 </div>
                 <div className="flex items-center gap-2 self-end">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => setPendingAssignment(null)}
-                    className="text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={() => void commitAssignment(pendingAssignment.assigneeId)}
-                    className="border border-cyan-300 bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.4)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="!bg-amber-500 !border-amber-500 !text-slate-950 hover:!bg-amber-400 hover:!border-amber-400 shadow-[0_8px_20px_rgba(245,158,11,0.35)] dark:!text-slate-950"
                   >
                     Swap Assignee
                   </Button>
@@ -1613,28 +1613,28 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           ) : null}
 
           {!detailIsArchived && pendingDetailAssignment && (
-            <div className="overflow-hidden rounded-[24px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),rgba(255,255,255,0.92)_45%)] px-5 py-4 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-[radial-gradient(circle_at_top,rgba(0,200,255,0.22),rgba(2,6,23,0.96)_45%)] dark:text-white dark:shadow-[0_30px_80px_rgba(0,0,0,0.45),0_0_40px_rgba(0,200,255,0.18)]">
+            <div className="glass glass-edge overflow-hidden rounded-[24px] border border-amber-400/40 px-5 py-4 backdrop-blur-xl dark:border-amber-400/30">
               <div className="space-y-3">
-                <div className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+                  <AlertTriangle className="h-3 w-3" />
                   Confirm Reassignment
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-slate-950 dark:text-white">This issue already has an owner.</p>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">This issue already has an owner.</p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                     Swapping will move this issue from {pendingDetailAssignment.currentAssigneeName} to {pendingDetailAssignment.assigneeName}.
                   </p>
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => setPendingDetailAssignment(null)}
-                    className="text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={() => void commitDetailAssignment(pendingDetailAssignment.assigneeId)}
-                    className="border border-cyan-300 bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.4)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="!bg-amber-500 !border-amber-500 !text-slate-950 hover:!bg-amber-400 hover:!border-amber-400 shadow-[0_8px_20px_rgba(245,158,11,0.35)] dark:!text-slate-950"
                   >
                     Swap Assignee
                   </Button>
