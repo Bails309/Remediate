@@ -977,6 +977,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           value={assigneeId}
           onChange={(v) => { setAssigneeId(v); setPage(1); }}
           placeholder="All assignees"
+          searchable
+          searchPlaceholder="Search assignees…"
           options={[
             { label: "All assignees", value: "" },
             { label: "Unassigned", value: "unassigned" },
@@ -1229,6 +1231,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                 onChange={(val) => startAssignment(val)}
                 placeholder="Assign to user"
                 direction="up"
+                searchable
+                searchPlaceholder="Search users…"
                 options={[
                   ...users.map((user) => ({ label: user.name, value: user.id }))
                 ]}
@@ -1679,6 +1683,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                     onChange={(value) => startDetailAssignment(value)}
                     placeholder={canEditDetail ? "Assign in detail" : "Read-only"}
                     disabled={!canEditDetail}
+                    searchable
+                    searchPlaceholder="Search users…"
                     options={users.map((user) => ({ label: user.name, value: user.id }))}
                   />
                 </div>

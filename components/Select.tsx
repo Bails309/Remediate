@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/components/cn";
 
 export type SelectOption = {
@@ -18,6 +18,10 @@ type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange
   placeholder?: string;
   direction?: "up" | "down";
   onChange?: (value: string) => void;
+  /** When true, shows a search input at the top of the dropdown to filter options by label. */
+  searchable?: boolean;
+  /** Placeholder for the search input. */
+  searchPlaceholder?: string;
 };
 
 export function Select({
@@ -28,11 +32,15 @@ export function Select({
   disabled,
   placeholder = "Select...",
   direction = "down",
+  searchable = false,
+  searchPlaceholder = "Search\u2026",
   title,
   ...props
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -43,6 +51,16 @@ export function Select({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Reset and focus the search input whenever the dropdown opens
+  useEffect(() => {
+    if (isOpen && searchable) {
+      setQuery("");
+      // Defer focus so the input is mounted
+      const id = requestAnimationFrame(() => searchInputRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [isOpen, searchable]);
 
   const selectedOption = useMemo(() => {
     const searchVal = value !== undefined ? String(value).trim() : undefined;
@@ -63,6 +81,18 @@ export function Select({
 
     return found;
   }, [options, value, props.defaultValue]);
+
+  const visibleOptions = useMemo(() => {
+    if (!searchable || !query.trim()) return options;
+    const q = query.trim().toLowerCase();
+    return options.filter((opt) => {
+      // Only filter on string labels; non-string labels (ReactNode) are always shown.
+      if (typeof opt.label === "string") {
+        return opt.label.toLowerCase().includes(q);
+      }
+      return String(opt.value).toLowerCase().includes(q);
+    });
+  }, [options, query, searchable]);
 
   const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
@@ -113,8 +143,36 @@ export function Select({
           direction === "up" ? "bottom-full mb-3 origin-bottom" : "top-full mt-3 origin-top"
         )}
       >
+        {searchable && (
+          <div className="relative border-b border-slate-200 p-2 dark:border-white/10">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              placeholder={searchPlaceholder}
+              className="w-full rounded-xl bg-slate-50 px-9 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/30 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setQuery("");
+                  searchInputRef.current?.focus();
+                }}
+                aria-label="Clear search"
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-200/50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )}
         <ul className="max-h-64 overflow-y-auto overscroll-contain p-1.5 custom-scrollbar">
-          {options.map((opt) => (
+          {visibleOptions.map((opt) => (
             <li key={opt.value}>
               <button
                 type="button"
@@ -142,8 +200,10 @@ export function Select({
               </button>
             </li>
           ))}
-          {options.length === 0 && (
-            <li className="px-5 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">No options available</li>
+          {visibleOptions.length === 0 && (
+            <li className="px-5 py-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
+              {searchable && query ? `No matches for \u201c${query}\u201d` : "No options available"}
+            </li>
           )}
         </ul>
       </div>
