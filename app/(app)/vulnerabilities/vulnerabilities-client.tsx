@@ -168,6 +168,16 @@ type PendingDetailAssignment = {
   currentAssigneeName: string;
 };
 
+type CommentBatch = {
+  batchId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  totalCount: number;
+  selectedCount: number;
+};
+
 export function VulnerabilitiesClient({ sites, users, groups = [], session }: Props & { session?: Session | null }) {
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -204,6 +214,15 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const [pendingDetailAssignment, setPendingDetailAssignment] = useState<PendingDetailAssignment | null>(null);
   const [bulkCrDialogOpen, setBulkCrDialogOpen] = useState(false);
   const [bulkCrValue, setBulkCrValue] = useState("");
+  const [bulkCommentDialogOpen, setBulkCommentDialogOpen] = useState(false);
+  const [bulkCommentText, setBulkCommentText] = useState("");
+  const [isBulkCommenting, setIsBulkCommenting] = useState(false);
+  const [manageCommentsOpen, setManageCommentsOpen] = useState(false);
+  const [commentBatches, setCommentBatches] = useState<CommentBatch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  const [editingBatchContent, setEditingBatchContent] = useState("");
+  const [busyBatchId, setBusyBatchId] = useState<string | null>(null);
 
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
@@ -423,6 +442,120 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
     setBulkCrDialogOpen(false);
     setBulkCrValue("");
     fetchData();
+  };
+
+  const submitBulkComment = async () => {
+    const content = bulkCommentText.trim();
+    if (!content || selected.length === 0) return;
+    setIsBulkCommenting(true);
+    try {
+      const response = await fetch("/api/vulnerabilities/bulk-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selected, content }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to post comment");
+        return;
+      }
+      const data = (await response.json().catch(() => ({ created: selected.length }))) as { created?: number };
+      const created = data.created ?? selected.length;
+      toast.success(`Comment added to ${created} ${created === 1 ? "issue" : "issues"}`);
+      setBulkCommentText("");
+      setBulkCommentDialogOpen(false);
+      // Refresh side sheet comments if it's open on one of the affected items.
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setIsBulkCommenting(false);
+    }
+  };
+
+  const openManageComments = async () => {
+    if (selected.length === 0) return;
+    setManageCommentsOpen(true);
+    setEditingBatchId(null);
+    setEditingBatchContent("");
+    setLoadingBatches(true);
+    try {
+      const url = `/api/vulnerabilities/comment-batches?ids=${encodeURIComponent(selected.join(","))}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to load comment batches");
+        setCommentBatches([]);
+        return;
+      }
+      const data = (await res.json()) as { batches: CommentBatch[] };
+      setCommentBatches(data.batches || []);
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+
+  const refreshBatches = async () => {
+    if (selected.length === 0) {
+      setCommentBatches([]);
+      return;
+    }
+    const url = `/api/vulnerabilities/comment-batches?ids=${encodeURIComponent(selected.join(","))}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = (await res.json()) as { batches: CommentBatch[] };
+    setCommentBatches(data.batches || []);
+  };
+
+  const saveBatchEdit = async (batchId: string) => {
+    const content = editingBatchContent.trim();
+    if (!content) return;
+    setBusyBatchId(batchId);
+    try {
+      const res = await fetch(`/api/vulnerabilities/comment-batches/${batchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to update comment");
+        return;
+      }
+      const data = (await res.json().catch(() => ({ updated: 0 }))) as { updated?: number };
+      toast.success(`Updated ${data.updated ?? 0} comment${(data.updated ?? 0) === 1 ? "" : "s"}`);
+      setEditingBatchId(null);
+      setEditingBatchContent("");
+      await refreshBatches();
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setBusyBatchId(null);
+    }
+  };
+
+  const deleteBatch = async (batchId: string) => {
+    if (!window.confirm("Delete every comment in this batch? This cannot be undone.")) return;
+    setBusyBatchId(batchId);
+    try {
+      const res = await fetch(`/api/vulnerabilities/comment-batches/${batchId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to delete comments");
+        return;
+      }
+      const data = (await res.json().catch(() => ({ deleted: 0 }))) as { deleted?: number };
+      toast.success(`Deleted ${data.deleted ?? 0} comment${(data.deleted ?? 0) === 1 ? "" : "s"}`);
+      await refreshBatches();
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setBusyBatchId(null);
+    }
   };
 
   const updateStatus = async (value: string) => {
@@ -1042,7 +1175,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                   </Button>
                   <Button
                     onClick={() => void commitAssignment(pendingAssignment.assigneeId)}
-                    className="border border-cyan-400/30 bg-gradient-to-r from-cyan-400/80 to-sky-500/80 text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.28)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="border border-cyan-300 bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.4)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
                   >
                     Swap Assignee
                   </Button>
@@ -1069,6 +1202,20 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             </Button>
             <Button onClick={() => startAssignment(null)} variant="outline" className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10">
               Unassign
+            </Button>
+            <Button
+              onClick={() => setBulkCommentDialogOpen(true)}
+              variant="outline"
+              className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+            >
+              Comment
+            </Button>
+            <Button
+              onClick={() => void openManageComments()}
+              variant="outline"
+              className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+            >
+              Manage
             </Button>
             <div className="w-52">
               <Select
@@ -1481,7 +1628,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                   </Button>
                   <Button
                     onClick={() => void commitDetailAssignment(pendingDetailAssignment.assigneeId)}
-                    className="border border-cyan-400/30 bg-gradient-to-r from-cyan-400/80 to-sky-500/80 text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.28)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="border border-cyan-300 bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.4)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
                   >
                     Swap Assignee
                   </Button>
@@ -1825,6 +1972,183 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           </div>
         </div>
       </Dialog>
+
+      <Dialog
+        open={bulkCommentDialogOpen}
+        onClose={() => {
+          if (isBulkCommenting) return;
+          setBulkCommentDialogOpen(false);
+          setBulkCommentText("");
+        }}
+        title="Add Comment"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setBulkCommentDialogOpen(false);
+                setBulkCommentText("");
+              }}
+              disabled={isBulkCommenting}
+              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void submitBulkComment()}
+              disabled={isBulkCommenting || !bulkCommentText.trim()}
+              loading={isBulkCommenting}
+              className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950"
+            >
+              Post to {selected.length} {selected.length === 1 ? "issue" : "issues"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            This comment will be added (privately) to the <span className="font-bold text-slate-900 dark:text-white">{selected.length}</span> selected {selected.length === 1 ? "issue" : "issues"}.
+          </p>
+          <textarea
+            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[120px] text-slate-900 dark:text-white placeholder:text-slate-400"
+            placeholder="Type your comment..."
+            value={bulkCommentText}
+            autoFocus
+            onChange={(e) => setBulkCommentText(e.target.value)}
+          />
+        </div>
+      </Dialog>
+
+      {manageCommentsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+          <div
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            onClick={() => {
+              if (busyBatchId) return;
+              setManageCommentsOpen(false);
+              setEditingBatchId(null);
+              setEditingBatchContent("");
+            }}
+          />
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/10 p-8 shadow-2xl transition-all duration-300 animate-in zoom-in-95 bg-white/95 backdrop-blur-xl dark:bg-slate-900/95 text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold tracking-tight italic mb-2">Manage Bulk Comments</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+              Showing bulk-comment batches that touched any of the {selected.length} selected {selected.length === 1 ? "issue" : "issues"} and that you can edit or delete.
+            </p>
+            <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-1">
+              {loadingBatches && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 italic">Loading...</p>
+              )}
+              {!loadingBatches && commentBatches.length === 0 && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                  No editable bulk-comment batches found on the selected issues.
+                </p>
+              )}
+              {!loadingBatches && commentBatches.map((batch) => {
+                const isEditing = editingBatchId === batch.batchId;
+                const isBusy = busyBatchId === batch.batchId;
+                return (
+                  <div
+                    key={batch.batchId}
+                    className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{batch.authorName}</span>
+                        <span>•</span>
+                        <ClientDate date={batch.createdAt} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
+                          {batch.totalCount} {batch.totalCount === 1 ? "issue" : "issues"}
+                        </span>
+                        {batch.selectedCount !== batch.totalCount && (
+                          <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            ({batch.selectedCount} in selection)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing ? (
+                      <textarea
+                        className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[80px] text-slate-900 dark:text-white"
+                        value={editingBatchContent}
+                        autoFocus
+                        onChange={(e) => setEditingBatchContent(e.target.value)}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{batch.content}</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {isEditing ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingBatchId(null);
+                              setEditingBatchContent("");
+                            }}
+                            disabled={isBusy}
+                            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => void saveBatchEdit(batch.batchId)}
+                            disabled={isBusy || !editingBatchContent.trim() || editingBatchContent.trim() === batch.content}
+                            loading={isBusy}
+                            className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950"
+                          >
+                            Save to {batch.totalCount} {batch.totalCount === 1 ? "issue" : "issues"}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingBatchId(batch.batchId);
+                              setEditingBatchContent(batch.content);
+                            }}
+                            disabled={isBusy}
+                            className="text-slate-700 dark:text-slate-200"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => void deleteBatch(batch.batchId)}
+                            disabled={isBusy}
+                            loading={isBusy}
+                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  if (busyBatchId) return;
+                  setManageCommentsOpen(false);
+                  setEditingBatchId(null);
+                  setEditingBatchContent("");
+                }}
+                disabled={Boolean(busyBatchId)}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }

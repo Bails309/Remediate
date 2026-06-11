@@ -306,11 +306,15 @@ model Comment {
   authorId        String        @db.Uuid
   isPrivate       Boolean       @default(true)
   createdAt       DateTime      @default(now())
+  // Comments posted as part of the same bulk-comment action share a batchId so
+  // they can later be edited/deleted together.
+  batchId         String?       @db.Uuid
 
   vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
   author          User          @relation(fields: [authorId], references: [id])
 
   @@index([vulnerabilityId, createdAt(sort: Desc)])
+  @@index([batchId])
 }
 
 model AssignmentNotification {
