@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
 import { toast } from "@/lib/toast";
-import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X, Search } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -68,6 +68,16 @@ export function UsersClient() {
     const [isCreating, setIsCreating] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredUsers = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return users;
+        return users.filter((u) =>
+            u.name.toLowerCase().includes(q) ||
+            u.email.toLowerCase().includes(q)
+        );
+    }, [users, searchQuery]);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -302,6 +312,33 @@ export function UsersClient() {
             </div>
 
             <div className="glass glass-edge overflow-hidden rounded-[32px]">
+                <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-white/5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative w-full sm:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name or email…"
+                            className="w-full bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder:opacity-40"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                aria-label="Clear search"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-200/50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        {searchQuery
+                            ? `${filteredUsers.length} of ${users.length} users`
+                            : `${users.length} ${users.length === 1 ? "user" : "users"}`}
+                    </p>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
@@ -326,14 +363,14 @@ export function UsersClient() {
                                         <td className="px-6 py-6"><div className="ml-auto h-4 w-12 rounded bg-white/5" /></td>
                                     </tr>
                                 ))
-                            ) : users.length === 0 ? (
+                            ) : filteredUsers.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-sm opacity-60">
-                                        No users found.
+                                        {searchQuery ? `No users match “${searchQuery}”.` : "No users found."}
                                     </td>
                                 </tr>
                             ) : (
-                                users.map((user) => (
+                                filteredUsers.map((user) => (
                                     <tr key={user.id} className="group hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors border-b border-slate-100 dark:border-white/5 last:border-none">
                                         <td className="px-6 py-3">
                                             <div className="flex items-center gap-3">
