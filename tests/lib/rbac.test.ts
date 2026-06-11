@@ -103,3 +103,52 @@ describe("admin and pentest guards", () => {
     expect(checkAdmin(undefined)).toBe(false);
   });
 });
+
+describe("auditor predicates", () => {
+  it("isAuditor returns true only for pure auditor users", async () => {
+    const { isAuditor } = await import("@/lib/rbac");
+    expect(isAuditor({ roles: ["web_app_auditor"] })).toBe(true);
+    // Auditor alongside writer role → not blocked (writer wins)
+    expect(isAuditor({ roles: ["web_app_auditor", "web_app_user"] })).toBe(false);
+    expect(isAuditor({ roles: ["web_app_auditor", "web_app_admin"] })).toBe(false);
+    expect(isAuditor({ roles: ["web_app_auditor", "site_admin"] })).toBe(false);
+    expect(isAuditor({ roles: ["web_app_user"] })).toBe(false);
+    expect(isAuditor({ roles: [] })).toBe(false);
+    expect(isAuditor(null)).toBe(false);
+    expect(isAuditor(undefined)).toBe(false);
+    expect(isAuditor({ roles: null })).toBe(false);
+  });
+
+  it("canWriteWebApp returns true for writer roles only", async () => {
+    const { canWriteWebApp } = await import("@/lib/rbac");
+    expect(canWriteWebApp({ roles: ["site_admin"] })).toBe(true);
+    expect(canWriteWebApp({ roles: ["web_app_admin"] })).toBe(true);
+    expect(canWriteWebApp({ roles: ["web_app_user"] })).toBe(true);
+    expect(canWriteWebApp({ roles: ["web_app_auditor"] })).toBe(false);
+    expect(canWriteWebApp({ roles: ["toolkit_user"] })).toBe(false);
+    expect(canWriteWebApp({ roles: [] })).toBe(false);
+    expect(canWriteWebApp(null)).toBe(false);
+    expect(canWriteWebApp(undefined)).toBe(false);
+  });
+
+  it("requireWebAppWriter throws Forbidden for auditor", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "aud@x.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "u-aud",
+      email: "aud@x.com",
+      roles: ["web_app_auditor"],
+    } as any);
+    await expect(import("@/lib/rbac").then((m) => m.requireWebAppWriter())).rejects.toThrow("Forbidden");
+  });
+
+  it("requireWebAppWriter returns session for writer", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "w@x.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "u-w",
+      email: "w@x.com",
+      roles: ["web_app_user"],
+    } as any);
+    const session = await import("@/lib/rbac").then((m) => m.requireWebAppWriter());
+    expect(session.user.id).toBe("u-w");
+  });
+});
