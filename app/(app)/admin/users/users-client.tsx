@@ -40,6 +40,25 @@ function normaliseRoles(roles: string[]): string[] {
     return unique;
 }
 
+/**
+ * Toggle a role for a draft role list, with conflict resolution so the role
+ * the user just clicked always wins:
+ *  - Adding a writer role while auditor is present → drop auditor.
+ *  - Adding auditor while writer roles are present → normaliseRoles strips them.
+ */
+function toggleRoleWithConflictResolution(current: string[], role: string): string[] {
+    const has = current.includes(role);
+    let next = has ? current.filter((r) => r !== role) : [...current, role];
+    if (!has) {
+        if (WORKSPACE_WRITER_ROLES.includes(role)) {
+            next = next.filter((r) => r !== "web_app_auditor");
+        } else if (role === "web_app_auditor") {
+            next = next.filter((r) => !WORKSPACE_WRITER_ROLES.includes(r));
+        }
+    }
+    return normaliseRoles(next);
+}
+
 function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
     return (
         <button
@@ -199,10 +218,7 @@ export function UsersClient() {
     const toggleDraftRole = (userId: string, role: string) => {
         setDraftRoles((prev: Record<string, string[]>) => {
             const current = prev[userId] || [];
-            const next = current.includes(role)
-                ? current.filter((item: string) => item !== role)
-                : [...current, role];
-            return { ...prev, [userId]: normaliseRoles(next) };
+            return { ...prev, [userId]: toggleRoleWithConflictResolution(current, role) };
         });
     };
 
@@ -284,12 +300,7 @@ export function UsersClient() {
                                         label={role.label}
                                         checked={newItemRoles.includes(role.value)}
                                         onToggle={() => {
-                                            setNewItemRoles((prev: string[]) => {
-                                                const next = prev.includes(role.value)
-                                                    ? prev.filter((r: string) => r !== role.value)
-                                                    : [...prev, role.value];
-                                                return normaliseRoles(next);
-                                            });
+                                            setNewItemRoles((prev: string[]) => toggleRoleWithConflictResolution(prev, role.value));
                                         }}
                                     />
                                 ))}
