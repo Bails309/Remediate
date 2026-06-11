@@ -11,6 +11,19 @@ vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../auth", () => ({ auth: vi.fn() }));
 vi.mock("../../lib/rbac", () => ({
   WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"],
+  WEB_APP_WRITE_ROLES: ["site_admin", "web_app_admin", "web_app_user"],
+  WEB_APP_READ_ROLES: ["site_admin", "web_app_admin", "web_app_user", "web_app_auditor"],
+  canWriteWebApp: (user: { roles?: string[] } | undefined) => {
+    const roles = user?.roles ?? [];
+    return roles.includes("site_admin") || roles.includes("web_app_admin") || roles.includes("web_app_user");
+  },
+  isAuditor: (user: { roles?: string[] } | undefined) => {
+    const roles = user?.roles ?? [];
+    return roles.includes("web_app_auditor")
+      && !roles.includes("site_admin")
+      && !roles.includes("web_app_admin")
+      && !roles.includes("web_app_user");
+  },
 }));
 
 import { auth } from "../../auth";
