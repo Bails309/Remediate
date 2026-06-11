@@ -3,7 +3,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { requireUser, WEB_APP_ADMIN_ROLES, canWriteWebApp } from "@/lib/rbac";
 import {
   getGroupContext,
   canViewVulnerability,
@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
   const session = await requireUser();
   const userId = session.user.id!;
   const roles = session.user.roles || [];
+  if (!canWriteWebApp({ roles })) {
+    return NextResponse.json({ error: "Read-only role cannot post comments" }, { status: 403 });
+  }
   const isAdmin = roles.some((role) => (WEB_APP_ADMIN_ROLES as readonly string[]).includes(role));
 
   let payload: z.infer<typeof bulkCommentSchema>;

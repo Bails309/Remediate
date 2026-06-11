@@ -22,7 +22,22 @@ const roleOptions = [
     { value: "toolkit_admin", label: "Toolkit Admin" },
     { value: "web_app_user", label: "Workspace User" },
     { value: "toolkit_user", label: "Toolkit User" },
+    { value: "web_app_auditor", label: "Workspace Auditor (read-only)" },
 ];
+
+const WORKSPACE_WRITER_ROLES = ["site_admin", "web_app_admin", "web_app_user"];
+
+function normaliseRoles(roles: string[]): string[] {
+    const unique = Array.from(new Set(roles));
+    if (unique.includes("web_app_auditor")) {
+        // Auditor is read-only; remove writer roles. (Toolkit roles untouched.)
+        return unique.filter((r) => !WORKSPACE_WRITER_ROLES.includes(r));
+    }
+    if (!unique.includes("web_app_user")) {
+        unique.push("web_app_user");
+    }
+    return unique;
+}
 
 function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
     return (
@@ -176,10 +191,7 @@ export function UsersClient() {
             const next = current.includes(role)
                 ? current.filter((item: string) => item !== role)
                 : [...current, role];
-            if (!next.includes("web_app_user")) {
-                next.push("web_app_user");
-            }
-            return { ...prev, [userId]: next };
+            return { ...prev, [userId]: normaliseRoles(next) };
         });
     };
 
@@ -261,11 +273,12 @@ export function UsersClient() {
                                         label={role.label}
                                         checked={newItemRoles.includes(role.value)}
                                         onToggle={() => {
-                                            setNewItemRoles((prev: string[]) =>
-                                                prev.includes(role.value)
+                                            setNewItemRoles((prev: string[]) => {
+                                                const next = prev.includes(role.value)
                                                     ? prev.filter((r: string) => r !== role.value)
-                                                    : [...prev, role.value]
-                                            );
+                                                    : [...prev, role.value];
+                                                return normaliseRoles(next);
+                                            });
                                         }}
                                     />
                                 ))}

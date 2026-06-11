@@ -227,17 +227,23 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  // Auditor is read-only across the workspace. They may still be a group member
+  // for visibility purposes, but no write capability is granted regardless.
+  const isAuditor = roles.includes("web_app_auditor")
+    && !roles.includes("site_admin")
+    && !roles.includes("web_app_admin")
+    && !roles.includes("web_app_user");
   const leaderGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole === "leader").map((g) => g.id)), [groups]);
   const memberGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole !== null).map((g) => g.id)), [groups]);
   const isAssignee = Boolean(session?.user?.id && detail?.assigneeId && session.user.id === detail.assigneeId);
   const isLeaderOfDetail = Boolean(detail?.groupId && leaderGroupIds.has(detail.groupId));
   const isMemberOfDetail = Boolean(detail?.groupId && memberGroupIds.has(detail.groupId));
-  const canSelfAssignDetail = isWebAdmin || !detail?.groupId || isMemberOfDetail;
-  const canEditDetail = isWebAdmin || isAssignee || isLeaderOfDetail;
-  const canChangeGroupDetail = isWebAdmin;
+  const canSelfAssignDetail = !isAuditor && (isWebAdmin || !detail?.groupId || isMemberOfDetail);
+  const canEditDetail = !isAuditor && (isWebAdmin || isAssignee || isLeaderOfDetail);
+  const canChangeGroupDetail = !isAuditor && isWebAdmin;
   const isCollaborator = Boolean(session?.user?.id && detail?.askForHelp && (detail?.collaborators ?? []).some(c => c.id === session.user!.id));
   const canEditCollaboration = canEditDetail;
-  const canComment = isWebAdmin || isAssignee || isLeaderOfDetail || isCollaborator || (detail?.askForHelp && isMemberOfDetail);
+  const canComment = !isAuditor && (isWebAdmin || isAssignee || isLeaderOfDetail || isCollaborator || (detail?.askForHelp && isMemberOfDetail));
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     params.set("scope", viewScope);
@@ -1133,7 +1139,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         </Button>
       </div>
 
-      {!isArchivedView && selectedCount > 0 && (
+      {!isArchivedView && !isAuditor && selectedCount > 0 && (
         <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-3 animate-in slide-in-from-bottom-8 duration-500">
           {pendingAssignment && (
             <div className="w-[min(92vw,42rem)] overflow-hidden rounded-[28px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),rgba(255,255,255,0.92)_45%)] px-5 py-4 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-[radial-gradient(circle_at_top,rgba(0,200,255,0.22),rgba(2,6,23,0.96)_45%)] dark:text-white dark:shadow-[0_30px_80px_rgba(0,0,0,0.45),0_0_40px_rgba(0,200,255,0.18)]">
@@ -1271,7 +1277,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           <thead id="tour-vuln-header" className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
             <tr id="tour-vuln-table-header">
               <th className="p-4 text-center">
-                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : <input type="checkbox" checked={allSelected} onChange={toggleAll} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />}
+                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : isAuditor ? null : <input type="checkbox" checked={allSelected} onChange={toggleAll} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />}
               </th>
               <th className="p-4">Issue</th>
               <th className="p-4">Host</th>
@@ -1293,7 +1299,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                         <Badge tone="neutral" className="px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                           Archived
                         </Badge>
-                      ) : (
+                      ) : isAuditor ? null : (
                         <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item)} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />
                       )}
                     </td>
@@ -1358,7 +1364,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                       <Badge tone="neutral" className="px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                         Archived
                       </Badge>
-                    ) : (
+                    ) : isAuditor ? null : (
                       <input
                         type="checkbox"
                         checked={isGroupSelected(group)}
@@ -1431,7 +1437,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                                 <Badge tone="neutral" className="mt-1 px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                                   Archived
                                 </Badge>
-                              ) : (
+                              ) : isAuditor ? null : (
                                 <input
                                   type="checkbox"
                                   checked={selected.includes(member.id)}
@@ -1637,7 +1643,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             </div>
           )}
 
-          {!detailIsArchived ? (
+          {!detailIsArchived && !isAuditor ? (
             <div className="space-y-6">
               <div className="space-y-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Assignment Tools</p>
@@ -1773,7 +1779,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           ) : null}
         </div>
 
-        {!detailIsArchived ? (
+        {!detailIsArchived && !isAuditor ? (
         <div className="pt-6 border-t border-[color:var(--color-border)] space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Collaboration</h3>

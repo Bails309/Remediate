@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { WEB_APP_ADMIN_ROLES, canWriteWebApp } from "@/lib/rbac";
 import {
     getGroupContext,
     canViewVulnerability,
@@ -114,6 +114,10 @@ export async function POST(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    if (!canWriteWebApp({ roles: user.roles as string[] })) {
+        return NextResponse.json({ error: "Read-only role cannot post comments" }, { status: 403 });
+    }
+
     const body = await req.json();
     const parsed = commentSchema.safeParse(body);
     if (!parsed.success) {
@@ -191,6 +195,10 @@ export async function PATCH(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    if (!canWriteWebApp({ roles: user.roles as string[] })) {
+        return NextResponse.json({ error: "Read-only role cannot edit comments" }, { status: 403 });
+    }
+
     const body = await req.json();
     const parsed = patchCommentSchema.safeParse(body);
     if (!parsed.success) {
@@ -245,6 +253,10 @@ export async function DELETE(
 
     if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!canWriteWebApp({ roles: user.roles as string[] })) {
+        return NextResponse.json({ error: "Read-only role cannot delete comments" }, { status: 403 });
     }
 
     const body = await req.json();

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { requireUser, WEB_APP_ADMIN_ROLES, canWriteWebApp } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getGroupContext, isLeaderOf } from "@/lib/group-rbac";
@@ -73,6 +73,9 @@ export async function PATCH(
   const session = await requireUser();
   const userId = session.user.id!;
   const roles = session.user.roles || [];
+  if (!canWriteWebApp({ roles })) {
+    return NextResponse.json({ error: "Read-only role cannot edit comments" }, { status: 403 });
+  }
   const isAdmin = roles.some((r) => (WEB_APP_ADMIN_ROLES as readonly string[]).includes(r));
 
   let body: z.infer<typeof patchSchema>;
@@ -122,6 +125,9 @@ export async function DELETE(
   const session = await requireUser();
   const userId = session.user.id!;
   const roles = session.user.roles || [];
+  if (!canWriteWebApp({ roles })) {
+    return NextResponse.json({ error: "Read-only role cannot delete comments" }, { status: 403 });
+  }
   const isAdmin = roles.some((r) => (WEB_APP_ADMIN_ROLES as readonly string[]).includes(r));
 
   const rows = await loadBatch(batchId);
