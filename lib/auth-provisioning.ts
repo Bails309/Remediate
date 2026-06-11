@@ -66,13 +66,15 @@ export async function provisionUser({ user, account, profile }: { user: NextAuth
                 // Always sync name from SSO/Auth Provider if available to ensure consistency
                 name: user.name || existingUser?.name || "User",
                 roles: roles,
-                authSource
+                authSource,
+                lastLoginAt: new Date(),
             },
             create: {
                 email,
                 name: user.name || "User",
                 roles: roles,
-                authSource
+                authSource,
+                lastLoginAt: new Date(),
             },
         });
         return true;

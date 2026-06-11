@@ -14,6 +14,7 @@ type User = {
     roles: string[];
     authSource: string;
     createdAt: string;
+    lastLoginAt?: string | null;
 };
 
 const roleOptions = [
@@ -309,6 +310,7 @@ export function UsersClient() {
                                 <th className="px-6 py-4">Authentication</th>
                                 <th className="px-6 py-4">Roles</th>
                                 <th className="px-6 py-4">Registered</th>
+                                <th className="px-6 py-4">Last Login</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -320,12 +322,13 @@ export function UsersClient() {
                                         <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="h-4 w-16 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
+                                        <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="ml-auto h-4 w-12 rounded bg-white/5" /></td>
                                     </tr>
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-sm opacity-60">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-sm opacity-60">
                                         No users found.
                                     </td>
                                 </tr>
@@ -369,6 +372,13 @@ export function UsersClient() {
                                         </td>
                                         <td className="px-6 py-3 opacity-70">
                                             <ClientDate date={user.createdAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric' }} />
+                                        </td>
+                                        <td className="px-6 py-3 opacity-70">
+                                            {user.lastLoginAt ? (
+                                                <ClientDate date={user.lastLoginAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }} />
+                                            ) : (
+                                                <span className="text-xs italic text-slate-400 dark:text-slate-500">Never</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2">
