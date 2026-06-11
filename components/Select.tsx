@@ -52,14 +52,11 @@ export function Select({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Reset and focus the search input whenever the dropdown opens
+  // Focus the search input whenever the dropdown opens.
   useEffect(() => {
-    if (isOpen && searchable) {
-      setQuery("");
-      // Defer focus so the input is mounted
-      const id = requestAnimationFrame(() => searchInputRef.current?.focus());
-      return () => cancelAnimationFrame(id);
-    }
+    if (!isOpen || !searchable) return;
+    const id = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
   }, [isOpen, searchable]);
 
   const selectedOption = useMemo(() => {
@@ -128,7 +125,14 @@ export function Select({
         )}
         onClick={(e) => {
           e.stopPropagation();
-          if (!disabled) setIsOpen((s) => !s);
+          if (!disabled) {
+            setIsOpen((s) => {
+              const next = !s;
+              // Reset the search query when opening so each open starts fresh.
+              if (next && searchable) setQuery("");
+              return next;
+            });
+          }
         }}
       >
         <span className="truncate font-medium">{displayLabel}</span>
