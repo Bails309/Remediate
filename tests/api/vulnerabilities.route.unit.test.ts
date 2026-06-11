@@ -33,7 +33,23 @@ const mockPrisma: any = {
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("../../lib/rbac", () => ({ requireUser: vi.fn(), WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"] }));
+vi.mock("../../lib/rbac", () => ({
+    requireUser: vi.fn(),
+    WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"],
+    WEB_APP_WRITE_ROLES: ["site_admin", "web_app_admin", "web_app_user"],
+    WEB_APP_READ_ROLES: ["site_admin", "web_app_admin", "web_app_user", "web_app_auditor"],
+    canWriteWebApp: (user: { roles?: string[] } | undefined) => {
+        const roles = user?.roles ?? [];
+        return roles.includes("site_admin") || roles.includes("web_app_admin") || roles.includes("web_app_user");
+    },
+    isAuditor: (user: { roles?: string[] } | undefined) => {
+        const roles = user?.roles ?? [];
+        return roles.includes("web_app_auditor")
+            && !roles.includes("site_admin")
+            && !roles.includes("web_app_admin")
+            && !roles.includes("web_app_user");
+    },
+}));
 vi.mock("../../lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 
@@ -150,13 +166,13 @@ const MOCK_VULN_ID = "00000000-0000-4000-a000-000000000004";
 describe("vulnerabilities RBAC Enforcement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireUser).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] } } as any);
+    vi.mocked(requireUser).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["web_app_user"] } } as any);
     vi.mocked(enforceRateLimit).mockResolvedValue({ allowed: true } as any);
-    vi.mocked(auth).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] } } as any);
-    mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] });
+    vi.mocked(auth).mockResolvedValue({ user: { id: MOCK_USER_ID, email: "u1@e.com", roles: ["web_app_user"] } } as any);
+    mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID, email: "u1@e.com", roles: ["web_app_user"] });
   });
 
-  async function callPatch(id: string, body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] }) {
+  async function callPatch(id: string, body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["web_app_user"] }) {
     vi.mocked(requireUser).mockResolvedValue({ user } as any);
     vi.mocked(auth).mockResolvedValue({ user } as any);
     const { PATCH } = await import("../../app/api/vulnerabilities/[id]/route");
@@ -167,7 +183,7 @@ describe("vulnerabilities RBAC Enforcement", () => {
     return await PATCH(req as any, { params: { id } } as any);
   }
 
-  async function callBulk(body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["standard_user"] }) {
+  async function callBulk(body: any, user: any = { id: MOCK_USER_ID, email: "u1@e.com", roles: ["web_app_user"] }) {
     vi.mocked(requireUser).mockResolvedValue({ user } as any);
     vi.mocked(auth).mockResolvedValue({ user } as any);
     const { POST } = await import("../../app/api/vulnerabilities/bulk/route");

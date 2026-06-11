@@ -38,6 +38,15 @@ export function Sidebar({ session }: { session?: Session | null }) {
   const roles = session?.user?.roles || [];
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
   const isToolkitUser = roles.includes("site_admin") || roles.includes("toolkit_admin") || roles.includes("toolkit_user");
+  const isAuditor = roles.includes("web_app_auditor")
+    && !roles.includes("site_admin")
+    && !roles.includes("web_app_admin")
+    && !roles.includes("web_app_user");
+  const visibleToolsNavItems = isToolkitUser
+    ? toolsNavItems
+    : isAuditor
+      ? toolsNavItems.filter((item) => item.href === "/threat-intelligence")
+      : [];
 
   const isAdminChildActive = useMemo(() =>
     adminNavItems.some(item => pathname === item.href),
@@ -120,14 +129,14 @@ export function Sidebar({ session }: { session?: Session | null }) {
           </div>
         </div>
 
-        {isToolkitUser && (
+        {visibleToolsNavItems.length > 0 && (
           <div className="space-y-2">
             <p className="px-4 text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-foreground)] opacity-30 flex items-center gap-2">
               <Wrench size={10} />
               Security Tools
             </p>
             <div className="flex flex-col gap-1">
-              {toolsNavItems.map((item) => {
+              {visibleToolsNavItems.map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;
                 return (

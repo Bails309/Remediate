@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
 import { toast } from "@/lib/toast";
-import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X } from "lucide-react";
+import { LogIn, Key, RefreshCw, Check, Trash2, UserPlus, AlertTriangle, X, Search } from "lucide-react";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 
@@ -14,6 +14,7 @@ type User = {
     roles: string[];
     authSource: string;
     createdAt: string;
+    lastLoginAt?: string | null;
 };
 
 const roleOptions = [
@@ -22,7 +23,41 @@ const roleOptions = [
     { value: "toolkit_admin", label: "Toolkit Admin" },
     { value: "web_app_user", label: "Workspace User" },
     { value: "toolkit_user", label: "Toolkit User" },
+    { value: "web_app_auditor", label: "Workspace Auditor (read-only)" },
 ];
+
+const WORKSPACE_WRITER_ROLES = ["site_admin", "web_app_admin", "web_app_user"];
+
+function normaliseRoles(roles: string[]): string[] {
+    const unique = Array.from(new Set(roles));
+    if (unique.includes("web_app_auditor")) {
+        // Auditor is read-only; remove writer roles. (Toolkit roles untouched.)
+        return unique.filter((r) => !WORKSPACE_WRITER_ROLES.includes(r));
+    }
+    if (!unique.includes("web_app_user")) {
+        unique.push("web_app_user");
+    }
+    return unique;
+}
+
+/**
+ * Toggle a role for a draft role list, with conflict resolution so the role
+ * the user just clicked always wins:
+ *  - Adding a writer role while auditor is present → drop auditor.
+ *  - Adding auditor while writer roles are present → normaliseRoles strips them.
+ */
+function toggleRoleWithConflictResolution(current: string[], role: string): string[] {
+    const has = current.includes(role);
+    let next = has ? current.filter((r) => r !== role) : [...current, role];
+    if (!has) {
+        if (WORKSPACE_WRITER_ROLES.includes(role)) {
+            next = next.filter((r) => r !== "web_app_auditor");
+        } else if (role === "web_app_auditor") {
+            next = next.filter((r) => !WORKSPACE_WRITER_ROLES.includes(r));
+        }
+    }
+    return normaliseRoles(next);
+}
 
 function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
     return (
@@ -52,6 +87,16 @@ export function UsersClient() {
     const [isCreating, setIsCreating] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredUsers = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return users;
+        return users.filter((u) =>
+            u.name.toLowerCase().includes(q) ||
+            u.email.toLowerCase().includes(q)
+        );
+    }, [users, searchQuery]);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -173,13 +218,7 @@ export function UsersClient() {
     const toggleDraftRole = (userId: string, role: string) => {
         setDraftRoles((prev: Record<string, string[]>) => {
             const current = prev[userId] || [];
-            const next = current.includes(role)
-                ? current.filter((item: string) => item !== role)
-                : [...current, role];
-            if (!next.includes("web_app_user")) {
-                next.push("web_app_user");
-            }
-            return { ...prev, [userId]: next };
+            return { ...prev, [userId]: toggleRoleWithConflictResolution(current, role) };
         });
     };
 
@@ -261,11 +300,7 @@ export function UsersClient() {
                                         label={role.label}
                                         checked={newItemRoles.includes(role.value)}
                                         onToggle={() => {
-                                            setNewItemRoles((prev: string[]) =>
-                                                prev.includes(role.value)
-                                                    ? prev.filter((r: string) => r !== role.value)
-                                                    : [...prev, role.value]
-                                            );
+                                            setNewItemRoles((prev: string[]) => toggleRoleWithConflictResolution(prev, role.value));
                                         }}
                                     />
                                 ))}
@@ -288,6 +323,33 @@ export function UsersClient() {
             </div>
 
             <div className="glass glass-edge overflow-hidden rounded-[32px]">
+                <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-white/5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="relative w-full sm:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name or email…"
+                            className="w-full bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder:opacity-40"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                aria-label="Clear search"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-200/50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        {searchQuery
+                            ? `${filteredUsers.length} of ${users.length} users`
+                            : `${users.length} ${users.length === 1 ? "user" : "users"}`}
+                    </p>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
@@ -296,6 +358,7 @@ export function UsersClient() {
                                 <th className="px-6 py-4">Authentication</th>
                                 <th className="px-6 py-4">Roles</th>
                                 <th className="px-6 py-4">Registered</th>
+                                <th className="px-6 py-4">Last Login</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -307,17 +370,18 @@ export function UsersClient() {
                                         <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="h-4 w-16 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
+                                        <td className="px-6 py-6"><div className="h-4 w-24 rounded bg-white/5" /></td>
                                         <td className="px-6 py-6"><div className="ml-auto h-4 w-12 rounded bg-white/5" /></td>
                                     </tr>
                                 ))
-                            ) : users.length === 0 ? (
+                            ) : filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-sm opacity-60">
-                                        No users found.
+                                    <td colSpan={6} className="px-6 py-12 text-center text-sm opacity-60">
+                                        {searchQuery ? `No users match “${searchQuery}”.` : "No users found."}
                                     </td>
                                 </tr>
                             ) : (
-                                users.map((user) => (
+                                filteredUsers.map((user) => (
                                     <tr key={user.id} className="group hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors border-b border-slate-100 dark:border-white/5 last:border-none">
                                         <td className="px-6 py-3">
                                             <div className="flex items-center gap-3">
@@ -356,6 +420,13 @@ export function UsersClient() {
                                         </td>
                                         <td className="px-6 py-3 opacity-70">
                                             <ClientDate date={user.createdAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric' }} />
+                                        </td>
+                                        <td className="px-6 py-3 opacity-70">
+                                            {user.lastLoginAt ? (
+                                                <ClientDate date={user.lastLoginAt} formatOptions={{ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }} />
+                                            ) : (
+                                                <span className="text-xs italic text-slate-400 dark:text-slate-500">Never</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2">

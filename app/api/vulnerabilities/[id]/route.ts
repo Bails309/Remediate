@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma, VulnerabilityStatus, Risk } from "@prisma/client";
-import { WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
+import { WEB_APP_ADMIN_ROLES, canWriteWebApp } from "@/lib/rbac";
 import {
     getGroupContext,
     canEditVulnerability,
@@ -70,6 +70,10 @@ export async function PATCH(
 
     if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (!canWriteWebApp({ roles: user.roles as string[] })) {
+        return NextResponse.json({ error: "Read-only role cannot modify vulnerabilities" }, { status: 403 });
     }
 
     const isAdmin = (user?.roles as string[] || []).some((role) =>

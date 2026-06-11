@@ -13,7 +13,12 @@ export const dynamic = "force-dynamic";
 
 export default async function VulnerabilitiesPage() {
   const sites = await prisma.site.findMany();
-  const users = await prisma.user.findMany();
+  // Exclude pre-registered users who haven't signed in yet (name is still the
+  // "Pending Authorization" placeholder set by the admin pre-register flow).
+  const users = await prisma.user.findMany({
+    where: { name: { not: "Pending Authorization" } },
+    orderBy: { name: "asc" },
+  });
   const session = await auth();
 
   const userId = session?.user?.id;

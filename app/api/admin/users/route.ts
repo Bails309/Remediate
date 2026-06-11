@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "User already exists" }, { status: 400 });
         }
 
-        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"];
+        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user", "web_app_auditor"];
         const hasInvalid = roles.some((role: string) => !allowedRoles.includes(role));
         if (hasInvalid) {
             return NextResponse.json({ error: "Invalid role" }, { status: 400 });
@@ -67,7 +67,14 @@ export async function POST(req: NextRequest) {
         }
 
         const normalizedRoles = Array.from(new Set(roles));
-        if (!normalizedRoles.includes("web_app_user")) {
+        const isAuditorOnly = normalizedRoles.includes("web_app_auditor");
+        if (isAuditorOnly) {
+            // Auditor is read-only; strip any write-granting workspace roles.
+            const writerRoles = ["site_admin", "web_app_admin", "web_app_user"];
+            const stripped = normalizedRoles.filter((r) => !writerRoles.includes(r));
+            normalizedRoles.length = 0;
+            normalizedRoles.push(...stripped);
+        } else if (!normalizedRoles.includes("web_app_user")) {
             normalizedRoles.push("web_app_user");
         }
 
@@ -114,7 +121,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user"];
+        const allowedRoles = ["site_admin", "web_app_admin", "toolkit_admin", "web_app_user", "toolkit_user", "web_app_auditor"];
         const hasInvalid = roles.some((role: string) => !allowedRoles.includes(role));
         if (hasInvalid) {
             return NextResponse.json({ error: "Invalid role" }, { status: 400 });
@@ -128,7 +135,14 @@ export async function PATCH(req: NextRequest) {
         }
 
         const normalizedRoles = Array.from(new Set(roles));
-        if (!normalizedRoles.includes("web_app_user")) {
+        const isAuditorOnly = normalizedRoles.includes("web_app_auditor");
+        if (isAuditorOnly) {
+            // Auditor is read-only; strip any write-granting workspace roles.
+            const writerRoles = ["site_admin", "web_app_admin", "web_app_user"];
+            const stripped = normalizedRoles.filter((r) => !writerRoles.includes(r));
+            normalizedRoles.length = 0;
+            normalizedRoles.push(...stripped);
+        } else if (!normalizedRoles.includes("web_app_user")) {
             normalizedRoles.push("web_app_user");
         }
 

@@ -12,7 +12,7 @@ import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
-import { ChevronDown, ChevronRight, Globe, MessageSquare } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Globe, MessageSquare } from "lucide-react";
 
 // Pentest issues (imported from Trustmarque PDF) all target internet-facing systems and
 // carry a `PT`-prefixed pluginId. Surface them visually so operators triage them first.
@@ -168,6 +168,16 @@ type PendingDetailAssignment = {
   currentAssigneeName: string;
 };
 
+type CommentBatch = {
+  batchId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  totalCount: number;
+  selectedCount: number;
+};
+
 export function VulnerabilitiesClient({ sites, users, groups = [], session }: Props & { session?: Session | null }) {
   const [data, setData] = useState<Vulnerability[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -204,21 +214,36 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const [pendingDetailAssignment, setPendingDetailAssignment] = useState<PendingDetailAssignment | null>(null);
   const [bulkCrDialogOpen, setBulkCrDialogOpen] = useState(false);
   const [bulkCrValue, setBulkCrValue] = useState("");
+  const [bulkCommentDialogOpen, setBulkCommentDialogOpen] = useState(false);
+  const [bulkCommentText, setBulkCommentText] = useState("");
+  const [isBulkCommenting, setIsBulkCommenting] = useState(false);
+  const [manageCommentsOpen, setManageCommentsOpen] = useState(false);
+  const [commentBatches, setCommentBatches] = useState<CommentBatch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  const [editingBatchContent, setEditingBatchContent] = useState("");
+  const [busyBatchId, setBusyBatchId] = useState<string | null>(null);
 
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
   const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  // Auditor is read-only across the workspace. They may still be a group member
+  // for visibility purposes, but no write capability is granted regardless.
+  const isAuditor = roles.includes("web_app_auditor")
+    && !roles.includes("site_admin")
+    && !roles.includes("web_app_admin")
+    && !roles.includes("web_app_user");
   const leaderGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole === "leader").map((g) => g.id)), [groups]);
   const memberGroupIds = useMemo(() => new Set(groups.filter((g) => g.viewerRole !== null).map((g) => g.id)), [groups]);
   const isAssignee = Boolean(session?.user?.id && detail?.assigneeId && session.user.id === detail.assigneeId);
   const isLeaderOfDetail = Boolean(detail?.groupId && leaderGroupIds.has(detail.groupId));
   const isMemberOfDetail = Boolean(detail?.groupId && memberGroupIds.has(detail.groupId));
-  const canSelfAssignDetail = isWebAdmin || !detail?.groupId || isMemberOfDetail;
-  const canEditDetail = isWebAdmin || isAssignee || isLeaderOfDetail;
-  const canChangeGroupDetail = isWebAdmin;
+  const canSelfAssignDetail = !isAuditor && (isWebAdmin || !detail?.groupId || isMemberOfDetail);
+  const canEditDetail = !isAuditor && (isWebAdmin || isAssignee || isLeaderOfDetail);
+  const canChangeGroupDetail = !isAuditor && isWebAdmin;
   const isCollaborator = Boolean(session?.user?.id && detail?.askForHelp && (detail?.collaborators ?? []).some(c => c.id === session.user!.id));
   const canEditCollaboration = canEditDetail;
-  const canComment = isWebAdmin || isAssignee || isLeaderOfDetail || isCollaborator || (detail?.askForHelp && isMemberOfDetail);
+  const canComment = !isAuditor && (isWebAdmin || isAssignee || isLeaderOfDetail || isCollaborator || (detail?.askForHelp && isMemberOfDetail));
   const fetchData = useMemo(() => async () => {
     const params = new URLSearchParams();
     params.set("scope", viewScope);
@@ -423,6 +448,120 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
     setBulkCrDialogOpen(false);
     setBulkCrValue("");
     fetchData();
+  };
+
+  const submitBulkComment = async () => {
+    const content = bulkCommentText.trim();
+    if (!content || selected.length === 0) return;
+    setIsBulkCommenting(true);
+    try {
+      const response = await fetch("/api/vulnerabilities/bulk-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selected, content }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to post comment");
+        return;
+      }
+      const data = (await response.json().catch(() => ({ created: selected.length }))) as { created?: number };
+      const created = data.created ?? selected.length;
+      toast.success(`Comment added to ${created} ${created === 1 ? "issue" : "issues"}`);
+      setBulkCommentText("");
+      setBulkCommentDialogOpen(false);
+      // Refresh side sheet comments if it's open on one of the affected items.
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setIsBulkCommenting(false);
+    }
+  };
+
+  const openManageComments = async () => {
+    if (selected.length === 0) return;
+    setManageCommentsOpen(true);
+    setEditingBatchId(null);
+    setEditingBatchContent("");
+    setLoadingBatches(true);
+    try {
+      const url = `/api/vulnerabilities/comment-batches?ids=${encodeURIComponent(selected.join(","))}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to load comment batches");
+        setCommentBatches([]);
+        return;
+      }
+      const data = (await res.json()) as { batches: CommentBatch[] };
+      setCommentBatches(data.batches || []);
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+
+  const refreshBatches = async () => {
+    if (selected.length === 0) {
+      setCommentBatches([]);
+      return;
+    }
+    const url = `/api/vulnerabilities/comment-batches?ids=${encodeURIComponent(selected.join(","))}`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = (await res.json()) as { batches: CommentBatch[] };
+    setCommentBatches(data.batches || []);
+  };
+
+  const saveBatchEdit = async (batchId: string) => {
+    const content = editingBatchContent.trim();
+    if (!content) return;
+    setBusyBatchId(batchId);
+    try {
+      const res = await fetch(`/api/vulnerabilities/comment-batches/${batchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to update comment");
+        return;
+      }
+      const data = (await res.json().catch(() => ({ updated: 0 }))) as { updated?: number };
+      toast.success(`Updated ${data.updated ?? 0} comment${(data.updated ?? 0) === 1 ? "" : "s"}`);
+      setEditingBatchId(null);
+      setEditingBatchContent("");
+      await refreshBatches();
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setBusyBatchId(null);
+    }
+  };
+
+  const deleteBatch = async (batchId: string) => {
+    if (!window.confirm("Delete every comment in this batch? This cannot be undone.")) return;
+    setBusyBatchId(batchId);
+    try {
+      const res = await fetch(`/api/vulnerabilities/comment-batches/${batchId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to delete comments");
+        return;
+      }
+      const data = (await res.json().catch(() => ({ deleted: 0 }))) as { deleted?: number };
+      toast.success(`Deleted ${data.deleted ?? 0} comment${(data.deleted ?? 0) === 1 ? "" : "s"}`);
+      await refreshBatches();
+      if (detail && selected.includes(detail.id)) {
+        void fetchComments(detail.id);
+      }
+    } finally {
+      setBusyBatchId(null);
+    }
   };
 
   const updateStatus = async (value: string) => {
@@ -838,6 +977,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           value={assigneeId}
           onChange={(v) => { setAssigneeId(v); setPage(1); }}
           placeholder="All assignees"
+          searchable
+          searchPlaceholder="Search assignees…"
           options={[
             { label: "All assignees", value: "" },
             { label: "Unassigned", value: "unassigned" },
@@ -1000,24 +1141,25 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         </Button>
       </div>
 
-      {!isArchivedView && selectedCount > 0 && (
+      {!isArchivedView && !isAuditor && selectedCount > 0 && (
         <div className="fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-3 animate-in slide-in-from-bottom-8 duration-500">
           {pendingAssignment && (
-            <div className="w-[min(92vw,42rem)] overflow-hidden rounded-[28px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),rgba(255,255,255,0.92)_45%)] px-5 py-4 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-[radial-gradient(circle_at_top,rgba(0,200,255,0.22),rgba(2,6,23,0.96)_45%)] dark:text-white dark:shadow-[0_30px_80px_rgba(0,0,0,0.45),0_0_40px_rgba(0,200,255,0.18)]">
+            <div className="w-[min(92vw,42rem)] glass glass-edge overflow-hidden rounded-[28px] border border-amber-400/40 px-5 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-amber-400/30">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <div className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3" />
                     Confirm Reassignment
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-slate-950 dark:text-white">
+                    <p className="text-base font-semibold text-slate-900 dark:text-white">
                       {pendingAssignment.conflicts.length} selected {pendingAssignment.conflicts.length === 1 ? "issue is" : "issues are"} already assigned.
                     </p>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       Reassigning will swap ownership to {pendingAssignment.assigneeName}. Current assignee{conflictingAssigneeNames.length === 1 ? "" : "s"}: {conflictingAssigneeNames.join(", ")}.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                     {pendingAssignment.conflicts.slice(0, 3).map((conflict) => (
                       <p key={conflict.id} className="truncate">
                         <span className="font-semibold">{conflict.name}</span>
@@ -1034,15 +1176,14 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                 </div>
                 <div className="flex items-center gap-2 self-end">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => setPendingAssignment(null)}
-                    className="text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={() => void commitAssignment(pendingAssignment.assigneeId)}
-                    className="border border-cyan-400/30 bg-gradient-to-r from-cyan-400/80 to-sky-500/80 text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.28)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="!bg-amber-500 !border-amber-500 !text-slate-950 hover:!bg-amber-400 hover:!border-amber-400 shadow-[0_8px_20px_rgba(245,158,11,0.35)] dark:!text-slate-950"
                   >
                     Swap Assignee
                   </Button>
@@ -1070,12 +1211,28 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             <Button onClick={() => startAssignment(null)} variant="outline" className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10">
               Unassign
             </Button>
+            <Button
+              onClick={() => setBulkCommentDialogOpen(true)}
+              variant="outline"
+              className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+            >
+              Comment
+            </Button>
+            <Button
+              onClick={() => void openManageComments()}
+              variant="outline"
+              className="border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+            >
+              Manage
+            </Button>
             <div className="w-52">
               <Select
                 value=""
                 onChange={(val) => startAssignment(val)}
                 placeholder="Assign to user"
                 direction="up"
+                searchable
+                searchPlaceholder="Search users…"
                 options={[
                   ...users.map((user) => ({ label: user.name, value: user.id }))
                 ]}
@@ -1124,7 +1281,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           <thead id="tour-vuln-header" className="border-b border-slate-200 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-400">
             <tr id="tour-vuln-table-header">
               <th className="p-4 text-center">
-                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : <input type="checkbox" checked={allSelected} onChange={toggleAll} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />}
+                {isArchivedView ? <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Mode</span> : isAuditor ? null : <input type="checkbox" checked={allSelected} onChange={toggleAll} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />}
               </th>
               <th className="p-4">Issue</th>
               <th className="p-4">Host</th>
@@ -1146,7 +1303,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                         <Badge tone="neutral" className="px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                           Archived
                         </Badge>
-                      ) : (
+                      ) : isAuditor ? null : (
                         <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item)} onClick={(e) => e.stopPropagation()} className="accent-[#00C8FF]" />
                       )}
                     </td>
@@ -1211,7 +1368,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                       <Badge tone="neutral" className="px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                         Archived
                       </Badge>
-                    ) : (
+                    ) : isAuditor ? null : (
                       <input
                         type="checkbox"
                         checked={isGroupSelected(group)}
@@ -1284,7 +1441,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                                 <Badge tone="neutral" className="mt-1 px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
                                   Archived
                                 </Badge>
-                              ) : (
+                              ) : isAuditor ? null : (
                                 <input
                                   type="checkbox"
                                   checked={selected.includes(member.id)}
@@ -1460,28 +1617,28 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           ) : null}
 
           {!detailIsArchived && pendingDetailAssignment && (
-            <div className="overflow-hidden rounded-[24px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),rgba(255,255,255,0.92)_45%)] px-5 py-4 text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl dark:border-cyan-400/25 dark:bg-[radial-gradient(circle_at_top,rgba(0,200,255,0.22),rgba(2,6,23,0.96)_45%)] dark:text-white dark:shadow-[0_30px_80px_rgba(0,0,0,0.45),0_0_40px_rgba(0,200,255,0.18)]">
+            <div className="glass glass-edge overflow-hidden rounded-[24px] border border-amber-400/40 px-5 py-4 backdrop-blur-xl dark:border-amber-400/30">
               <div className="space-y-3">
-                <div className="inline-flex items-center rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+                  <AlertTriangle className="h-3 w-3" />
                   Confirm Reassignment
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-slate-950 dark:text-white">This issue already has an owner.</p>
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">This issue already has an owner.</p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                     Swapping will move this issue from {pendingDetailAssignment.currentAssigneeName} to {pendingDetailAssignment.assigneeName}.
                   </p>
                 </div>
                 <div className="flex items-center justify-end gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => setPendingDetailAssignment(null)}
-                    className="text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={() => void commitDetailAssignment(pendingDetailAssignment.assigneeId)}
-                    className="border border-cyan-400/30 bg-gradient-to-r from-cyan-400/80 to-sky-500/80 text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.28)] hover:from-cyan-300 hover:to-sky-400 dark:text-slate-950"
+                    className="!bg-amber-500 !border-amber-500 !text-slate-950 hover:!bg-amber-400 hover:!border-amber-400 shadow-[0_8px_20px_rgba(245,158,11,0.35)] dark:!text-slate-950"
                   >
                     Swap Assignee
                   </Button>
@@ -1490,7 +1647,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             </div>
           )}
 
-          {!detailIsArchived ? (
+          {!detailIsArchived && !isAuditor ? (
             <div className="space-y-6">
               <div className="space-y-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Assignment Tools</p>
@@ -1526,6 +1683,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                     onChange={(value) => startDetailAssignment(value)}
                     placeholder={canEditDetail ? "Assign in detail" : "Read-only"}
                     disabled={!canEditDetail}
+                    searchable
+                    searchPlaceholder="Search users…"
                     options={users.map((user) => ({ label: user.name, value: user.id }))}
                   />
                 </div>
@@ -1626,7 +1785,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           ) : null}
         </div>
 
-        {!detailIsArchived ? (
+        {!detailIsArchived && !isAuditor ? (
         <div className="pt-6 border-t border-[color:var(--color-border)] space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white italic">Collaboration</h3>
@@ -1825,6 +1984,183 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           </div>
         </div>
       </Dialog>
+
+      <Dialog
+        open={bulkCommentDialogOpen}
+        onClose={() => {
+          if (isBulkCommenting) return;
+          setBulkCommentDialogOpen(false);
+          setBulkCommentText("");
+        }}
+        title="Add Comment"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setBulkCommentDialogOpen(false);
+                setBulkCommentText("");
+              }}
+              disabled={isBulkCommenting}
+              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void submitBulkComment()}
+              disabled={isBulkCommenting || !bulkCommentText.trim()}
+              loading={isBulkCommenting}
+              className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950"
+            >
+              Post to {selected.length} {selected.length === 1 ? "issue" : "issues"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            This comment will be added (privately) to the <span className="font-bold text-slate-900 dark:text-white">{selected.length}</span> selected {selected.length === 1 ? "issue" : "issues"}.
+          </p>
+          <textarea
+            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[120px] text-slate-900 dark:text-white placeholder:text-slate-400"
+            placeholder="Type your comment..."
+            value={bulkCommentText}
+            autoFocus
+            onChange={(e) => setBulkCommentText(e.target.value)}
+          />
+        </div>
+      </Dialog>
+
+      {manageCommentsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+          <div
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            onClick={() => {
+              if (busyBatchId) return;
+              setManageCommentsOpen(false);
+              setEditingBatchId(null);
+              setEditingBatchContent("");
+            }}
+          />
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/10 p-8 shadow-2xl transition-all duration-300 animate-in zoom-in-95 bg-white/95 backdrop-blur-xl dark:bg-slate-900/95 text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold tracking-tight italic mb-2">Manage Bulk Comments</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+              Showing bulk-comment batches that touched any of the {selected.length} selected {selected.length === 1 ? "issue" : "issues"} and that you can edit or delete.
+            </p>
+            <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-1">
+              {loadingBatches && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 italic">Loading...</p>
+              )}
+              {!loadingBatches && commentBatches.length === 0 && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                  No editable bulk-comment batches found on the selected issues.
+                </p>
+              )}
+              {!loadingBatches && commentBatches.map((batch) => {
+                const isEditing = editingBatchId === batch.batchId;
+                const isBusy = busyBatchId === batch.batchId;
+                return (
+                  <div
+                    key={batch.batchId}
+                    className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{batch.authorName}</span>
+                        <span>•</span>
+                        <ClientDate date={batch.createdAt} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
+                          {batch.totalCount} {batch.totalCount === 1 ? "issue" : "issues"}
+                        </span>
+                        {batch.selectedCount !== batch.totalCount && (
+                          <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            ({batch.selectedCount} in selection)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing ? (
+                      <textarea
+                        className="w-full bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none min-h-[80px] text-slate-900 dark:text-white"
+                        value={editingBatchContent}
+                        autoFocus
+                        onChange={(e) => setEditingBatchContent(e.target.value)}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{batch.content}</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      {isEditing ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingBatchId(null);
+                              setEditingBatchContent("");
+                            }}
+                            disabled={isBusy}
+                            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => void saveBatchEdit(batch.batchId)}
+                            disabled={isBusy || !editingBatchContent.trim() || editingBatchContent.trim() === batch.content}
+                            loading={isBusy}
+                            className="bg-[#00C8FF] text-slate-950 font-bold hover:bg-[#00C8FF]/90 dark:text-slate-950"
+                          >
+                            Save to {batch.totalCount} {batch.totalCount === 1 ? "issue" : "issues"}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingBatchId(batch.batchId);
+                              setEditingBatchContent(batch.content);
+                            }}
+                            disabled={isBusy}
+                            className="text-slate-700 dark:text-slate-200"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => void deleteBatch(batch.batchId)}
+                            disabled={isBusy}
+                            loading={isBusy}
+                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  if (busyBatchId) return;
+                  setManageCommentsOpen(false);
+                  setEditingBatchId(null);
+                  setEditingBatchContent("");
+                }}
+                disabled={Boolean(busyBatchId)}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
