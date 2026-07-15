@@ -59,6 +59,11 @@ const UploadType = {
     CSV: "CSV",
     PDF: "PDF",
 };
+const AzureAuthMethod = {
+    CONNECTION_STRING: "CONNECTION_STRING",
+    ACCOUNT_KEY: "ACCOUNT_KEY",
+    SAS_TOKEN: "SAS_TOKEN",
+};
 
 const createMockModel = () => {
     const store = new Map<string, any>();
@@ -180,6 +185,7 @@ vi.mock("@prisma/client", () => {
         UserRole,
         ScannerType,
         UploadType,
+        AzureAuthMethod,
         Site: {} as any,
         PrismaClient: class {
             constructor() {
