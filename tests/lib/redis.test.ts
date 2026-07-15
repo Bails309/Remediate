@@ -29,6 +29,7 @@ describe("Redis client initialization", () => {
 
         expect(RedisMock).toHaveBeenCalledWith("redis://localhost:6379", {
             maxRetriesPerRequest: null,
+            keepAlive: 30_000,
         });
     });
 
@@ -40,6 +41,7 @@ describe("Redis client initialization", () => {
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {
             maxRetriesPerRequest: null,
+            keepAlive: 30_000,
             tls: {
                 rejectUnauthorized: true,
             },
@@ -55,6 +57,7 @@ describe("Redis client initialization", () => {
 
         expect(RedisMock).toHaveBeenCalledWith("rediss://external-redis:6379", {
             maxRetriesPerRequest: null,
+            keepAlive: 30_000,
             tls: {
                 rejectUnauthorized: false,
             },
@@ -102,3 +105,60 @@ describe("Redis proxy handler methods", () => {
         expect(desc!.value).toBe("redis://localhost:6379");
     });
 });
+
+describe("getBullmqConnection", () => {
+    const origEnv = process.env;
+
+    beforeEach(() => {
+        vi.resetModules();
+        process.env = { ...origEnv };
+        delete process.env.REDIS_CLUSTER_MODE;
+    });
+
+    afterEach(() => {
+        process.env = origEnv;
+    });
+
+    it("returns plain RedisOptions for a redis:// URL", async () => {
+        process.env.REDIS_URL = "redis://redis-host:6379";
+        const { getBullmqConnection } = await import("@/lib/redis");
+        const conn = getBullmqConnection();
+        expect(conn).toMatchObject({
+            host: "redis-host",
+            port: 6379,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            keepAlive: 30_000,
+        });
+        // No TLS block for plaintext URL
+        expect(conn.tls).toBeUndefined();
+        // Retry strategy must be a function so ioredis reconnects
+        expect(typeof conn.retryStrategy).toBe("function");
+    });
+
+    it("adds TLS options for rediss:// URL and honours REDIS_TLS_REJECT_UNAUTHORIZED=false", async () => {
+        process.env.REDIS_URL = "rediss://secure-host:6380";
+        process.env.REDIS_TLS_REJECT_UNAUTHORIZED = "false";
+        const { getBullmqConnection } = await import("@/lib/redis");
+        const conn = getBullmqConnection();
+        expect(conn.tls).toEqual({ rejectUnauthorized: false });
+        expect(conn.port).toBe(6380);
+    });
+
+    it("decodes URL-encoded credentials from the connection string", async () => {
+        process.env.REDIS_URL = "rediss://user:p%40ss%2Fw%3Fd@secure-host:6380";
+        const { getBullmqConnection } = await import("@/lib/redis");
+        const conn = getBullmqConnection();
+        expect(conn.username).toBe("user");
+        expect(conn.password).toBe("p@ss/w?d");
+    });
+
+    it("falls back to localhost when REDIS_URL is unset", async () => {
+        delete process.env.REDIS_URL;
+        const { getBullmqConnection } = await import("@/lib/redis");
+        const conn = getBullmqConnection();
+        expect(conn.host).toBe("localhost");
+        expect(conn.port).toBe(6379);
+    });
+});
+

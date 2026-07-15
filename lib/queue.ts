@@ -1,5 +1,5 @@
 import { Queue, Job } from "bullmq";
-import { redis } from "@/lib/redis";
+import { getBullmqConnection } from "@/lib/redis";
 
 export const QUEUE_NAME = "{upload-queue}";
 export const PENTEST_QUEUE_NAME = "{pentest-pdf-queue}";
@@ -10,8 +10,10 @@ let _pentestQueue: Queue | undefined;
 function buildQueue() {
   if (!_realQueue) {
     _realQueue = new Queue(QUEUE_NAME, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection: redis as any,
+      // Pass a plain connection descriptor (not the shared `redis` proxy) so
+      // BullMQ owns its own client + duplicated blocking client with
+      // independent reconnect lifecycles. See lib/redis.ts for the rationale.
+      connection: getBullmqConnection(),
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -65,8 +67,8 @@ export async function enqueueUpload(uploadId: string, storageKey: string) {
 function buildPentestQueue() {
   if (!_pentestQueue) {
     _pentestQueue = new Queue(PENTEST_QUEUE_NAME, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      connection: redis as any,
+      // Own our BullMQ client lifecycle for the same reasons as the upload queue.
+      connection: getBullmqConnection(),
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 30_000 },

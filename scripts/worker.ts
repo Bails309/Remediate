@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { setProgress } from "../lib/progress";
-import { uploadQueue, pentestPdfQueue } from "../lib/queue";
-import { redis } from "../lib/redis";
+import { uploadQueue, pentestPdfQueue, QUEUE_NAME, PENTEST_QUEUE_NAME } from "../lib/queue";
+import { redis, getBullmqConnection } from "../lib/redis";
 import { processNessusUpload } from "../lib/ingest";
 import { processPentestPdfUpload } from "../lib/pentest-pdf";
 // Removed problematic UploadStatus import
@@ -82,9 +82,21 @@ async function run() {
   }, HEARTBEAT_INTERVAL_MS);
 
   const worker = new Worker(uploadQueue.name, processJob, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    connection: redis as any,
+    // Own our BullMQ connections so the blocking `bclient` has its own
+    // reconnect lifecycle. Sharing the general `redis` proxy previously left
+    // the worker unable to pull jobs after any TCP idle-timeout drop.
+    connection: getBullmqConnection(),
     concurrency: 2,
+  });
+
+  worker.on('ready', () => {
+    console.log(`[Worker:${QUEUE_NAME}] Ready — blocking connection established.`);
+  });
+  worker.on('error', err => {
+    console.error(`[Worker:${QUEUE_NAME}] error:`, err);
+  });
+  worker.on('ioredis:close', () => {
+    console.warn(`[Worker:${QUEUE_NAME}] ioredis connection closed — will reconnect via retryStrategy.`);
   });
 
   worker.on('completed', job => {
@@ -116,17 +128,41 @@ async function run() {
       throw error;
     }
   }, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    connection: redis as any,
+    // Own our BullMQ connections — see comment on the upload worker above.
+    connection: getBullmqConnection(),
     concurrency: 2,
   });
 
+  pentestWorker.on('ready', () => {
+    console.log(`[Worker:${PENTEST_QUEUE_NAME}] Ready — blocking connection established.`);
+  });
+  pentestWorker.on('error', err => {
+    console.error(`[Worker:${PENTEST_QUEUE_NAME}] error:`, err);
+  });
   pentestWorker.on('completed', job => {
     console.log(`Pentest PDF job ${job.id} completed!`);
   });
   pentestWorker.on('failed', (job, err) => {
     console.error(`Pentest PDF job ${job?.id} failed with ${err.message}`);
   });
+
+  // Periodic queue-depth log — surfaces stalled-worker symptoms (waiting > 0
+  // for extended periods with active = 0) directly in container logs so a
+  // future recurrence is immediately visible without needing to shell in.
+  const DEPTH_LOG_INTERVAL_MS = 60_000;
+  setInterval(async () => {
+    try {
+      const [uploadCounts, pentestCounts] = await Promise.all([
+        uploadQueue.getJobCounts("waiting", "active", "delayed", "failed"),
+        pentestPdfQueue.getJobCounts("waiting", "active", "delayed", "failed"),
+      ]);
+      console.log(
+        `[QueueDepth] upload=${JSON.stringify(uploadCounts)} pentest=${JSON.stringify(pentestCounts)}`,
+      );
+    } catch (err) {
+      console.error("[QueueDepth] failed to read counts:", err);
+    }
+  }, DEPTH_LOG_INTERVAL_MS);
 
   console.log("BullMQ Worker is listening for jobs...");
 }
