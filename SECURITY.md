@@ -87,7 +87,13 @@ Groups (departments) are enforced server-side as a **visibility wall**, not a UI
   - `postcss@8.5.10` (closes GHSA-qx2v-qp2m-jg93 for the copy pulled in by Next.js)
   - `uuid@14.0.0` (belt-and-braces pin past the vulnerable 11.x range)
 - **Lockfile policy**: `package-lock.json` is committed and authoritative — CI runs `npm ci`, never `npm install`. Regenerate locally with `npm install --package-lock-only` after editing dependency ranges or overrides.
-- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. The `v2.8.0` release inherits the `v2.7.0` clean bill: `npm audit --audit-level=high --omit=dev` reports **0 vulnerabilities**.
+- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. As of `v2.8.0`, four nodemailer advisories (`GHSA-268h-hp4c-crq3`, `GHSA-wqvq-jvpq-h66f`, `GHSA-r7g4-qg5f-qqm2`, `GHSA-p6gq-j5cr-w38f`) with **no upstream fix available** are tracked in [`.audit-allowlist.json`](.audit-allowlist.json) \u2014 each is non-exploitable in this codebase (see the `reason` field per entry) and has a mandatory 90-day expiry so it gets re-reviewed.
+
+### npm audit allowlist policy
+- The CI audit gate (`scripts/audit-filter.mjs` in both `ci.yml` and `dependency-audit.yml`) pipes `npm audit --omit=dev --json` through an allowlist-aware filter. Advisories at severity `high` or `critical` that are **not** on the allowlist cause CI to fail.
+- **Every allowlist entry MUST have**: `ghsa`, `package`, `severity`, a `reason` documenting *why* the advisory is not exploitable in this codebase (or referencing the mitigation), and an `expires` ISO date no more than 90 days out.
+- **Expired entries fail CI** \u2014 they do not silently keep suppressing. This forces a review cadence: on expiry either upgrade to a patched version if one now exists, delete the entry if the code path was refactored away, or renew the entry with a fresh justification.
+- Never add an entry for a `critical` advisory without security review. Never add an entry to hide a genuinely exploitable finding \u2014 fix or work around the vulnerability first.
 
 ## Vulnerability Reporting
 If you believe you have found a security issue, please report it privately rather than opening a public GitHub issue. Contact the repository administrator listed in `package.json` or via your organisation's security channel. Provide:

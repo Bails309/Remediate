@@ -1,0 +1,34 @@
+{
+  "$schema": "./scripts/audit-allowlist.schema.json",
+  "description": "Advisories that are known to be non-exploitable in this codebase or have no upstream fix. Each entry MUST include a reason and an expiry (ISO date). Entries past their expiry cause the audit gate to fail so they get re-reviewed.",
+  "allowlist": [
+    {
+      "ghsa": "GHSA-268h-hp4c-crq3",
+      "package": "nodemailer",
+      "severity": "high",
+      "reason": "CRLF injection in Nodemailer List-* header comments. Not exploitable here: lib/email.ts and lib/assignment-email.ts only send server-controlled headers (from/to/subject/html/text). No user input is ever passed as a List-* header. No upstream fix as of 2026-07-15.",
+      "expires": "2026-10-15"
+    },
+    {
+      "ghsa": "GHSA-wqvq-jvpq-h66f",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "reason": "jsonTransport bypasses disableFileAccess/disableUrlAccess. Not exploitable here: lib/email.ts uses SMTP transport via nodemailer.createTransport({host, port, secure, auth, tls}) exclusively — jsonTransport is never instantiated. No upstream fix as of 2026-07-15.",
+      "expires": "2026-10-15"
+    },
+    {
+      "ghsa": "GHSA-r7g4-qg5f-qqm2",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "reason": "Improper TLS validation in OAuth2 token fetch. Not exploitable here: SMTP auth is plain user/pass (see lib/email.ts settings.smtpUser/smtpPass). No OAuth2 flow is configured. No upstream fix as of 2026-07-15.",
+      "expires": "2026-10-15"
+    },
+    {
+      "ghsa": "GHSA-p6gq-j5cr-w38f",
+      "package": "nodemailer",
+      "severity": "moderate",
+      "reason": "raw sendMail option bypasses disableFileAccess/disableUrlAccess enabling arbitrary file read / SSRF. Not exploitable here: every sendMail() call in the codebase passes structured {from,to,subject,text,html} — the `raw` option is never used (verified via grep). No upstream fix as of 2026-07-15.",
+      "expires": "2026-10-15"
+    }
+  ]
+}

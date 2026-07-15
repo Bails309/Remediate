@@ -36,12 +36,18 @@ jobs:
         # audit call npm runs by default during install.
         run: npm ci --ignore-scripts --no-audit
 
-      - name: Audit production dependencies
+      - name: Audit production dependencies (allowlist-aware)
         # `npm audit` exits non-zero when any advisory at or above
         # --audit-level=high is found. We scope to production deps so dev-only
-        # advisories (e.g. test tooling) don't block merges — they're still
-        # surfaced in the JSON report uploaded below.
-        run: npm audit --omit=dev --audit-level=high
+        # advisories (e.g. test tooling) don't block merges. The output is
+        # piped through scripts/audit-filter.mjs which suppresses advisories
+        # listed in .audit-allowlist.json with a mandatory expiry — see
+        # SECURITY.md § npm audit allowlist. We capture JSON to a file
+        # (ignoring npm audit's exit code) so pipefail doesn't fail before
+        # the filter runs.
+        run: |
+          npm audit --omit=dev --json > audit.json || true
+          node scripts/audit-filter.mjs --audit-level=high < audit.json
 
       - name: Generate full JSON audit report (informational)
         if: always()
