@@ -2,12 +2,14 @@ import { prisma } from "../lib/prisma";
 import { setProgress } from "../lib/progress";
 import { uploadQueue, pentestPdfQueue, QUEUE_NAME, PENTEST_QUEUE_NAME } from "../lib/queue";
 import { redis, getBullmqConnection } from "../lib/redis";
-import { processNessusUpload } from "../lib/ingest";
+import { processNessusUpload, processAcrUpload } from "../lib/ingest";
 import { processPentestPdfUpload } from "../lib/pentest-pdf";
 // Removed problematic UploadStatus import
 import { startReportScheduler } from "../lib/report-scheduler";
 import { startNotificationScheduler } from "../lib/notification-scheduler";
 import { startAzureFileShareScheduler } from "../lib/azure-file-share-scheduler";
+import { startAzureBlobIngestScheduler } from "../lib/azure-blob-ingest-scheduler";
+import { ScannerType } from "@prisma/client";
 import { Worker, Job } from "bullmq";
 
 async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
@@ -20,7 +22,11 @@ async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
 
   try {
     await setProgress(uploadId, { step: "Processing", progress: 15 });
-    await processNessusUpload({ uploadId, siteId: upload.siteId, storageKey });
+    if (upload.scannerType === ScannerType.ACR) {
+      await processAcrUpload({ uploadId, siteId: upload.siteId, storageKey });
+    } else {
+      await processNessusUpload({ uploadId, siteId: upload.siteId, storageKey });
+    }
   } catch (error) {
     console.error('Error processing upload', uploadId, error);
 
@@ -62,6 +68,9 @@ async function run() {
   startNotificationScheduler();
   startAzureFileShareScheduler().catch(err => {
     console.error("[AzureFileShare] Failed to start scheduler", err);
+  });
+  startAzureBlobIngestScheduler().catch(err => {
+    console.error("[AzureBlobIngest] Failed to start scheduler", err);
   });
 
   const nvdKey = process.env.NVD_API_KEY;

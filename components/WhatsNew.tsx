@@ -3,58 +3,50 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, Users, Eye, Crown, Mail, ShieldCheck, ListChecks } from "lucide-react";
+import { Sparkles, Container, CloudDownload, Layers, ShieldCheck, Zap } from "lucide-react";
 
-const TOUR_ID = "whats-new-jun-2026-v270";
+const TOUR_ID = "whats-new-jul-2026-v280";
 
 const features = [
   {
-    icon: Users,
-    accent: "text-violet-500 dark:text-violet-400",
-    bg: "bg-violet-100 dark:bg-violet-500/15",
-    title: "Groups & Departments",
+    icon: Container,
+    accent: "text-purple-500 dark:text-purple-400",
+    bg: "bg-purple-100 dark:bg-purple-500/15",
+    title: "Azure Container Registry Ingest",
     description:
-      "Vulnerabilities can now be owned by organisational groups (departments). Admins manage groups under Admin → Groups; add members, promote leaders, and rename or dissolve groups when teams reshape. Each group keeps its own queue, history, and analytics scope.",
+      "A new manual ACR CSV upload option and an automated Azure Blob container poller. Feed ACR vulnerability exports into the same triage queue, dashboards, RBAC, and comments you already use for Nessus — no separate workflow to learn.",
   },
   {
-    icon: Eye,
-    accent: "text-rose-500 dark:text-rose-400",
-    bg: "bg-rose-100 dark:bg-rose-500/15",
-    title: "Visibility Wall — Not Just a Filter",
-    description:
-      "When a vulnerability is assigned to a group, only that group's members and leaders (plus admins) can see it — across the table, the side-sheet, direct URLs, and the API. Items with no group remain visible to everyone in the open queue.",
-  },
-  {
-    icon: Crown,
-    accent: "text-amber-500 dark:text-amber-400",
-    bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Leader Powers, Bounded",
-    description:
-      "Leaders can edit status / CR / collaboration for any item their group owns, and reassign work between members of their own group. They cannot move items between groups or grant themselves visibility outside their group — only admins can do that.",
-  },
-  {
-    icon: Mail,
+    icon: CloudDownload,
     accent: "text-cyan-500 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Weekly Leader Digest",
+    title: "Automated Blob Container Polling",
     description:
-      "Every group leader now receives a weekly per-group Leader Digest summarising every active item their group owns — grouped by assignee with an Unassigned bucket — alongside the existing individual-assignment digest. One click jumps straight to the group's queue.",
+      "Point the new admin console at any Azure Blob container (its own account, container, and credentials — independent from the File Share automation). The scheduler polls on your interval, ingests every matching CSV, and deletes each blob after a successful queueing so rescans land as updates rather than duplicates.",
   },
   {
-    icon: ListChecks,
+    icon: Layers,
     accent: "text-emerald-500 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Group-Aware Vulnerabilities Table",
+    title: "Multi-Scanner Data Model",
     description:
-      "New Group MultiSelect filter on the vulnerabilities page; a Leader badge on rows you lead; an admin-only Group column for moving items between groups inline; and Assign-to-Me scoped to items the visibility wall lets you pick up.",
+      "New ScannerType (NESSUS / ACR) scopes every reconciliation query. An ACR scan of a bucket never archives a Nessus finding (and vice versa) — even when they hit the same bucket in the same second. Future scanner families slot in the same way.",
   },
   {
     icon: ShieldCheck,
     accent: "text-sky-500 dark:text-sky-400",
     bg: "bg-sky-100 dark:bg-sky-500/15",
-    title: "Pentest Hardening",
+    title: "Encrypted Blob Credentials",
     description:
-      "Removed the deprecated X-Frame-Options header (clickjacking is already prevented by CSP frame-ancestors 'none') after an external pentest flagged the redundancy. CI line coverage rises to 69.3% with 39 new RBAC and group-API tests.",
+      "Connection strings, account keys, and SAS tokens for the blob-ingest config are always AES-256-GCM encrypted at rest. The admin console shows a **** sentinel and treats **** on save as ‘keep the existing value’, matching the OIDC / SMTP / storage pattern you already know.",
+  },
+  {
+    icon: Zap,
+    accent: "text-amber-500 dark:text-amber-400",
+    bg: "bg-amber-100 dark:bg-amber-500/15",
+    title: "BullMQ Stuck-Uploads Fix",
+    description:
+      "v2.7.1 hardened the worker against Azure Redis idle-socket drops: every BullMQ Queue and Worker now owns its own connection with keepAlive and explicit reconnect-on-error triggers. A rolling QueueDepth log and a new diagnose-queue script keep the next incident visible in seconds, not hours.",
   },
 ];
 
@@ -98,9 +90,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">June 2026 Update — v2.7.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">July 2026 Update — v2.8.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Enterprise Group / Department RBAC, a server-enforced visibility wall, weekly Leader Digests, and a deprecated header retired.
+            Azure Container Registry vulnerability ingest — manual + automated — a new multi-scanner data model, and a long-term BullMQ hardening fix.
           </p>
         </div>
 

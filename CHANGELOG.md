@@ -4,6 +4,49 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.0] - 2026-07-15
+### Added
+- **Azure Container Registry (ACR) Vulnerability Ingest — Manual + Automated**: Extends the ingest pipeline into a new problem space (container image CVEs) while re-using the entire remediation workflow — the same `/vulnerabilities` table, dashboards, analytics, group RBAC, comments, and assignment flow that already back Nessus and pentest findings.
+  - **Manual upload**: New **"ACR CSV"** option on the Uploads page (manual tab). The file picker, drop-zone label, and target endpoint switch automatically. Accepts a CSV with headers `timeGenerated, registryName, repository, imageDigest, severity, cveId, packageName, installedVersion, description, remediation` (case-insensitive, BOM-tolerant, plus common aliases such as `CVE`, `Package Name`, `Registry Name`). Uploads route through the shared `{upload-queue}` and land in the current bucket like any other CSV.
+  - **Automated blob-container polling**: New scheduler (`lib/azure-blob-ingest-scheduler.ts` + `lib/azure-blob-ingest.ts`) polls an Azure Blob container on a configurable interval, ingests every CSV that matches the optional prefix, and (by default) **deletes the blob from the container** after a successful queueing so a rescan on the same repository lands as an update rather than a duplicate. On queueing failure the blob is retained for the next cycle. Independent of the existing Azure File Share automation — has its own account/container/credentials so you can point it at a different storage account.
+  - **Data model**:
+    - New `enum ScannerType { NESSUS, ACR }` with `scannerType` columns on `UploadHistory`, `Vulnerability`, and `VulnerabilityHistory` (default `NESSUS`, so every existing row keeps its meaning).
+    - New optional columns on `Vulnerability` for ACR fidelity: `registryName`, `repository`, `imageDigest`, `packageName`, `installedVersion`, `remediation`, `timeGenerated`. All nullable — Nessus rows leave them null.
+    - New `AzureBlobIngestConfig` singleton table storing the blob-ingest config: `enabled`, `authMethod` (`CONNECTION_STRING` | `ACCOUNT_KEY` | `SAS_TOKEN`), `accountName`, `containerName`, `prefix`, `defaultSiteId` (FK to `Site.id`, `ON DELETE SET NULL`), `pollIntervalMinutes`, `deleteAfterImport`, encrypted `connectionStringEnc` / `accountKeyEnc` / `sasTokenEnc`, and `lastPollAt`. Migration `20260715120000_add_acr_scanner_type` is fully idempotent (`IF NOT EXISTS` + `DO $$ BEGIN … EXCEPTION WHEN duplicate_object`) and additive.
+    - **Dedup key** for ACR rows: `(siteId, scannerType=ACR, pluginId=cveId, host, port)` — semantically packed so ACR reuses the existing composite index. `host = "{registryName}/{repository}"`, `port = packageName`, `protocol = "container"`. `imageDigest` is stored but **excluded** from the dedup key so a rescan on a new digest touches the same finding rather than creating a duplicate.
+  - **Reconciliation isolation**: Every reconciliation query in `lib/ingest.ts` is now scoped by `scannerType` (both the Nessus `processNessusUpload` and the new `processAcrUpload`). An ACR ingest cannot archive a Nessus row (and vice versa) even when they happen against the same bucket in the same second.
+  - **APIs**:
+    - **`POST /api/uploads/acr`** *(admin only)* — mirrors the Nessus upload endpoint: multipart form (`file`, `siteId`), 50 MB size cap, per-bucket Redis advisory lock, rate limited, enqueues on `{upload-queue}` with `scannerType: ACR`.
+    - **`GET /api/admin/azure-blob-ingest`** — returns the configuration with all encrypted secrets replaced by a `"****"` sentinel (nothing is ever echoed back).
+    - **`POST /api/admin/azure-blob-ingest`** — upserts the configuration. Secrets sent as `"****"` are treated as "keep the existing encrypted value"; any other non-empty string is encrypted via `lib/crypto.ts#encrypt` before being written. Emits an audit-log entry on success.
+    - **`POST /api/admin/azure-blob-ingest/poll`** — manually triggers a poll cycle ("Run Now"). Returns a summary of blobs processed and any per-blob errors without partial-failing the whole batch.
+    - **`POST /api/admin/azure-blob-ingest/test`** — validates the supplied credentials + container name against Azure Blob Storage. Accepts unmasked secrets in the request body so administrators can test before saving; scrubbed from all log lines.
+  - **UI**:
+    - **Uploads page (manual tab)** — third **"ACR CSV"** selector alongside CSV and PDF; drop-zone label + subtitle update accordingly.
+    - **Uploads page (automation tab)** — new compact **"Azure Container Registry (Blob)"** card below the Azure File Share card, linking to a dedicated console.
+    - **`/admin/azure-blob-ingest`** — new admin console: enable toggle, auth-method selector, credential fields (masked with `****`), account/container/prefix inputs, default-bucket picker (any existing `Site`), poll-interval spinner, delete-after-import checkbox, and Test / Run Now / Save buttons.
+  - **Worker dispatch**: `scripts/worker.ts` now imports `ScannerType` and dispatches each job by `upload.scannerType` — Nessus jobs continue through `processNessusUpload`; ACR jobs run through the new `processAcrUpload`. The Azure Blob ingest scheduler starts alongside the existing Azure File Share scheduler.
+  - **Tests**: New `tests/lib/csv.acr.test.ts` covers header validation (required + aliases + BOM), row filtering, and header normalisation. Existing `tests/lib/ingest.test.ts` still passes unchanged — the setup mock (`tests/setup.ts`) now exports the new `ScannerType` and `UploadType` enums so downstream tests get typed access. Full suite: **706 tests passing** (5 pre-existing environmental / parallel-load flakes documented below).
+
+### Fixed
+- **BullMQ stuck-in-Processing incident (long-term fix)** — see `[2.7.1]` below; retained here because production still runs `2.7.0` at time of writing and this release ships both fixes together.
+
+### Schema
+- Migration `20260715120000_add_acr_scanner_type` creates `enum ScannerType`, adds `scannerType` to `UploadHistory` / `Vulnerability` / `VulnerabilityHistory` (default `NESSUS`), adds the optional ACR columns on `Vulnerability`, creates `AzureBlobIngestConfig` with FK to `Site.defaultSiteId ON DELETE SET NULL`, and adds indexes on `Vulnerability(scannerType, siteId, status)` and `VulnerabilityHistory(scannerType, siteId)`. The migration is idempotent and safe to re-apply.
+
+### Documentation
+- README, ARCHITECTURE, SECURITY, and `docs/API.md` refreshed with the ACR ingest surface, the `ScannerType` reconciliation model, and the new `/admin/azure-blob-ingest` console.
+- What's New card refreshed for the July 2026 release (`whats-new-jul-2026-v280` tour id). The whitelist in [`app/api/tours/complete/route.ts`](app/api/tours/complete/route.ts) is updated in step.
+
+## [2.7.1] - 2026-07-14
+### Fixed
+- **BullMQ stuck-in-Processing incident — long-term hardening**: Uploads occasionally sat forever in the **Processing** state on staging after Azure Cache for Redis dropped idle sockets. Root cause: the worker container shared a single `ioredis` proxy across the BullMQ `Queue`, the BullMQ `Worker` (which needs its own dedicated blocking `bclient`), and general app usage. When the shared blocking socket half-closed on idle, BullMQ could not recover and no jobs were pulled, but schedulers kept firing so the queue kept growing. The fix gives each `Queue`/`Worker` its own connection configuration and adds keepalive at the socket level:
+  - `lib/redis.ts` — `keepAlive: 30_000` on the shared client; new `getBullmqConnection()` that returns fresh `RedisOptions` (standard) or a dedicated `Redis.Cluster` (cluster) with `maxRetriesPerRequest: null`, `enableReadyCheck: false`, `keepAlive`, `retryStrategy`, and `reconnectOnError` matching `READONLY|ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND`.
+  - `lib/queue.ts`, `scripts/worker.ts`, `lib/threat-intelligence/worker.ts` — every `Queue` and `Worker` instantiation now uses `getBullmqConnection()` instead of the shared proxy.
+  - `scripts/worker.ts` — new `ready` / `error` / `ioredis:close` event logging on both workers and a rolling 60-second `[QueueDepth]` log so a stalled worker is visible in Container Apps logs before the next stuck upload lands.
+  - `scripts/diagnose-queue.ts` — new read-only diagnostic (redacted `REDIS_URL`, worker heartbeat freshness, per-queue counts, waiting/active/failed job IDs) so future incidents can be triaged without touching production data.
+  - `tests/lib/redis.test.ts` / `tests/lib/queue.test.ts` — updated to cover `keepAlive`, TLS, URL-encoded credentials, and the standard-vs-cluster branches of `getBullmqConnection()`.
+
 ## [2.7.0] - 2026-06-10
 ### Added
 - **Group / Department RBAC — Enterprise Visibility Wall**: Extends the single-team individual-assignment model to scope vulnerabilities to organisational groups (a.k.a. departments). Groups are a **visibility wall**, not just a filter — when a vulnerability is owned by a group, only members + leaders of that group plus site/web-app admins can see it. Items with no group remain in the open queue (legacy behaviour).

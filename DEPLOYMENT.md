@@ -2,7 +2,12 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.6.2` (2026-05-14). The runtime expects Node.js 20 LTS, Next.js `^16.2.6`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.8.0` (2026-07-15). The runtime expects Node.js 20 LTS, Next.js `^16.2.6`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+>
+> **v2.8.0 upgrade notes**:
+> - **Migration**: `20260715120000_add_acr_scanner_type` introduces the `ScannerType` enum (`NESSUS`, `ACR`), backfills every existing `Vulnerability` and `VulnerabilityHistory` row to `NESSUS`, adds the `AzureBlobIngestConfig` table (FK: `defaultSiteId → Site.id ON DELETE SET NULL`), and extends the composite dedup key to `(siteId, scannerType, pluginId, host, port)`. Runtime fallback via `scripts/migrate.js` will apply it on first boot; the CI job in `.github/workflows/migrations.yml` is the recommended path for production.
+> - **Worker**: The ACR blob-ingest scheduler runs inside the existing worker container \u2014 no new container is required. Ensure the worker has network egress to any Azure Blob accounts you configure through `/admin/azure-blob-ingest`.
+> - **v2.7.1 hotfix** (rolled into v2.8.0): Every BullMQ Queue / Worker now owns its own IORedis connection with `keepAlive: 30_000` and reconnect-on-`READONLY`/`ECONNRESET`. No env-var change required, but Azure Redis idle-socket drops that previously stranded jobs in `active` will now surface as `waiting` on reconnect.
 
 ## Modes
 - CI-driven (recommended for production): run migrations and DB optimizations in CI before updating containers. See `.github/workflows/migrations.yml`.

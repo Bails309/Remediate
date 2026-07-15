@@ -25,11 +25,20 @@ Store these values as ACA secrets (or map to Key Vault):
 - `TOOLS_CONFIG_PATH`: *(Optional)* Override path to `tools.json` (defaults to `/config/tools.json`).
 - `PORT`: *(Optional)* Listen port (defaults to `8000`).
 
-## Optional (Azure Blob Storage)
+## Optional (Azure Blob Storage — application payload storage)
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME` / `AZURE_STORAGE_ACCOUNT_KEY`
 - `AZURE_STORAGE_SAS_TOKEN`
 - `AZURE_STORAGE_CONTAINER_NAME` (required when any of the above is set)
+
+> These variables configure the **application's own payload storage** (where uploaded CSV / PDF blobs are persisted while the worker processes them). They can also be configured through the admin **Storage** page.
+
+## Optional (Azure Container Registry Blob Ingest — v2.8.0)
+The ACR blob-ingest pipeline reads its configuration from the `AzureBlobIngestConfig` database table (managed under `/admin/azure-blob-ingest`), **not** from environment variables. This keeps its credentials, container, and default site independent from the application payload store above and lets you rotate them without a redeploy.
+
+Two operational knobs are still relevant at the container level:
+- **BullMQ / Redis**: the ACR ingest scheduler runs inside the worker container and enqueues on the shared `{upload-queue}` queue \u2014 no additional Redis config is required beyond the standard `REDIS_URL` / `REDIS_CLUSTER_MODE`.
+- **Migrations**: applying the `20260715120000_add_acr_scanner_type` migration is a prerequisite for the `/admin/azure-blob-ingest` console to load. `scripts/migrate.js` handles this automatically on container startup with an advisory lock.
 
 ## Optional (local/dev only)
 - `LOCAL_AUTH_ENABLED`, `LOCAL_AUTH_USER`, `LOCAL_AUTH_PASS`, `LOCAL_AUTH_EMAIL`, `LOCAL_AUTH_NAME`
