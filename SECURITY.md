@@ -18,6 +18,18 @@ This file lists practical security controls and best practices for running Remed
 - Yellow-highlight spans are emitted as `\u0001HL\u0002 … \u0001/HL\u0002` private-use markers in the persisted Examples payload. The client (`renderPluginOutput` in `vulnerabilities-client.tsx`) HTML-escapes the payload **before** unwrapping the markers into `<mark>` spans, preventing XSS even if the source PDF contains HTML-like text inside a highlighted region.
 - The pentest upload route (`POST /api/uploads/pentest`) is still gated by `requireAdmin()`, a 25 MB size cap, the per-bucket Redis advisory lock, and the global rate limiter.
 
+## Azure Container Registry Blob Ingest (v2.8.0)
+- **Credential storage**: The `AzureBlobIngestConfig` table stores connection strings, account keys, and SAS tokens **only** as AES-256-GCM ciphertext (`connectionStringEnc`, `accountKeyEnc`, `sasTokenEnc`) via `lib/crypto.ts#encrypt`, keyed by `AUTH_SECRET`. Rotating `AUTH_SECRET` invalidates the ciphertexts; re-enter the credentials via the `/admin/azure-blob-ingest` console after rotation.
+- **No plaintext echo**: `GET /api/admin/azure-blob-ingest` never returns credential values — encrypted fields are replaced with the `"****"` sentinel. On save, `"****"` means "keep the existing ciphertext"; any other non-empty string is encrypted fresh before being written. This mirrors the existing OIDC / SMTP / Azure File Share pattern.
+- **Header-first validation**: `AzureBlobIngestService.processBlob` calls `validateAcrCsv(text)` **before** any DB write. Malformed CSVs are logged and skipped; no `UploadHistory` row is created and the source blob is left in place for the next cycle.
+- **Delete-after-ingest semantics**: When `deleteAfterImport` is true, the source blob is deleted **only after** the ingest job has been successfully enqueued. If enqueue fails, the blob is retained; the next poll will see it again and idempotency at the CSV-row dedup key ensures no duplicate findings. This trades a small window of possible re-processing for stronger delivery guarantees.
+- **All endpoints** (`GET|POST /api/admin/azure-blob-ingest`, `POST /api/admin/azure-blob-ingest/poll`, `POST /api/admin/azure-blob-ingest/test`) are gated by `requireAdmin()`. `POST /api/uploads/acr` is likewise admin-only, size-capped at 50 MB, per-bucket Redis-lock protected, and rate-limited.
+- **No credential logging**: Secret values never appear in log lines. The Test endpoint accepts unmasked secrets in-flight so administrators can validate before saving; the credentials are used exactly once to construct a Blob service client and are discarded when the request completes.
+
+## Multi-Scanner Reconciliation Isolation (v2.8.0)
+- Every reconciliation query in `lib/ingest.ts` (both the Nessus `processNessusUpload` and the new `processAcrUpload`) is scoped by `scannerType`. An ACR ingest **cannot** archive a Nessus finding (or vice versa) even when both scanners target the same bucket in the same second. Any future scanner family (`ScannerType.<X>`) must follow the same pattern: **every** delete/find/archive path must be scoped by `scannerType` or a source will silently archive another's rows.
+- The composite dedup key `(siteId, scannerType, pluginId, host, port)` guarantees that rescans within a scanner family land as updates rather than inserts, even when ACR and Nessus happen to share a host/port value.
+
 ## Authentication
 - Local credential comparison uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
 - Auth provisioning never overwrites manually assigned database roles on subsequent logins.
@@ -61,7 +73,7 @@ Groups (departments) are enforced server-side as a **visibility wall**, not a UI
 ## Dependencies
 - Keep `npm` dependencies up to date. Run periodic `npm audit` and address critical findings.
 - **Dependabot** is enabled for the `npm` ecosystem and opens PRs against direct and transitive dependencies. Review weekly and merge after CI is green.
-- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.7.0`) is:
+- **Pinned overrides**: When an upstream library has not yet propagated a fix transitively, add a pin to the root `overrides` block in `package.json`. The current pinned set (as of `v2.8.0`) is:
   - `nodemailer@8.0.5`
   - `vite@8.0.5`
   - `defu@6.1.6`
@@ -75,7 +87,13 @@ Groups (departments) are enforced server-side as a **visibility wall**, not a UI
   - `postcss@8.5.10` (closes GHSA-qx2v-qp2m-jg93 for the copy pulled in by Next.js)
   - `uuid@14.0.0` (belt-and-braces pin past the vulnerable 11.x range)
 - **Lockfile policy**: `package-lock.json` is committed and authoritative — CI runs `npm ci`, never `npm install`. Regenerate locally with `npm install --package-lock-only` after editing dependency ranges or overrides.
-- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. The `v2.7.0` release ships with `npm audit --audit-level=high --omit=dev` reporting **0 vulnerabilities**.
+- **Vulnerability reporting**: Run `npm audit --omit=dev` before each release and document the residual count in the changelog. As of `v2.8.0`, four nodemailer advisories (`GHSA-268h-hp4c-crq3`, `GHSA-wqvq-jvpq-h66f`, `GHSA-r7g4-qg5f-qqm2`, `GHSA-p6gq-j5cr-w38f`) with **no upstream fix available** are tracked in [`.audit-allowlist.json`](.audit-allowlist.json) \u2014 each is non-exploitable in this codebase (see the `reason` field per entry) and has a mandatory 90-day expiry so it gets re-reviewed.
+
+### npm audit allowlist policy
+- The CI audit gate (`scripts/audit-filter.mjs` in both `ci.yml` and `dependency-audit.yml`) pipes `npm audit --omit=dev --json` through an allowlist-aware filter. Advisories at severity `high` or `critical` that are **not** on the allowlist cause CI to fail.
+- **Every allowlist entry MUST have**: `ghsa`, `package`, `severity`, a `reason` documenting *why* the advisory is not exploitable in this codebase (or referencing the mitigation), and an `expires` ISO date no more than 90 days out.
+- **Expired entries fail CI** \u2014 they do not silently keep suppressing. This forces a review cadence: on expiry either upgrade to a patched version if one now exists, delete the entry if the code path was refactored away, or renew the entry with a fresh justification.
+- Never add an entry for a `critical` advisory without security review. Never add an entry to hide a genuinely exploitable finding \u2014 fix or work around the vulnerability first.
 
 ## Vulnerability Reporting
 If you believe you have found a security issue, please report it privately rather than opening a public GitHub issue. Contact the repository administrator listed in `package.json` or via your organisation's security channel. Provide:

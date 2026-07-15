@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { parseNessusCsv, type NessusRow } from "@/lib/csv";
+import { parseNessusCsv, parseAcrCsv, type NessusRow, type AcrRow } from "@/lib/csv";
 import { setProgress } from "@/lib/progress";
-import { Risk, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
+import { Risk, ScannerType, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
 import { getLockKey } from "@/lib/queue";
 import { isValid, parse } from "date-fns";
@@ -135,6 +135,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       const active = await prisma.vulnerability.findMany({
         where: {
           siteId,
+          scannerType: ScannerType.NESSUS,
           status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.Sunset] },
           OR: orClause,
         },
@@ -151,6 +152,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       const history = await prisma.vulnerabilityHistory.findMany({
         where: {
           siteId,
+          scannerType: ScannerType.NESSUS,
           status: { in: [VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
           OR: orClause,
         },
@@ -166,7 +168,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     }
 
     await prisma.vulnerability.updateMany({
-      where: { siteId },
+      where: { siteId, scannerType: ScannerType.NESSUS },
       data: { isCurrent: false },
     });
 
@@ -271,6 +273,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     const remediated = await prisma.vulnerability.findMany({
       where: {
         siteId,
+        scannerType: ScannerType.NESSUS,
         lastSeenAt: { lt: batchTime },
       },
     });
@@ -328,5 +331,313 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       end
     `;
     await (redis as { eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown> }).eval(script, 1, lockKey, lockValue);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ACR (Azure Container Registry) vulnerability CSV ingest
+// ---------------------------------------------------------------------------
+//
+// ACR export rows are keyed by (siteId, cveId, registryName, repository,
+// packageName). We populate the required Nessus columns semantically so ACR
+// findings coexist with Nessus findings in the same table and render in the
+// existing dashboards/lists without special-casing:
+//   pluginId = cveId
+//   host     = "{registryName}/{repository}"
+//   port     = packageName
+//   protocol = "container"
+//   name     = "{cveId} \u2014 {packageName} {installedVersion}"
+// Full-fidelity ACR fields are also stored in the new ACR-specific columns.
+//
+// Reconciliation is scoped to `scannerType = ACR` so a Nessus upload never
+// touches ACR rows and vice versa.
+
+function acrHost(row: AcrRow) {
+  return `${row.registryName}/${row.repository}`;
+}
+
+function acrName(row: AcrRow) {
+  const version = row.installedVersion ? ` ${row.installedVersion}` : "";
+  return `${row.cveId} \u2014 ${row.packageName}${version}`;
+}
+
+function parseIsoDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+export async function processAcrUpload({ uploadId, siteId, storageKey }: Params) {
+  const lockKey = getLockKey(siteId);
+  const lockValue = uploadId;
+
+  const locked = await redis.set(lockKey, lockValue, "EX", 1800, "NX");
+  if (!locked) {
+    const currentLock = await redis.get(lockKey);
+    if (currentLock !== lockValue) {
+      throw new Error("Lock already held for this site");
+    }
+    await redis.expire(lockKey, 1800);
+  }
+
+  try {
+    const storage = await getStorageProvider();
+    const text = await storage.read(storageKey);
+
+    await setProgress(uploadId, { step: "Extracting data", progress: 10 });
+
+    const rows = parseAcrCsv(text);
+    console.log(`[Ingest:ACR] Parsed ${rows.length} rows for site ${siteId}`);
+
+    // Drop rows with a "None" severity to match Nessus behaviour.
+    const filteredRows = rows.filter((row) => normalizeRisk(row.severity) !== Risk.None);
+
+    await setProgress(uploadId, {
+      step: "Comparing diffs",
+      progress: 40,
+      total: filteredRows.length,
+    });
+
+    const batchTime = new Date();
+    const chunkSize = 500;
+
+    // Dedup key: (pluginId=cveId, host=registry/repo, port=packageName).
+    // imageDigest is stored but intentionally not part of the dedup key \u2014 a
+    // new digest for the same repo/package/CVE is still the same finding until
+    // it's patched out (at which point the row disappears from the next scan
+    // and gets archived by the diff step below).
+    const uniqueKeys = new Map<string, { pluginId: string; host: string; port: string }>();
+    for (const row of filteredRows) {
+      const pluginId = row.cveId;
+      const host = acrHost(row);
+      const port = row.packageName;
+      const key = `${pluginId}|${host}|${port}`;
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.set(key, { pluginId, host, port });
+      }
+    }
+
+    const activeMap = new Map<string, { id: string }>();
+    const keyList = Array.from(uniqueKeys.values());
+
+    for (let i = 0; i < keyList.length; i += chunkSize) {
+      const chunk = keyList.slice(i, i + chunkSize);
+      const orClause = chunk.map((entry) => ({
+        pluginId: entry.pluginId,
+        host: entry.host,
+        port: entry.port,
+      }));
+
+      const active = await prisma.vulnerability.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.ACR,
+          status: {
+            in: [
+              VulnerabilityStatus.Open,
+              VulnerabilityStatus.FalsePositive,
+              VulnerabilityStatus.NoFixAvailable,
+              VulnerabilityStatus.InProgress,
+              VulnerabilityStatus.InProgressWithCR,
+              VulnerabilityStatus.Sunset,
+            ],
+          },
+          OR: orClause,
+        },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+      for (const item of active) {
+        const key = `${item.pluginId}|${item.host}|${item.port}`;
+        if (!activeMap.has(key)) {
+          activeMap.set(key, { id: item.id });
+        }
+      }
+    }
+
+    // Mark all current ACR rows for this site as stale; the reconciliation
+    // loop below will flip the ones that reappear back to isCurrent = true.
+    await prisma.vulnerability.updateMany({
+      where: { siteId, scannerType: ScannerType.ACR },
+      data: { isCurrent: false },
+    });
+
+    const touchIds: string[] = [];
+    const createData: Prisma.VulnerabilityCreateManyInput[] = [];
+
+    let processed = 0;
+    for (const row of filteredRows) {
+      const pluginId = row.cveId;
+      const host = acrHost(row);
+      const port = row.packageName;
+      const key = `${pluginId}|${host}|${port}`;
+      const active = activeMap.get(key);
+
+      if (active) {
+        touchIds.push(active.id);
+      } else {
+        createData.push({
+          siteId,
+          assigneeId: null,
+          status: VulnerabilityStatus.Open,
+          isCurrent: true,
+          lastSeenAt: batchTime,
+          scannerType: ScannerType.ACR,
+          pluginId,
+          cve: row.cveId,
+          cvssScore: null,
+          risk: normalizeRisk(row.severity),
+          host,
+          protocol: "container",
+          port,
+          name: acrName(row),
+          synopsis: null,
+          description: row.description ?? null,
+          solution: row.remediation ?? null,
+          seeAlso: null,
+          pluginOutput: null,
+          pluginPublicationDate: null,
+          pluginModificationDate: null,
+          registryName: row.registryName,
+          repository: row.repository,
+          imageDigest: row.imageDigest,
+          packageName: row.packageName,
+          installedVersion: row.installedVersion ?? null,
+          remediation: row.remediation ?? null,
+          timeGenerated: parseIsoDate(row.timeGenerated),
+        });
+      }
+
+      processed += 1;
+      if (processed % 500 === 0 && filteredRows.length > 0) {
+        await setProgress(uploadId, {
+          step: "Comparing diffs",
+          progress: 40 + Math.floor((processed / filteredRows.length) * 40),
+          total: filteredRows.length,
+        });
+      }
+    }
+
+    for (let i = 0; i < touchIds.length; i += chunkSize) {
+      const chunk = touchIds.slice(i, i + chunkSize);
+      // Also refresh the ACR-specific fields (installedVersion, imageDigest,
+      // timeGenerated) since a re-scan may report a newer image digest for
+      // the same finding.
+      const rowForId = new Map<string, AcrRow>();
+      // Build a reverse index once per chunk. Cheap because touchIds is small.
+      for (const row of filteredRows) {
+        const key = `${row.cveId}|${acrHost(row)}|${row.packageName}`;
+        const hit = activeMap.get(key);
+        if (hit && chunk.includes(hit.id)) {
+          rowForId.set(hit.id, row);
+        }
+      }
+
+      await prisma.$transaction(
+        chunk.map((id) => {
+          const row = rowForId.get(id);
+          return prisma.vulnerability.update({
+            where: { id },
+            data: {
+              lastSeenAt: batchTime,
+              isCurrent: true,
+              ...(row
+                ? {
+                    imageDigest: row.imageDigest,
+                    installedVersion: row.installedVersion ?? null,
+                    remediation: row.remediation ?? null,
+                    timeGenerated: parseIsoDate(row.timeGenerated),
+                  }
+                : {}),
+            },
+          });
+        }),
+      );
+    }
+
+    if (createData.length > 0) {
+      for (let i = 0; i < createData.length; i += chunkSize) {
+        const chunk = createData.slice(i, i + chunkSize);
+        await prisma.vulnerability.createMany({ data: chunk });
+      }
+    }
+
+    // Archive rows that were present before but absent from this scan.
+    const remediated = await prisma.vulnerability.findMany({
+      where: {
+        siteId,
+        scannerType: ScannerType.ACR,
+        lastSeenAt: { lt: batchTime },
+      },
+    });
+
+    if (remediated.length > 0) {
+      const historyData = remediated.map((v) => ({
+        id: v.id,
+        siteId: v.siteId,
+        assigneeId: v.assigneeId,
+        status: VulnerabilityStatus.Remediated,
+        lastSeenAt: v.lastSeenAt,
+        createdAt: v.createdAt,
+        scannerType: ScannerType.ACR,
+        pluginId: v.pluginId,
+        cve: v.cve,
+        cvssScore: v.cvssScore,
+        risk: v.risk,
+        host: v.host,
+        protocol: v.protocol,
+        port: v.port,
+        name: v.name,
+        synopsis: v.synopsis,
+        description: v.description,
+        solution: v.solution,
+        seeAlso: v.seeAlso,
+        pluginOutput: v.pluginOutput,
+        pluginPublicationDate: v.pluginPublicationDate,
+        pluginModificationDate: v.pluginModificationDate,
+        registryName: v.registryName,
+        repository: v.repository,
+        imageDigest: v.imageDigest,
+        packageName: v.packageName,
+        installedVersion: v.installedVersion,
+        remediation: v.remediation,
+        timeGenerated: v.timeGenerated,
+      }));
+
+      await prisma.$transaction([
+        prisma.vulnerabilityHistory.createMany({ data: historyData }),
+        prisma.vulnerability.deleteMany({
+          where: { id: { in: remediated.map((v) => v.id) } },
+        }),
+      ]);
+      console.log(`[Ingest:ACR] Archived ${remediated.length} vulnerabilities to history`);
+    }
+
+    await prisma.uploadHistory.update({
+      where: { id: uploadId },
+      data: { status: UploadStatus.Completed, rowCount: filteredRows.length },
+    });
+
+    await setProgress(uploadId, {
+      step: "Completed",
+      progress: 100,
+      total: filteredRows.length,
+    });
+
+    await storage.delete(storageKey);
+  } finally {
+    const script = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    await (
+      redis as {
+        eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown>;
+      }
+    ).eval(script, 1, lockKey, lockValue);
   }
 }

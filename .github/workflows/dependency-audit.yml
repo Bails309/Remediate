@@ -23,9 +23,9 @@ jobs:
     name: npm audit (high severity gate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -36,12 +36,18 @@ jobs:
         # audit call npm runs by default during install.
         run: npm ci --ignore-scripts --no-audit
 
-      - name: Audit production dependencies
+      - name: Audit production dependencies (allowlist-aware)
         # `npm audit` exits non-zero when any advisory at or above
         # --audit-level=high is found. We scope to production deps so dev-only
-        # advisories (e.g. test tooling) don't block merges — they're still
-        # surfaced in the JSON report uploaded below.
-        run: npm audit --omit=dev --audit-level=high
+        # advisories (e.g. test tooling) don't block merges. The output is
+        # piped through scripts/audit-filter.mjs which suppresses advisories
+        # listed in .audit-allowlist.json with a mandatory expiry — see
+        # SECURITY.md § npm audit allowlist. We capture JSON to a file
+        # (ignoring npm audit's exit code) so pipefail doesn't fail before
+        # the filter runs.
+        run: |
+          npm audit --omit=dev --json > audit.json || true
+          node scripts/audit-filter.mjs --audit-level=high < audit.json
 
       - name: Generate full JSON audit report (informational)
         if: always()
@@ -49,7 +55,7 @@ jobs:
 
       - name: Upload audit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: npm-audit-report
           path: npm-audit.json

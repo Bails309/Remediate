@@ -52,6 +52,15 @@ enum UploadType {
   PDF
 }
 
+// Scanner / source type for uploaded vulnerability data. Used to distinguish
+// rows produced by different scanners (currently Nessus and Azure Container
+// Registry) so they can be filtered, rendered, and reconciled correctly while
+// sharing the same Vulnerability table + dashboards.
+enum ScannerType {
+  NESSUS
+  ACR
+}
+
 model User {
   id            String           @id @default(uuid()) @db.Uuid
   email         String           @unique
@@ -111,6 +120,8 @@ model Site {
   importPattern String?
   importAliases String[]         @default([])
   autoImportEnabled Boolean      @default(true)
+
+  azureBlobIngestDefaults AzureBlobIngestConfig[] @relation("AzureBlobDefaultSite")
 }
 
 model Vulnerability {
@@ -122,6 +133,7 @@ model Vulnerability {
   isCurrent                Boolean              @default(true)
   lastSeenAt               DateTime
   createdAt                DateTime             @default(now())
+  scannerType              ScannerType          @default(NESSUS)
   pluginId                 String
   cve                      String?
   cvssScore                Float?
@@ -138,7 +150,19 @@ model Vulnerability {
   pluginPublicationDate    DateTime?
   pluginModificationDate   DateTime?
   crNumber                 String?
-  
+
+  // ACR-specific fidelity columns. Nullable so Nessus rows leave them blank.
+  // For ACR rows the Nessus fields above are populated semantically:
+  //   pluginId = cveId, host = registryName/repository, port = packageName,
+  //   protocol = "container", name = "{cveId} — {packageName} {installedVersion}".
+  registryName             String?
+  repository               String?
+  imageDigest              String?
+  packageName              String?
+  installedVersion         String?
+  remediation              String?
+  timeGenerated            DateTime?
+
   askForHelp               Boolean              @default(false)
   collaborators            User[]               @relation("Collaborators")
   comments                 Comment[]
@@ -154,6 +178,7 @@ model Vulnerability {
   @@index([siteId, status, risk])
   @@index([risk, lastSeenAt(sort: Desc)])
   @@index([groupId, status])
+  @@index([siteId, scannerType, imageDigest])
 }
 
 model OidcConfig {
@@ -186,19 +211,21 @@ model ReportConfig {
 }
 
 model UploadHistory {
-  id         String   @id @default(uuid()) @db.Uuid
-  siteId     String   @db.Uuid
-  uploadedBy String?  @db.Uuid
-  uploadDate DateTime @default(now())
-  status     UploadStatus @default(Processing)
-  uploadType UploadType   @default(CSV)
-  fileName   String?
-  rowCount   Int?
+  id           String       @id @default(uuid()) @db.Uuid
+  siteId       String       @db.Uuid
+  uploadedBy   String?      @db.Uuid
+  uploadDate   DateTime     @default(now())
+  status       UploadStatus @default(Processing)
+  uploadType   UploadType   @default(CSV)
+  scannerType  ScannerType  @default(NESSUS)
+  fileName     String?
+  rowCount     Int?
 
-  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  uploader   User?    @relation("UploadedBy", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  uploader     User?        @relation("UploadedBy", fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@index([siteId, uploadDate])
+  @@index([scannerType, uploadDate])
 }
 
 enum AzureAuthMethod {
@@ -245,6 +272,28 @@ model AzureFileShareConfig {
   updatedAt             DateTime @updatedAt
 }
 
+// Independent config for polling an Azure Blob container for ACR vulnerability
+// CSV exports. Sits alongside StorageConfig + AzureFileShareConfig so admins
+// can point at a completely separate storage account with its own credentials.
+model AzureBlobIngestConfig {
+  id                    String           @id @default("singleton")
+  enabled               Boolean          @default(false)
+  authMethod            AzureAuthMethod  @default(CONNECTION_STRING)
+  connectionStringEnc   String?
+  accountName           String?
+  accountKeyEnc         String?
+  sasTokenEnc           String?
+  containerName         String?          @default("acr-vulnerabilities")
+  prefix                String?          @default("")
+  defaultSiteId         String?          @db.Uuid
+  pollIntervalMinutes   Int              @default(60)
+  deleteAfterImport     Boolean          @default(true)
+  lastPollAt            DateTime?
+  updatedAt             DateTime         @updatedAt
+
+  defaultSite           Site?            @relation("AzureBlobDefaultSite", fields: [defaultSiteId], references: [id], onDelete: SetNull)
+}
+
 model PentestExecution {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String   @db.Uuid
@@ -273,6 +322,7 @@ model VulnerabilityHistory {
   lastSeenAt               DateTime
   archivedAt               DateTime             @default(now())
   createdAt                DateTime
+  scannerType              ScannerType          @default(NESSUS)
   pluginId                 String
   cve                      String?
   cvssScore                Float?
@@ -290,6 +340,15 @@ model VulnerabilityHistory {
   pluginModificationDate   DateTime?
   crNumber                 String?
 
+  // ACR-specific fidelity columns (mirror Vulnerability).
+  registryName             String?
+  repository               String?
+  imageDigest              String?
+  packageName              String?
+  installedVersion         String?
+  remediation              String?
+  timeGenerated            DateTime?
+
   site                     Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
   assignee                 User?                @relation(fields: [assigneeId], references: [id])
   group                    Group?               @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -298,6 +357,7 @@ model VulnerabilityHistory {
   @@index([archivedAt])
   @@index([siteId, risk])
   @@index([groupId])
+  @@index([siteId, scannerType])
 }
 
 model Comment {

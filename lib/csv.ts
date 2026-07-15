@@ -112,3 +112,114 @@ export function parseNessusCsv(input: string) {
 
   return results;
 }
+
+// ---------------------------------------------------------------------------
+// Azure Container Registry (ACR) vulnerability CSV export
+// ---------------------------------------------------------------------------
+
+export type AcrRow = {
+  timeGenerated?: string;
+  registryName: string;
+  repository: string;
+  imageDigest: string;
+  severity: string;
+  cveId: string;
+  packageName: string;
+  installedVersion?: string;
+  description?: string;
+  remediation?: string;
+};
+
+const acrHeaders = new Map<string, keyof AcrRow>([
+  ["time generated", "timeGenerated"],
+  ["timegenerated", "timeGenerated"],
+  ["registry name", "registryName"],
+  ["registryname", "registryName"],
+  ["repository", "repository"],
+  ["image digest", "imageDigest"],
+  ["imagedigest", "imageDigest"],
+  ["severity", "severity"],
+  ["cve id", "cveId"],
+  ["cveid", "cveId"],
+  ["cve", "cveId"],
+  ["package name", "packageName"],
+  ["packagename", "packageName"],
+  ["installed version", "installedVersion"],
+  ["installedversion", "installedVersion"],
+  ["description", "description"],
+  ["remediation", "remediation"],
+]);
+
+const acrRequiredKeys: Array<keyof AcrRow> = [
+  "registryName",
+  "repository",
+  "imageDigest",
+  "severity",
+  "cveId",
+  "packageName",
+];
+
+export function validateAcrCsv(input: string) {
+  const rows = parse(input, {
+    to_line: 1,
+    relax_column_count: true,
+    trim: true,
+  }) as string[][];
+
+  const headerRow = rows[0] ?? [];
+  const mapped = headerRow.map((header) => acrHeaders.get(normalizeHeader(header)) ?? header);
+  const normalized = new Set(mapped.map((value) => value.toLowerCase()));
+
+  const missing = acrRequiredKeys.filter((key) => !normalized.has(key.toLowerCase()));
+  if (missing.length > 0) {
+    return { ok: false as const, missing };
+  }
+  return { ok: true as const };
+}
+
+export function parseAcrCsv(input: string): AcrRow[] {
+  const records = parse(input, {
+    columns: true,
+    skip_empty_lines: true,
+    relax_column_count: true,
+    trim: true,
+  }) as Record<string, string>[];
+
+  const results: AcrRow[] = [];
+  for (const record of records) {
+    const normalized: Partial<Record<keyof AcrRow, string>> = {};
+
+    for (const [key, value] of Object.entries(record)) {
+      const norm = normalizeHeader(key);
+      const mapped = acrHeaders.get(norm);
+      if (mapped) {
+        normalized[mapped] = value;
+      }
+    }
+
+    if (
+      !normalized.registryName ||
+      !normalized.repository ||
+      !normalized.imageDigest ||
+      !normalized.cveId ||
+      !normalized.packageName
+    ) {
+      continue;
+    }
+
+    results.push({
+      timeGenerated: normalized.timeGenerated || undefined,
+      registryName: normalized.registryName,
+      repository: normalized.repository,
+      imageDigest: normalized.imageDigest,
+      severity: normalized.severity || "None",
+      cveId: normalized.cveId,
+      packageName: normalized.packageName,
+      installedVersion: normalized.installedVersion || undefined,
+      description: normalized.description || undefined,
+      remediation: normalized.remediation || undefined,
+    });
+  }
+
+  return results;
+}

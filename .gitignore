@@ -36,6 +36,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# npm audit output (produced by CI audit-filter step)
+audit.json
+npm-audit.json
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example

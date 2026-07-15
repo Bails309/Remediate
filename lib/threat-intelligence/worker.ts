@@ -2,10 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { fetchNvdCve, fetchOsvById, fetchCisaKev, fetchRecentNvdCves } from "./fetcher";
 import { normalizeThreatData } from "./normalizer";
 import { Queue, Worker } from "bullmq";
-import { redis } from "@/lib/redis";
+import { getBullmqConnection } from "@/lib/redis";
 
 export const THREAT_QUEUE_NAME = "{threat-ingestion}";
-export const threatQueue = new Queue(THREAT_QUEUE_NAME, { connection: redis });
+export const threatQueue = new Queue(THREAT_QUEUE_NAME, {
+    // Own the BullMQ client lifecycle so a stalled blocking connection can be
+    // detected and recovered independently of the shared `redis` proxy.
+    connection: getBullmqConnection(),
+});
 
 interface ThreatApiResponse {
     id: string;
@@ -158,10 +162,23 @@ export async function syncAllThreats(lookbackHours = 48) {
  * Worker to process individualized threat ingestion jobs from the queue.
  */
 if (process.env.NODE_ENV !== "test") {
-    new Worker(THREAT_QUEUE_NAME, async (job) => {
+    const threatWorker = new Worker(THREAT_QUEUE_NAME, async (job) => {
         const { id } = job.data;
         await ingestThreat(id);
-    }, { connection: redis as unknown as { host: string; port: number } });
+    }, {
+        // Own our BullMQ connections -- see lib/redis.ts getBullmqConnection().
+        connection: getBullmqConnection(),
+    });
+
+    threatWorker.on('ready', () => {
+        console.log(`[Worker:${THREAT_QUEUE_NAME}] Ready -- blocking connection established.`);
+    });
+    threatWorker.on('error', err => {
+        console.error(`[Worker:${THREAT_QUEUE_NAME}] error:`, err);
+    });
+    threatWorker.on('failed', (job, err) => {
+        console.error(`[Worker:${THREAT_QUEUE_NAME}] Job ${job?.id} failed:`, err.message);
+    });
 }
 
 interface NvdCveResponse {

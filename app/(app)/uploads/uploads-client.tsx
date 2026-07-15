@@ -79,7 +79,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
   const [siteImportAliases, setSiteImportAliases] = useState<string[]>([]);
   const [newAlias, setNewAlias] = useState("");
   const [siteId, setSiteId] = useState("");
-  const [uploadType, setUploadType] = useState<"CSV" | "PDF">("CSV");
+  const [uploadType, setUploadType] = useState<"CSV" | "PDF" | "ACR">("CSV");
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<{ step: string; progress: number; error?: string } | null>(null);
   const [nextPollCountdown, setNextPollCountdown] = useState<string>("");
@@ -256,7 +256,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     // Validate extension matches the chosen pipeline up-front so users get an immediate error
     // instead of a 400 from the API.
     const lowerName = file.name.toLowerCase();
-    if (uploadType === "CSV" && !lowerName.endsWith(".csv")) {
+    if ((uploadType === "CSV" || uploadType === "ACR") && !lowerName.endsWith(".csv")) {
       toast.error("Selected file is not a .csv");
       return;
     }
@@ -271,7 +271,12 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     formData.append("siteId", siteId);
     formData.append("file", file);
 
-    const endpoint = uploadType === "PDF" ? "/api/uploads/pentest" : "/api/uploads/nessus";
+    const endpoint =
+      uploadType === "PDF"
+        ? "/api/uploads/pentest"
+        : uploadType === "ACR"
+          ? "/api/uploads/acr"
+          : "/api/uploads/nessus";
     const response = await fetch(endpoint, {
       method: "POST",
       body: formData,
@@ -392,7 +397,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Uploads</h2>
-          <p className="text-sm opacity-70">Manage Nessus CSV scans and pentest PDF reports.</p>
+          <p className="text-sm opacity-70">Manage Nessus CSV scans, pentest PDF reports, and ACR image vulnerability exports.</p>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
           <button
@@ -452,11 +457,27 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                 >
                   Pentest PDF
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setUploadType("ACR"); setFile(null); }}
+                  className={cn(
+                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
+                    uploadType === "ACR" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  )}
+                >
+                  ACR CSV
+                </button>
               </div>
 
               <label
                 className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
-                title={uploadType === "PDF" ? "Accepts pentest report PDFs (.pdf). The file is forwarded to the configured PDF Processing API." : "Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."}
+                title={
+                  uploadType === "PDF"
+                    ? "Accepts pentest report PDFs (.pdf). The file is forwarded to the configured PDF Processing API."
+                    : uploadType === "ACR"
+                      ? "Accepts Azure Container Registry vulnerability CSV exports (.csv). Findings are keyed by (cveId, registry/repo, packageName)."
+                      : "Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
+                }
               >
                 <input
                   type="file"
@@ -464,7 +485,13 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                   className="hidden"
                   onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
-                {file ? file.name : uploadType === "PDF" ? "Drop or select PDF file" : "Drop or select CSV file"}
+                {file
+                  ? file.name
+                  : uploadType === "PDF"
+                    ? "Drop or select PDF file"
+                    : uploadType === "ACR"
+                      ? "Drop or select ACR CSV file"
+                      : "Drop or select CSV file"}
               </label>
 
               <Button onClick={startUpload} title="Begin upload and processing of the selected file for the chosen bucket">Start Upload</Button>
@@ -609,6 +636,29 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                   <Save size={16} className="mr-2" />
                   Save Changes
                 </Button>
+              </div>
+            </div>
+
+            {/* Peer automation source: ACR blob container. Configured on its own
+                admin page so this card stays a lightweight entry point rather
+                than duplicating the whole credentials form here. */}
+            <div className="mt-6 pt-6 border-t border-[color:var(--color-border)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Database className="h-5 w-5 text-purple-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold">Azure Container Registry (Blob)</p>
+                    <p className="mt-1 text-xs opacity-60">
+                      Pull ACR vulnerability CSV exports from a separate blob container. Uses its own credentials.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="/admin/azure-blob-ingest"
+                  className="shrink-0 rounded-xl border border-[color:var(--color-border)] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Configure
+                </a>
               </div>
             </div>
           </div>

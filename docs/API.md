@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.7.0` (2026-06-10). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.8.0` (2026-07-15). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -61,9 +61,10 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/uploads/nessus` | 🔒 | Multipart upload of a Nessus CSV. Stores the payload in Redis (2-hour TTL) and enqueues a BullMQ job. |
+| `POST` | `/api/uploads/nessus` | 🔒 | Multipart upload of a Nessus CSV. Stores the payload in Redis (2-hour TTL) and enqueues a BullMQ job with `scannerType: NESSUS`. |
 | `POST` | `/api/uploads/pentest` | 👑 | Multipart upload of a penetration-test PDF (≤25 MB). Persists the binary as base64 in the active storage provider, then enqueues a job on the dedicated `{pentest-pdf-queue}` for the worker to parse in-process via the built-in Trustmarque CHECK parser (`lib/pentest-pdf-builtin.ts`). Returns `{ uploadId, status: "queued" }` on success. No admin configuration is required. |
-| `GET` | `/api/uploads/history` | 🔒 | Paginated upload history (status, counts, processing duration). |
+| `POST` | `/api/uploads/acr` | 👑 | Multipart upload of an Azure Container Registry vulnerability CSV (≤50 MB). Body: `file`, `siteId`. Headers are validated case-insensitively (required: `registryName`, `repository`, `imageDigest`, `severity`, `cveId`, `packageName`; common aliases like `CVE`, `Package Name`, `Registry Name` are accepted). Persists the payload under `acr-{uploadId}.csv` in the active storage provider and enqueues a job on the shared `{upload-queue}` with `scannerType: ACR`. Returns `{ uploadId, status: "queued" }` on success, `400` on missing headers, `413` when the file exceeds 50 MB, `429` when rate-limited. |
+| `GET` | `/api/uploads/history` | 🔒 | Paginated upload history (status, counts, processing duration, `scannerType`). |
 | `GET` | `/api/uploads/progress` | 🔒 | Snapshot of all in-flight uploads for the current user. |
 | `GET` | `/api/uploads/{uploadId}/progress` | 🔒 | Per-upload progress (counts, current phase). |
 | `GET` | `/api/uploads/events` | 🔒 | Server-Sent Events stream for global upload progress. |
@@ -72,6 +73,13 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | `POST` | `/api/uploads/dead-letter` | 👑 | Requeues a single failed job. Body: `{ "jobId": string }`. |
 | `PUT` | `/api/uploads/dead-letter` | 👑 | Bulk requeue all dead-letter entries. |
 | `DELETE` | `/api/uploads/dead-letter` | 👑 | Permanently removes a dead-letter entry. Query: `jobId`. |
+
+### `scannerType` (v2.8.0)
+Every ingest job carries a `scannerType`:
+- `NESSUS` — processed by `lib/ingest.ts#processNessusUpload`. Sources: `/api/uploads/nessus`, `/api/uploads/pentest`.
+- `ACR` — processed by `lib/ingest.ts#processAcrUpload`. Sources: `/api/uploads/acr`, the automated Azure Blob container poller (see §9a).
+
+Reconciliation queries ("still present", "archive as remediated", `createMany`, and `VulnerabilityHistory` diff) are scoped by `scannerType`, so scanners cannot archive each other's findings.
 
 ---
 
@@ -167,6 +175,47 @@ GET /api/vulnerabilities?groupIds=11111111-...,22222222-...,unassigned
 | `POST` | `/api/admin/azure-file-share` | 👑 | Creates or updates an automation entry. |
 | `POST` | `/api/admin/azure-file-share/poll` | 👑 | Manually triggers a poll cycle ("Run Now"). |
 | `POST` | `/api/admin/azure-file-share/test` | 👑 | Tests connectivity and path resolution against an Azure File Share configuration. |
+
+---
+
+## 9a. Admin — ACR Blob Ingest (v2.8.0)
+
+The ACR blob-ingest pipeline is completely independent from the Azure File Share automation — it has its own credentials, container, poll interval, and default site. See [`ARCHITECTURE.md`](../ARCHITECTURE.md#multi-scanner-ingest-v280) for the reconciliation and dedup semantics.
+
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/azure-blob-ingest` | 👑 | Returns the current `AzureBlobIngestConfig`. All three credential fields (`connectionStringEnc`, `accountKeyEnc`, `sasTokenEnc`) are replaced with the `"****"` sentinel — plaintext is **never** returned. Includes `lastPollAt` for observability. |
+| `POST` | `/api/admin/azure-blob-ingest` | 👑 | Upserts the configuration. Body: `{ enabled, authMethod: "CONNECTION_STRING"\|"ACCOUNT_KEY"\|"SAS_TOKEN", accountName?, containerName, prefix?, defaultSiteId, pollIntervalMinutes, deleteAfterImport, connectionString?, accountKey?, sasToken? }`. Any credential field equal to `"****"` means "keep the existing encrypted value"; any other non-empty string is encrypted via `lib/crypto.ts#encrypt` before being written. Writes an `azure_blob_ingest.updated` audit-log entry. |
+| `POST` | `/api/admin/azure-blob-ingest/poll` | 👑 | Manually triggers a poll cycle ("Run Now"). Returns `{ success: true, message: string }` on success and updates `lastPollAt`. Per-blob failures are logged but do not fail the whole cycle. |
+| `POST` | `/api/admin/azure-blob-ingest/test` | 👑 | Validates the supplied credentials + container name. Accepts unmasked secrets in the request body so administrators can test **before** saving; credentials are used exactly once to construct a Blob service client and discarded when the request completes. Returns `{ success: boolean, message?: string, error?: string }`. |
+
+### Configuration schema
+| Field | Type | Notes |
+| :--- | :--- | :--- |
+| `enabled` | `boolean` | When `false`, the scheduler skips polling entirely. |
+| `authMethod` | `"CONNECTION_STRING" \| "ACCOUNT_KEY" \| "SAS_TOKEN"` | Determines which credential field must be populated. |
+| `accountName` | `string \| null` | Required for `ACCOUNT_KEY` and `SAS_TOKEN`. Ignored for `CONNECTION_STRING`. |
+| `containerName` | `string` | Blob container to poll. Defaults to `acr-vulnerabilities`. |
+| `prefix` | `string \| null` | Optional blob-name prefix filter (e.g. `daily/`). |
+| `defaultSiteId` | `uuid \| null` | Bucket that ingested CSVs land in. Scheduler skips polling until this is set. FK to `Site.id ON DELETE SET NULL`. |
+| `pollIntervalMinutes` | `integer >= 1` | Scheduler interval. Default `60`. |
+| `deleteAfterImport` | `boolean` | When `true` (default), each blob is deleted **only after** a successful enqueue. When `false`, blobs are retained; combine with a `prefix` you rotate manually or accept re-processing at the CSV-row dedup key. |
+| `connectionStringEnc` / `accountKeyEnc` / `sasTokenEnc` | `string \| null` (ciphertext) | Stored encrypted. Sent to the client as `"****"`. |
+| `lastPollAt` | `ISO 8601 \| null` | Last successful poll timestamp. |
+
+### Manual ACR upload payload (`POST /api/uploads/acr`)
+```
+Content-Type: multipart/form-data
+
+file: <ACR CSV file, ≤50 MB>
+siteId: <bucket UUID>
+```
+
+Expected CSV headers (case-insensitive, BOM-tolerant, aliases accepted):
+```
+timeGenerated, registryName, repository, imageDigest, severity, cveId, packageName, installedVersion, description, remediation
+```
+Required: `registryName`, `repository`, `imageDigest`, `severity`, `cveId`, `packageName`. Missing required headers return `400 { error: "Invalid CSV headers", missing: string[] }`.
 
 ---
 

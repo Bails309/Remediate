@@ -6,16 +6,18 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.7.0 (2026-06-10)</p>
+  <p><strong>Version:</strong> 2.8.0 (2026-07-15)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
 ## Overview
-Remediate is a Nessus remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests Nessus CSVs, diffs weekly uploads, tracks remediation status, and supports assignment workflows.
+Remediate is a unified vulnerability remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests findings from multiple scanner families — **Nessus** CSVs, **pentest** PDFs, and **Azure Container Registry** CSV exports — diffs successive uploads, tracks remediation status, and supports full assignment / RBAC / notification workflows on top of a single `Vulnerability` table.
 
-The platform now features **Organizational Buckets** (formerly Sites), providing a more flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation**, a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
+The platform features **Organizational Buckets** (formerly Sites), providing a flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation** and **Azure Blob Container Automation for ACR exports** (new in v2.8.0), a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
 
 **Group / Department RBAC** (v2.7.0) extends the single-team assignment model to enterprise group-based ownership: vulnerabilities can be scoped to organisational groups (departments) with member/leader roles, enforcing a server-side **visibility wall** so non-members cannot see grouped items even via direct URL or API. Group leaders receive a weekly Leader Digest summarising every active item their group owns.
+
+**Multi-scanner ingest** (v2.8.0) introduces a `ScannerType` enum (`NESSUS`, `ACR`) that scopes every reconciliation query so ACR and Nessus scans of the same bucket cannot archive each other. See the [Azure Container Registry Ingest](#azure-container-registry-ingest-v280) section below for the operator overview.
 
 Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
@@ -129,10 +131,27 @@ Configure via the Admin dashboard or env vars when persistent upload storage is 
 Docker compose overrides `DATABASE_URL` and `REDIS_URL` to use the `db`/`redis` service names.
 
 ## Upload Processing
-- Uploads are queued in Redis and processed by the `worker` service.
-- The API stores CSV payloads in Redis temporarily (2-hour TTL) for the worker to consume.
+- Uploads are queued in Redis and processed by the `worker` service on the shared `{upload-queue}` BullMQ queue.
+- The API persists the upload payload to the configured storage provider (Redis for the default 2-hour TTL path, or Azure Blob Storage / File Share when configured), then enqueues a job stamped with a `scannerType` (`NESSUS` or `ACR`).
+- The worker dispatches by `scannerType`: `processNessusUpload` for CSVs / PDFs from Nessus and pentest sources, `processAcrUpload` for Azure Container Registry CSV exports. Every reconciliation query is scoped by `scannerType` so scanners never archive each other's findings.
 - Failed uploads retry up to 3 times with exponential backoff before landing in a dead-letter queue.
 - Admins can requeue failed uploads from **Operations > Dead Letters**.
+
+### Azure Container Registry Ingest (v2.8.0)
+Remediate ingests ACR vulnerability CSV exports two ways:
+
+1. **Manual upload** — `/uploads` → **Manual** tab → **ACR CSV** selector. Same UI flow as the existing CSV upload; the API endpoint is `POST /api/uploads/acr`.
+2. **Automated blob-container polling** — configure once under `/admin/azure-blob-ingest`. The worker scheduler polls the container on your configured interval, ingests every CSV matching the optional prefix, and (by default) **deletes each blob** after it's successfully queued so a rescan on the same repository lands as an update rather than a duplicate.
+
+**CSV schema** (headers are case-insensitive, BOM-tolerant, and accept common aliases such as `CVE`, `Package Name`, `Registry Name`):
+
+```
+timeGenerated, registryName, repository, imageDigest, severity, cveId, packageName, installedVersion, description, remediation
+```
+
+**Dedup key**: `(siteId, scannerType=ACR, pluginId=cveId, host, port)` where `host = "{registryName}/{repository}"`, `port = packageName`, `protocol = "container"`. `imageDigest` is stored but **excluded** from the dedup key so rescans on new digests touch the same finding rather than creating duplicates.
+
+**Storage credentials** are stored encrypted (AES-256-GCM via `lib/crypto.ts`) and never echoed back — the GET endpoint returns a `"****"` sentinel that means "keep the existing value" on save.
 
 ## Threat Intelligence & Reports
 - **Live Feed**: View real-time vulnerability data from NVD, OSV, and CISA KEV in the Intelligence Centre.
@@ -300,6 +319,16 @@ Cookie: <session cookie>
 Supports filtering by `action` and `entityType`. Returns paginated results with total count.
 
 ## Release notes
+
+### [2.8.0] - 2026-07-15
+- **Azure Container Registry (ACR) Vulnerability Ingest**: Manual **"ACR CSV"** upload option on the Uploads page and a new **Azure Blob container** automation that polls a blob container, ingests every matching CSV, and (by default) deletes each blob after it's queued so rescans on the same repository land as updates rather than duplicates. Independent from the existing Azure File Share pipeline — its own account, container, and credentials.
+- **Multi-scanner data model**: New `enum ScannerType { NESSUS, ACR }` and `scannerType` columns on `UploadHistory` / `Vulnerability` / `VulnerabilityHistory` (all default `NESSUS`). Every reconciliation query in `lib/ingest.ts` is now scoped by `scannerType` so an ACR ingest never archives a Nessus finding (or vice versa). New optional columns (`registryName`, `repository`, `imageDigest`, `packageName`, `installedVersion`, `remediation`, `timeGenerated`) preserve ACR-specific fidelity without changing the Nessus shape.
+- **New APIs**: `POST /api/uploads/acr`, `GET|POST /api/admin/azure-blob-ingest`, `POST /api/admin/azure-blob-ingest/poll`, `POST /api/admin/azure-blob-ingest/test`. Secrets are always AES-256-GCM encrypted at rest via `lib/crypto.ts`; the GET endpoint returns a `"****"` sentinel instead of plaintext, and `"****"` on save means "keep the existing value".
+- **New admin console**: `/admin/azure-blob-ingest` — enable toggle, auth-method selector (`CONNECTION_STRING` | `ACCOUNT_KEY` | `SAS_TOKEN`), account / container / prefix inputs, default-bucket picker, poll-interval spinner, delete-after-import checkbox, and Test / Run Now / Save.
+- **Schema**: Migration `20260715120000_add_acr_scanner_type` — fully idempotent, additive, and safe to re-apply.
+
+### [2.7.1] - 2026-07-14
+- **BullMQ stuck-in-Processing fix (long-term hardening)**: Root cause was a shared `ioredis` proxy across the BullMQ `Queue`, the `Worker` (which needs its own blocking `bclient`), and general app usage. When Azure Cache for Redis dropped the idle blocking socket, BullMQ could not recover and uploads sat forever in **Processing**. Fix: every `Queue`/`Worker` now uses `getBullmqConnection()` for a dedicated connection, `keepAlive: 30_000` at the socket layer, and explicit `reconnectOnError` for `READONLY|ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND`. Adds a 60-second `[QueueDepth]` log and a new `scripts/diagnose-queue.ts` triage script.
 
 ### [2.7.0] - 2026-06-10
 - **Group / Department RBAC**: Vulnerabilities can now be owned by organisational groups (departments). Groups are a server-enforced **visibility wall** — only members + leaders + admins can see grouped items, even via direct URL. New `/admin/groups` page for create / rename / delete / membership management. New `GET|POST /api/groups`, `GET|PATCH|DELETE /api/groups/{id}`, and `POST|PATCH|DELETE /api/groups/{id}/members` routes. New `Vulnerability.groupId` column (nullable, `ON DELETE SET NULL`) plus matching `VulnerabilityHistory.groupId`. Vulnerabilities client gains a Group MultiSelect filter, a Leader badge, an admin-only Group column, and scope-aware Assign-to-Me. Weekly assignment digest now also emails each group leader a per-group **Leader Digest** of every active item the group owns.

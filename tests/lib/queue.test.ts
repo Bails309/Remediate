@@ -26,6 +26,13 @@ vi.mock("@/lib/redis", () => ({
     eval: vi.fn().mockResolvedValue(1),
     del: vi.fn(),
   },
+  getBullmqConnection: vi.fn(() => ({
+    host: "localhost",
+    port: 6379,
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    keepAlive: 30_000,
+  })),
 }));
 
 const mockStorageDelete = vi.fn();

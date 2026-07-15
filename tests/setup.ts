@@ -51,6 +51,14 @@ const UserRole = {
     web_app_user: "web_app_user",
     toolkit_user: "toolkit_user",
 };
+const ScannerType = {
+    NESSUS: "NESSUS",
+    ACR: "ACR",
+};
+const UploadType = {
+    CSV: "CSV",
+    PDF: "PDF",
+};
 
 const createMockModel = () => {
     const store = new Map<string, any>();
@@ -170,6 +178,8 @@ vi.mock("@prisma/client", () => {
         VulnerabilityStatus,
         UploadStatus,
         UserRole,
+        ScannerType,
+        UploadType,
         Site: {} as any,
         PrismaClient: class {
             constructor() {

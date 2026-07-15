@@ -83,6 +83,10 @@ function buildRedisInstance() {
 
   const inst = createRedisInstance(url, {
     maxRetriesPerRequest: null, // Required for BullMQ
+    // TCP keepalive so managed-Redis idle-timeout drops don't leave us with a
+    // half-open socket. 30s is well below the 10-minute default idle window
+    // on Azure Cache for Redis / most managed providers.
+    keepAlive: 30_000,
     ...(isTls && {
       tls: {
         rejectUnauthorized: tlsReject,
@@ -91,6 +95,66 @@ function buildRedisInstance() {
   });
   globalForRedis.redisMap[cacheKey] = inst;
   return inst;
+}
+
+/**
+ * Build a connection descriptor for BullMQ Queue/Worker instances.
+ *
+ * BullMQ v5 strongly recommends that each Queue/Worker own its own Redis
+ * connections rather than sharing a client — the internal `bclient` used for
+ * `BRPOPLPUSH` needs its own reconnect lifecycle, and sharing a client can
+ * leave workers silently unable to pull jobs when the blocking socket dies.
+ *
+ * For standard mode we return a plain RedisOptions object so BullMQ can
+ * construct (and later `duplicate()`) its own dedicated clients. For cluster
+ * mode we build a fresh `Redis.Cluster` instance per caller for the same
+ * reason — never shared with the general `redis` client.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getBullmqConnection(): any {
+  const rawUrl = process.env.REDIS_URL || DEFAULT_REDIS_URL;
+  const isTls = rawUrl.startsWith("rediss://");
+  const tlsReject = isTls
+    ? process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false"
+    : undefined;
+
+  if (isCluster) {
+    // Cluster mode: BullMQ requires an actual Cluster instance; build a
+    // dedicated one so BullMQ owns its lifecycle end-to-end.
+    return createRedisInstance(rawUrl, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      keepAlive: 30_000,
+    });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    parsed = new URL(DEFAULT_REDIS_URL);
+  }
+
+  const port = Number(parsed.port) || (isTls ? 6380 : 6379);
+
+  return {
+    host: parsed.hostname,
+    port,
+    username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+    password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+    // Required by BullMQ so `add()` can still queue while ioredis reconnects.
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+    keepAlive: 30_000,
+    retryStrategy: (times: number) => Math.min(times * 200, 5_000),
+    reconnectOnError: (err: Error) =>
+      /READONLY|ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND/i.test(err.message),
+    ...(isTls && {
+      tls: {
+        rejectUnauthorized: tlsReject,
+      },
+    }),
+  };
 }
 
 type LazyRedisTarget = Redis & { __real?: Redis };
