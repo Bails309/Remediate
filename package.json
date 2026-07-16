@@ -86,6 +86,8 @@
     "fast-xml-builder": "1.2.0",
     "uuid": "14.0.0",
     "postcss": "8.5.10",
-    "effect": "$effect"
+    "effect": "$effect",
+    "undici@^6.0.0": "6.27.0",
+    "undici@^7.0.0": "7.28.0"
   }
 }

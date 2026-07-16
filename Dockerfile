@@ -30,14 +30,42 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
 RUN npm run build
 
+# Production-only dependency tree for the runtime image. Rebuilding
+# node_modules with --omit=dev drops devDependencies (vite, vitest,
+# @babel/core, playwright, jsdom, etc.) that were flagged by container
+# scans but are not needed at runtime, which eliminates a large batch of
+# CVEs from the app and worker images (e.g. CVE-2026-53571 / CVE-2026-53632
+# in vite, plus various @babel and testing-library findings).
+FROM node:lts-slim AS prod-deps
+ARG APP_VERSION=1.8.1
+WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+RUN npm install --omit=dev --legacy-peer-deps \
+  && npx prisma generate \
+  && npm cache clean --force
+
 FROM node:lts-slim AS base-runner
 ARG APP_VERSION=1.8.1
 ENV APP_VERSION=${APP_VERSION}
 WORKDIR /app
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Apply the latest Debian security patches (openssl, libc6, zlib, glibc, etc.)
+# on top of the base image and upgrade the globally-installed npm to a
+# release whose bundled deps (sigstore/@sigstore/*, tar, brace-expansion,
+# ip-address, js-yaml, undici) are patched. This clears the batch of npm-
+# CLI-bundled CVEs surfaced by ACR scans on the app and worker images.
+RUN apt-get update -y \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g npm@latest \
+  && npm cache clean --force
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=builder /app/node_modules ./node_modules
+# Prefer the production-only tree from prod-deps over the full (dev-included)
+# tree from builder so devDependencies do not ship in the runtime image.
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
