@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.10] - 2026-07-16
+### Security
+- **Close final batch of `remediate-pentest-backend` ACR findings** — two categories of remaining scanner alerts, plus one deferred-to-rebuild note:
+  - **Python pip / setuptools cluster reported at Debian version 23.0.1 / 66.1.1** even after 2.8.9 upgraded them to 26.1.2 / 78.1.1 in `/usr/local`. Root cause: the container scanner keys off **dpkg metadata**, not the actual on-disk Python distribution, so the Debian-shipped `python3-pip` (23.0.1) and `python3-setuptools` (66.1.1) records kept the CVEs flagged regardless of the newer pip/setuptools binaries sitting on `PATH` first. Fix in [`pentest-backend/Dockerfile`](pentest-backend/Dockerfile): `apt-get purge -y python3-pip python3-setuptools && apt-get autoremove -y` immediately after the `pip3 install --upgrade` step. The upgraded pip in `/usr/local/bin/pip3` still resolves for the subsequent `sqlmap`, `arjun`, and other Python installs. Clears **CVE-2026-3219**, **CVE-2025-8869**, **CVE-2023-5752**, **CVE-2026-1703** (pip cluster) and re-confirms the setuptools remediation from 2.8.9 (**CVE-2024-6345**, **CVE-2025-47273**).
+  - **Go `github.com/valyala/fasthttp` vendored at 1.31.0** in one or more pentest tools. Fix: added `FASTHTTP_VER=v1.72.0` to the `gotools` stage `ENV` block and appended `github.com/valyala/fasthttp@${FASTHTTP_VER}` to every `go get` line. `go mod tidy` prunes it from tools that don't use it, so the change is safe across `subfinder`, `nuclei`, `ffuf`, `katana`, `gau`. Clears **CVE-2022-21221**.
+  - **npm-transitive `ip-address` (CVE-2026-42338), `brace-expansion` (CVE-2026-33750 / CVE-2025-5889), and `diff` (CVE-2026-24001)**: no code change. These are transitive dependencies of the npm CLI's bundled `node_modules` (`ip-address` via `is-cidr`, `brace-expansion` via `minimatch`, `diff` bundled directly). Both `npm@12.0.1` (main image, pinned in 2.8.8) and `npm@11.18.0` (pentest-backend, pinned in 2.8.9) ship modern versions of all three (`ip-address ^10.x`, `brace-expansion ^4.x`/`^5.x`, `diff ^8.x`). The scanner findings are stale results from the previously-cached npm 10.x layer and will resolve on the next ACR rebuild.
+
 ## [2.8.9] - 2026-07-16
 ### Security
 - **Remediate remaining ACR image CVEs on `remediate-pentest-backend`** across three toolchains (Node.js npm CLI, Python system pip/setuptools, Go binaries). Applied in [`pentest-backend/Dockerfile`](pentest-backend/Dockerfile):
