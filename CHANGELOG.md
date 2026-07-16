@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.11] - 2026-07-16
+### Security
+- **Fix persistent `tar`/`brace-expansion` findings on `remediate-pentest-backend` — root cause was a two-stage npm-resolver mismatch, not a scanner-cache issue.** After 2.8.9 pinned npm to 11.18.0 in the **runtime** stage, the scanner still flagged `tar 6.2.1` and `brace-expansion 2.0.1`. Investigation showed the pentest-backend `build` stage was still running `npm install` under the base image's npm@10.x, which emitted a lockfile pinning `tar@6.2.1` / `brace-expansion@2.0.1`. That lockfile was then copied into the runtime stage (`COPY --from=build /app/package-lock.json* ./`) and `npm install --omit=dev` honoured the pinned versions verbatim — even though runtime had already been upgraded to npm@11.18.0. Fix in [`pentest-backend/Dockerfile`](pentest-backend/Dockerfile) + [`pentest-backend/package.json`](pentest-backend/package.json):
+  - Upgrade npm to `${NPM_VERSION:=11.18.0}` in the **build** stage before `npm install`, so the emitted lockfile pins modern (patched) versions of every transitive dep. Kept on the npm@11 line because npm@12+ requires Node >=22.22.2.
+  - Added `overrides` in `pentest-backend/package.json` pinning `tar: 7.5.19` and `brace-expansion: 2.0.3` as belt-and-braces so the override is preserved even if the build-stage npm ever changes. Clears **CVE-2026-31802 / 29786 / 26960 / 24842 / 23950 / 23745** (tar cluster, all High), **CVE-2026-53655** (tar, Moderate), **CVE-2026-33750** (brace-expansion, Moderate), and **CVE-2025-5889** (brace-expansion, Low).
+
 ## [2.8.10] - 2026-07-16
 ### Security
 - **Close final batch of `remediate-pentest-backend` ACR findings** — two categories of remaining scanner alerts, plus one deferred-to-rebuild note:
