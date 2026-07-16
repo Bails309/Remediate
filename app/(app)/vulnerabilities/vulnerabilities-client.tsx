@@ -120,6 +120,13 @@ type Vulnerability = {
   crNumber?: string | null;
   commentCount?: number;
   recordScope?: ViewScope;
+  scannerType?: string | null;
+  registryName?: string | null;
+  repository?: string | null;
+  imageDigest?: string | null;
+  packageName?: string | null;
+  installedVersion?: string | null;
+  timeGenerated?: string | null;
 };
 
 type Props = {
@@ -1530,6 +1537,39 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Synopsis</p>
             <p className="mt-2 text-slate-900 dark:text-slate-100">{detail?.synopsis ?? "No synopsis provided."}</p>
           </div>
+          {detail?.scannerType === "ACR" && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Container Image</p>
+              <div className="mt-2 grid gap-3 rounded-2xl border border-slate-200/50 bg-slate-50/50 px-4 py-4 text-sm dark:border-slate-800/50 dark:bg-slate-950/50 sm:grid-cols-2">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Registry</p>
+                  <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.registryName ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Repository</p>
+                  <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.repository ?? "—"}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Image Digest</p>
+                  <p className="mt-1 font-mono text-[11px] text-slate-900 dark:text-slate-100 break-all">{detail.imageDigest ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Package</p>
+                  <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.packageName ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Installed Version</p>
+                  <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.installedVersion ?? "—"}</p>
+                </div>
+                {detail.timeGenerated ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Scan Time</p>
+                    <ClientDate date={detail.timeGenerated} className="mt-1 text-slate-900 dark:text-slate-100" />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</p>
             <p className="mt-2 text-slate-900 dark:text-slate-100 leading-relaxed">{detail?.description ?? "No description available."}</p>
