@@ -39,4 +39,27 @@ describe("redis URL modes", () => {
     const inst = mod.redis as any;
     expect(inst.__isCluster).toBe(true);
   });
+
+  it("getBullmqConnection forwards TLS to Cluster shards when REDIS_URL uses rediss://", async () => {
+    // Regression: previously the cluster branch of getBullmqConnection dropped
+    // TLS options, causing `ClusterAllFailedError: Failed to refresh slots cache`
+    // against Azure Cache for Redis (clustered) on `rediss://` endpoints.
+    process.env.REDIS_CLUSTER_MODE = "true";
+    process.env.REDIS_URL = "rediss://cluster-node:6380";
+    delete process.env.REDIS_TLS_REJECT_UNAUTHORIZED;
+    const mod = await import("@/lib/redis");
+    const conn = mod.getBullmqConnection() as any;
+    expect(conn.__isCluster).toBe(true);
+    expect(conn.opts?.redisOptions?.tls).toBeDefined();
+    expect(conn.opts?.redisOptions?.tls?.rejectUnauthorized).toBe(true);
+  });
+
+  it("getBullmqConnection respects REDIS_TLS_REJECT_UNAUTHORIZED=false in Cluster mode", async () => {
+    process.env.REDIS_CLUSTER_MODE = "true";
+    process.env.REDIS_URL = "rediss://cluster-node:6380";
+    process.env.REDIS_TLS_REJECT_UNAUTHORIZED = "false";
+    const mod = await import("@/lib/redis");
+    const conn = mod.getBullmqConnection() as any;
+    expect(conn.opts?.redisOptions?.tls?.rejectUnauthorized).toBe(false);
+  });
 });

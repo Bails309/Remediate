@@ -121,10 +121,19 @@ export function getBullmqConnection(): any {
   if (isCluster) {
     // Cluster mode: BullMQ requires an actual Cluster instance; build a
     // dedicated one so BullMQ owns its lifecycle end-to-end.
+    // NOTE: TLS options must be forwarded here so `Redis.Cluster` applies
+    // them to every discovered shard. Without this, connecting to
+    // `rediss://` cluster endpoints closes the socket during handshake
+    // and surfaces as `ClusterAllFailedError: Failed to refresh slots cache`.
     return createRedisInstance(rawUrl, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       keepAlive: 30_000,
+      ...(isTls && {
+        tls: {
+          rejectUnauthorized: tlsReject,
+        },
+      }),
     });
   }
 
