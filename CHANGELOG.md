@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.5] - 2026-07-16
+### Fixed
+- **Worker crash on startup after 2.8.4 image prune** — `tsx` was a devDependency, so the new `prod-deps` stage introduced in 2.8.4 (which runs `npm install --omit=dev`) stripped it from the runtime image. `scripts/worker-entrypoint.sh` invokes both `npx tsx /app/scripts/optimize-db.ts` and `npm run worker` (which resolves to `tsx scripts/worker.ts`), so every worker replica crashed with `sh: 1: tsx: not found` after `optimize-db` completed. Fix: moved `tsx` from `devDependencies` to `dependencies` in `package.json` so the pruned runtime tree keeps it. No behaviour change for the app container (Next.js does not use `tsx` at runtime); the worker container recovers on redeploy.
+
 ## [2.8.4] - 2026-07-16
 ### Security
 - **Remediate ACR image CVEs across `remediate-app`, `remediate-worker`, and `remediate-pentest-backend`**. Rebuilt images pick up the fixes on next deploy; no runtime configuration changes.
