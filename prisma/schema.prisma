@@ -158,6 +158,7 @@ model Vulnerability {
   registryName             String?
   repository               String?
   imageDigest              String?
+  imageTag                 String?
   packageName              String?
   installedVersion         String?
   remediation              String?
@@ -344,6 +345,7 @@ model VulnerabilityHistory {
   registryName             String?
   repository               String?
   imageDigest              String?
+  imageTag                 String?
   packageName              String?
   installedVersion         String?
   remediation              String?

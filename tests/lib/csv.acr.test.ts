@@ -54,4 +54,36 @@ describe("parseAcrCsv", () => {
     expect(rows[0].cveId).toBe("CVE-2025-9999");
     expect(rows[0].severity).toBe("Critical");
   });
+
+  it("parses the optional tag column (singular header)", () => {
+    const csv =
+      `timeGenerated,registryName,repository,imageDigest,tag,severity,cveId,packageName\n` +
+      `7/16/2026 12:43:41 AM,myacr,ser/dx4-csb,sha256:abc,14.3.1,Medium,CVE-2026-58472,wget\n`;
+
+    const rows = parseAcrCsv(csv);
+    expect(rows.length).toBe(1);
+    expect(rows[0].imageTag).toBe("14.3.1");
+  });
+
+  it("accepts tags / Image Tag aliases and leaves imageTag undefined when absent", () => {
+    const withAlias =
+      `registryName,repository,imageDigest,Tags,severity,cveId,packageName\n` +
+      `acr1,ns/img,sha256:def,v2.0,High,CVE-2025-9999,libc\n`;
+    expect(parseAcrCsv(withAlias)[0].imageTag).toBe("v2.0");
+
+    const withSpacedAlias =
+      `registryName,repository,imageDigest,Image Tag,severity,cveId,packageName\n` +
+      `acr1,ns/img,sha256:def,latest,High,CVE-2025-9999,libc\n`;
+    expect(parseAcrCsv(withSpacedAlias)[0].imageTag).toBe("latest");
+
+    const without =
+      `registryName,repository,imageDigest,severity,cveId,packageName\n` +
+      `acr1,ns/img,sha256:def,High,CVE-2025-9999,libc\n`;
+    expect(parseAcrCsv(without)[0].imageTag).toBeUndefined();
+  });
+
+  it("still validates without the tag column (tag is optional)", () => {
+    const input = "registryName,repository,imageDigest,severity,cveId,packageName\n";
+    expect(validateAcrCsv(input)).toEqual({ ok: true });
+  });
 });

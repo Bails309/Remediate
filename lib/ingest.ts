@@ -502,6 +502,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
           registryName: row.registryName,
           repository: row.repository,
           imageDigest: row.imageDigest,
+          imageTag: row.imageTag ?? null,
           packageName: row.packageName,
           installedVersion: row.installedVersion ?? null,
           remediation: row.remediation ?? null,
@@ -545,6 +546,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
               ...(row
                 ? {
                     imageDigest: row.imageDigest,
+                    imageTag: row.imageTag ?? null,
                     installedVersion: row.installedVersion ?? null,
                     remediation: row.remediation ?? null,
                     timeGenerated: parseIsoDate(row.timeGenerated),
@@ -599,6 +601,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
         registryName: v.registryName,
         repository: v.repository,
         imageDigest: v.imageDigest,
+        imageTag: v.imageTag,
         packageName: v.packageName,
         installedVersion: v.installedVersion,
         remediation: v.remediation,

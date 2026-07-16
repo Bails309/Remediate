@@ -124,6 +124,7 @@ type Vulnerability = {
   registryName?: string | null;
   repository?: string | null;
   imageDigest?: string | null;
+  imageTag?: string | null;
   packageName?: string | null;
   installedVersion?: string | null;
   timeGenerated?: string | null;
@@ -1549,9 +1550,9 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Repository</p>
                   <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.repository ?? "—"}</p>
                 </div>
-                <div className="sm:col-span-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Image Digest</p>
-                  <p className="mt-1 font-mono text-[11px] text-slate-900 dark:text-slate-100 break-all">{detail.imageDigest ?? "—"}</p>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tag</p>
+                  <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.imageTag ?? "—"}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Package</p>
@@ -1562,11 +1563,15 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                   <p className="mt-1 text-slate-900 dark:text-slate-100 break-words">{detail.installedVersion ?? "—"}</p>
                 </div>
                 {detail.timeGenerated ? (
-                  <div className="sm:col-span-2">
+                  <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Scan Time</p>
                     <ClientDate date={detail.timeGenerated} className="mt-1 text-slate-900 dark:text-slate-100" />
                   </div>
                 ) : null}
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Image Digest</p>
+                  <p className="mt-1 font-mono text-[11px] text-slate-900 dark:text-slate-100 break-all">{detail.imageDigest ?? "—"}</p>
+                </div>
               </div>
             </div>
           )}

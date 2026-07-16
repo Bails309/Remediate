@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.3] - 2026-07-16
+### Added
+- **Image tag on ACR findings** — the ACR vulnerability CSV export now includes a `tag` column identifying which image tag the scanned digest was published under. The full pipeline picks it up end-to-end:
+  - **CSV parsing** ([`lib/csv.ts`](lib/csv.ts)): new optional `imageTag` field on `AcrRow`, mapped from headers `tag`, `tags`, `Image Tag`, or `imagetag` (case-insensitive). The column is **optional** — CSVs without it continue to validate and ingest unchanged.
+  - **Schema**: new nullable `imageTag` column on `Vulnerability` and `VulnerabilityHistory` via idempotent migration `20260716100000_add_acr_image_tag`. Nessus rows leave it null.
+  - **Ingest** ([`lib/ingest.ts`](lib/ingest.ts)): `imageTag` is written on create, **refreshed on every rescan** alongside `imageDigest` (assignees always see the tag from the most recent scan), and carried into history on archive. Like the digest, it is excluded from the dedup key so a rebuild published under a new tag/digest updates the existing finding rather than duplicating it.
+  - **UI**: the "Container Image" section of the vulnerability detail sheet (added in 2.8.2) now shows **Tag** alongside Registry, Repository, Package, Installed Version, Scan Time, and Image Digest.
+  - **Tests**: three new cases in [`tests/lib/csv.acr.test.ts`](tests/lib/csv.acr.test.ts) covering the singular header, the aliases, and absence of the column.
+
 ## [2.8.2] - 2026-07-16
 ### Fixed
 - **ACR container-image context missing from the vulnerability detail view** — ACR findings ingested in v2.8.0 stored `registryName`, `repository`, `imageDigest`, `packageName`, `installedVersion`, and `timeGenerated` on every row (and the list API already returned them), but the Vulnerabilities detail side-sheet never rendered them. An assignee looking at a container CVE had no way to tell **which image digest** the finding came from when multiple tags/digests exist for the same repository. The detail sheet now shows a **"Container Image"** section (rendered only for `scannerType = ACR`, active and archived records alike) with Registry, Repository, Image Digest (monospace, full `sha256:…` value), Package, Installed Version, and Scan Time. Because a rescan refreshes `imageDigest` on the existing finding, the digest shown is always from the most recent scan.

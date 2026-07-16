@@ -122,6 +122,7 @@ export type AcrRow = {
   registryName: string;
   repository: string;
   imageDigest: string;
+  imageTag?: string;
   severity: string;
   cveId: string;
   packageName: string;
@@ -138,6 +139,10 @@ const acrHeaders = new Map<string, keyof AcrRow>([
   ["repository", "repository"],
   ["image digest", "imageDigest"],
   ["imagedigest", "imageDigest"],
+  ["tag", "imageTag"],
+  ["tags", "imageTag"],
+  ["image tag", "imageTag"],
+  ["imagetag", "imageTag"],
   ["severity", "severity"],
   ["cve id", "cveId"],
   ["cveid", "cveId"],
@@ -212,6 +217,7 @@ export function parseAcrCsv(input: string): AcrRow[] {
       registryName: normalized.registryName,
       repository: normalized.repository,
       imageDigest: normalized.imageDigest,
+      imageTag: normalized.imageTag || undefined,
       severity: normalized.severity || "None",
       cveId: normalized.cveId,
       packageName: normalized.packageName,
