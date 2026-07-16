@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.6] - 2026-07-16
+### Security
+- **Remediate `golang.org/x/crypto` / `golang.org/x/net` CVEs still surfaced on `remediate-pentest-backend` after 2.8.4** — CVE-2026-42508 (Critical, `x/crypto/ssh`) and CVE-2026-39831 (Critical, `x/net/html`) were re-flagged against the pinned upstream tool binaries because those releases still vendor pre-0.54.0 / pre-0.57.0 modules. Downloading pre-built binaries is not sufficient. Fix: [`pentest-backend/Dockerfile`](pentest-backend/Dockerfile) now includes a new `gotools` builder stage on `golang:1.25-bookworm` that clones each Go tool at its pinned release tag (subfinder `v2.14.0`, nuclei `v3.11.0`, ffuf `v2.2.1`, katana `v1.6.1`, gau `v2.2.4`), runs `go get golang.org/x/crypto@v0.54.0 golang.org/x/net@v0.57.0 && go mod tidy`, and builds trimmed static binaries that are then `COPY --from=gotools` into the runtime stage. Dalfox v3 is a Rust rewrite and does not vendor Go's `x/crypto`, so upstream binaries continue to be consumed unchanged. No behaviour or CLI-flag change for any tool; images grow slightly from the rebuild but shed the download step at runtime.
+
 ## [2.8.5] - 2026-07-16
 ### Fixed
 - **Worker crash on startup after 2.8.4 image prune** — `tsx` was a devDependency, so the new `prod-deps` stage introduced in 2.8.4 (which runs `npm install --omit=dev`) stripped it from the runtime image. `scripts/worker-entrypoint.sh` invokes both `npx tsx /app/scripts/optimize-db.ts` and `npm run worker` (which resolves to `tsx scripts/worker.ts`), so every worker replica crashed with `sh: 1: tsx: not found` after `optimize-db` completed. Fix: moved `tsx` from `devDependencies` to `dependencies` in `package.json` so the pruned runtime tree keeps it. No behaviour change for the app container (Next.js does not use `tsx` at runtime); the worker container recovers on redeploy.
