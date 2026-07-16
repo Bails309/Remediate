@@ -53,13 +53,24 @@ WORKDIR /app
 # Apply the latest Debian security patches (openssl, libc6, zlib, glibc, etc.)
 # on top of the base image and upgrade the globally-installed npm to a
 # release whose bundled deps (sigstore/@sigstore/*, tar, brace-expansion,
-# ip-address, js-yaml, undici) are patched. This clears the batch of npm-
-# CLI-bundled CVEs surfaced by ACR scans on the app and worker images.
+# ip-address, js-yaml, undici, minimatch) are patched. This clears the
+# batch of npm-CLI-bundled CVEs surfaced by ACR scans on the app and
+# worker images.
+#
+# NPM_VERSION is pinned (rather than @latest) so:
+#   1) Docker layer caching cannot silently regress the bundled-dep set
+#      across rebuilds, and
+#   2) the exact CVE-clearing release is auditable in git history.
+# Bump on new npm-bundled-dep advisories. npm@12.0.1 ships
+# tar@^7.5.19, minimatch@^10.2.5, @sigstore/tuf@^5.0.0 (sigstore 4.x),
+# which clears CVE-2026-23745/23950/24842/26960/26996/27903/27904/29786/
+# 31802/48815 (and their siblings) reported against the previous npm 11.x.
+ARG NPM_VERSION=12.0.1
 RUN apt-get update -y \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g npm@latest \
+  && npm install -g npm@${NPM_VERSION} \
   && npm cache clean --force
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

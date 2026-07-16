@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.8] - 2026-07-16
+### Security
+- **Remediate ACR image CVEs re-flagged on `remediate-app` and `remediate-worker` for npm-bundled dependencies (`sigstore`, `tar`, `minimatch`)** — the 2.8.4 fix (`npm install -g npm@latest`) worked at build time but the resulting layer got cached in the registry, so subsequent rebuilds shipped the same npm 11.16.0 tree (`sigstore 2.3.1`, `tar 6.2.1`, `minimatch 9.0.5`) even as new advisories dropped. Fix in [`Dockerfile`](Dockerfile) `base-runner`: replace `npm@latest` with a pinned `ARG NPM_VERSION=12.0.1` so (a) Docker layer caching cannot regress the bundled-dep set silently and (b) the exact CVE-clearing release is auditable in git history. `npm@12.0.1` ships `tar@^7.5.19`, `minimatch@^10.2.5`, and `@sigstore/tuf@^5.0.0` (which brings the `sigstore` 4.x line). Clears **CVE-2026-48815** (sigstore, High), **CVE-2026-31802 / 29786 / 26960 / 24842 / 23950 / 23745** (tar cluster, all High), and **CVE-2026-27904 / 27903 / 26996** (minimatch cluster, High). Bump `NPM_VERSION` on future advisories.
+
 ## [2.8.7] - 2026-07-16
 ### Security
 - **Clear remaining npm advisories flagged by Dependabot after the 2.8.4 override batch** — upstream fixes have since shipped for the four `nodemailer` CVEs that were previously suppressed via [`.audit-allowlist.json`](.audit-allowlist.json), plus new advisories landed against dev-scoped `vite`, `js-yaml`, and `@babel/core`. Bumps in [`package.json`](package.json):
