@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.1] - 2026-07-16
+### Fixed
+- **Worker crash loop against clustered Azure Cache for Redis over TLS** — `getBullmqConnection()` in [`lib/redis.ts`](lib/redis.ts) previously dropped TLS options when constructing the BullMQ `Redis.Cluster` client, while the general shared client path (`buildRedisInstance`) forwarded them correctly. On deployments where `REDIS_CLUSTER_MODE=true` and `REDIS_URL` uses `rediss://` (Azure Cache for Redis with clustering + TLS), every BullMQ Worker / Queue attempted its shard connections without TLS, the handshake was closed by the server, and each worker crash-looped every ~2 s with `ClusterAllFailedError: Failed to refresh slots cache. lastNodeError: Error: Connection is closed` across `{upload-queue}`, `{threat-ingestion}`, and `{pentest-pdf-queue}`. The cluster branch of `getBullmqConnection` now forwards `tls: { rejectUnauthorized }` (honouring `REDIS_TLS_REJECT_UNAUTHORIZED`) so every discovered shard negotiates TLS the same way the general client already did. No configuration change required — existing `REDIS_CLUSTER_MODE=true` deployments recover on redeploy.
+- **Test coverage**: adds two regression tests in [`tests/lib/redis.modes.test.ts`](tests/lib/redis.modes.test.ts) — one asserts TLS is forwarded to `redisOptions.tls` when `REDIS_URL` starts with `rediss://` in cluster mode, and one asserts `REDIS_TLS_REJECT_UNAUTHORIZED=false` is respected on the same path.
+
 ## [2.8.0] - 2026-07-15
 ### Added
 - **Azure Container Registry (ACR) Vulnerability Ingest — Manual + Automated**: Extends the ingest pipeline into a new problem space (container image CVEs) while re-using the entire remediation workflow — the same `/vulnerabilities` table, dashboards, analytics, group RBAC, comments, and assignment flow that already back Nessus and pentest findings.
