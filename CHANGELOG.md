@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.13] - 2026-07-17
+### Added
+- **`Total` column on the "Task Count Assigned Per Tech" heatmap** (Analytics page). Each tech row now shows a per-severity breakdown *and* a rollup total (`Critical + High + Medium + Low`) so the queue size per assignee is visible at a glance without mentally summing four pills. Rendered via the existing `showTotal` prop on [`components/analytics/HeatmapTable.tsx`](components/analytics/HeatmapTable.tsx) — no data-model change required; the `Total` field was already computed server-side in [`app/(app)/analytics/page.tsx`](app/(app)/analytics/page.tsx) and used solely for sorting the top-6 techs. The cell renders red when `> 0` and emerald when zero, matching the existing zero-count colour convention.
+
 ## [2.8.12] - 2026-07-17
 ### Added
 - **"My Queue" severity donut on the Vulnerabilities page** — when a user filters to their own assignments (via the assignee dropdown or the **My Assignments** button), a compact severity breakdown now renders inline with the pagination bar. Shows a small donut of `Critical`/`High`/`Medium`/`Low`/`None` counts using the same colour palette as the row-level risk badges, plus a running total (`N open` / `N archived` depending on scope). Sits in what was previously wasted whitespace between the search filters and the results table, and does **not** push the table further down the page. Empty queue shows a dashed "0" ring with a "Nothing to triage — nice work." caption.

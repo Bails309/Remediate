@@ -506,7 +506,7 @@ export default async function AnalyticsPage({
                 <div className="space-y-6">
                     <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
                         <h3 className="mb-6 font-semibold text-lg">Task Count Assigned Per Tech</h3>
-                        <HeatmapTable title="" data={techDataTop} />
+                        <HeatmapTable title="" data={techDataTop} showTotal />
                     </div>
                 </div>
             </div>
