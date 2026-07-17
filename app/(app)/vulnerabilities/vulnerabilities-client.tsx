@@ -41,6 +41,7 @@ function renderPluginOutput(raw: string | null | undefined): string {
 }
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Dialog } from "@/components/Dialog";
+import { MyQueueSeverityChart } from "@/components/analytics/MyQueueSeverityChart";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -1078,9 +1079,21 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-400">
-          Showing {(page - 1) * pageSize + (data.length ? 1 : 0)}
-          -{(page - 1) * pageSize + data.length} of {total}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="text-sm font-medium text-slate-700 dark:text-slate-400">
+            Showing {(page - 1) * pageSize + (data.length ? 1 : 0)}
+            -{(page - 1) * pageSize + data.length} of {total}
+          </div>
+          {session?.user?.id && assigneeId === session.user.id && (
+            <div className="hidden h-6 w-px bg-slate-200 dark:bg-white/10 sm:block" aria-hidden />
+          )}
+          {session?.user?.id && assigneeId === session.user.id && (
+            <MyQueueSeverityChart
+              scope={viewScope}
+              assigneeId={assigneeId}
+              refreshKey={total}
+            />
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Select
