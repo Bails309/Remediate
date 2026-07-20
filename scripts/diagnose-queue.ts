@@ -114,7 +114,7 @@ async function main() {
     } else {
       console.log("\nNo {site:*}:upload-lock keys held.");
     }
-  } catch (e) {
+  } catch {
     // KEYS may fail on managed Redis with restricted commands
     console.log("\n(Could not enumerate site locks — KEYS command may be restricted.)");
   }

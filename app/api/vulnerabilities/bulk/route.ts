@@ -93,7 +93,6 @@ export async function POST(request: NextRequest) {
         // Reassign to someone else: only allowed when user is a leader of each
         // vuln's group AND the target is also a member of that group.
         for (const v of victims) {
-          // eslint-disable-next-line no-await-in-loop
           const ok = await canReassign(false, ctx, userId, v, payload.assigneeId);
           if (!ok) {
             return NextResponse.json(

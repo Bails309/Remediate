@@ -83,19 +83,14 @@ type Props = {
  * their selection persists per-browser via localStorage.
  */
 export function MyQueueSeverityChart({ scope, assigneeId, refreshKey = 0 }: Props) {
-  const [summary, setSummary] = useState<SummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hiddenStatuses, setHiddenStatuses] = useState<string[]>([]);
+  // Lazy initializer reads localStorage once on the first client render.
+  // (`loadHiddenStatuses` returns [] during SSR; the initial render is the
+  // loading skeleton either way, so there is no hydration mismatch.)
+  const [hiddenStatuses, setHiddenStatuses] = useState<string[]>(() => loadHiddenStatuses());
   const [filterOpen, setFilterOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const statusCatalog = scope === "archived" ? ARCHIVED_STATUSES : ACTIVE_STATUSES;
-
-  // Hydrate hidden-statuses from localStorage on first mount.
-  useEffect(() => {
-    setHiddenStatuses(loadHiddenStatuses());
-  }, []);
 
   // Close popover on click-outside.
   useEffect(() => {
@@ -117,11 +112,20 @@ export function MyQueueSeverityChart({ scope, assigneeId, refreshKey = 0 }: Prop
 
   const includedStatusesKey = includedStatuses.join(",");
 
+  // One state cell keyed by the query it answers. `loading` and `error` are
+  // derived at render time by comparing the stored key against the current
+  // query key, so the fetch effect never calls setState synchronously (which
+  // the react-hooks/set-state-in-effect rule flags for cascading renders).
+  const queryKey = `${scope}|${assigneeId}|${refreshKey}|${includedStatusesKey}`;
+  const [result, setResult] = useState<{
+    key: string;
+    summary: SummaryResponse | null;
+    error: string | null;
+  } | null>(null);
+
   useEffect(() => {
     if (!assigneeId) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     const params = new URLSearchParams({ scope, assigneeId });
     if (includedStatusesKey) params.set("statuses", includedStatusesKey);
@@ -132,19 +136,29 @@ export function MyQueueSeverityChart({ scope, assigneeId, refreshKey = 0 }: Prop
         return (await res.json()) as SummaryResponse;
       })
       .then((data) => {
-        if (!cancelled) setSummary(data);
+        if (!cancelled) setResult({ key: queryKey, summary: data, error: null });
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setResult({
+            key: queryKey,
+            summary: null,
+            error: err instanceof Error ? err.message : "Failed to load",
+          });
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [scope, assigneeId, refreshKey, includedStatusesKey]);
+  }, [scope, assigneeId, refreshKey, includedStatusesKey, queryKey]);
+
+  // Derived request state: a result answering a different query key means the
+  // current query is still in flight. Keep showing the previous summary while
+  // a refetch runs (matches the previous behaviour).
+  const loading = !result || result.key !== queryKey;
+  const summary = result?.summary ?? null;
+  const error = !loading ? result?.error ?? null : null;
 
   const toggleStatus = (value: string) => {
     setHiddenStatuses((prev) => {
