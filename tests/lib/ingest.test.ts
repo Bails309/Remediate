@@ -32,7 +32,7 @@ const mockSetProgress = vi.fn();
 
 // Register module mocks at top-level so vitest can hoist them correctly
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("@/lib/csv", () => ({ parseNessusCsv: vi.fn() }));
+vi.mock("@/lib/csv", () => ({ parseNessusCsv: vi.fn(), parseAcrCsv: vi.fn() }));
 vi.mock("@/lib/progress", () => ({ setProgress: mockSetProgress }));
 vi.mock("@/lib/redis", () => ({ redis: mockRedis }));
 vi.mock("@/lib/queue", () => ({ getLockKey: (siteId: string) => `lock:${siteId}` }));
@@ -205,6 +205,108 @@ describe("processNessusUpload", () => {
     // Verify that history was updated
     expect(mockPrisma.vulnerabilityHistory.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ["h1"] } },
+      data: { lastSeenAt: expect.any(Date) },
+    });
+  });
+});
+
+describe("processAcrUpload", () => {
+  it("does not recreate ACR findings that are in history as NoFixAvailable", async () => {
+    mockRedis.set.mockResolvedValue("OK");
+    mockStorage.read.mockResolvedValue("acr-csv-data");
+
+    const { parseAcrCsv } = await import("@/lib/csv");
+    (parseAcrCsv as any).mockImplementation(() => [
+      {
+        cveId: "CVE-2024-9999",
+        registryName: "myregistry",
+        repository: "myrepo",
+        packageName: "openssl",
+        installedVersion: "1.1.1",
+        severity: "High",
+        imageDigest: "sha256:abc",
+        imageTag: "latest",
+        description: "desc",
+        remediation: "upgrade",
+        timeGenerated: "2026-07-01T00:00:00Z",
+      },
+    ]);
+
+    // No matching active vulnerability
+    mockPrisma.vulnerability.findMany.mockResolvedValue([]);
+    // But there IS a matching history record archived as NoFixAvailable
+    mockPrisma.vulnerabilityHistory.findMany.mockResolvedValue([
+      {
+        id: "h-acr-1",
+        pluginId: "CVE-2024-9999",
+        host: "myregistry/myrepo",
+        port: "openssl",
+        cve: "CVE-2024-9999",
+        status: "NoFixAvailable",
+      },
+    ]);
+    mockPrisma.vulnerabilityHistory.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({});
+    mockPrisma.vulnerability.createMany.mockResolvedValue({ count: 0 });
+    mockPrisma.uploadHistory.update.mockResolvedValue({});
+
+    const { processAcrUpload } = await import("@/lib/ingest");
+
+    await processAcrUpload({ uploadId: "acr-u1", siteId: "site-acr", storageKey: "acr-key" });
+
+    // A new Open vulnerability MUST NOT be created for an archived NoFixAvailable finding.
+    expect(mockPrisma.vulnerability.createMany).not.toHaveBeenCalled();
+    // The history row's lastSeenAt should be refreshed so it stays discoverable.
+    expect(mockPrisma.vulnerabilityHistory.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["h-acr-1"] } },
+      data: { lastSeenAt: expect.any(Date) },
+    });
+  });
+
+  it("does not recreate ACR findings that are in history as FalsePositive", async () => {
+    mockRedis.set.mockResolvedValue("OK");
+    mockStorage.read.mockResolvedValue("acr-csv-data");
+
+    const { parseAcrCsv } = await import("@/lib/csv");
+    (parseAcrCsv as any).mockImplementation(() => [
+      {
+        cveId: "CVE-2024-1111",
+        registryName: "myregistry",
+        repository: "myrepo",
+        packageName: "curl",
+        installedVersion: "7.88.1",
+        severity: "Medium",
+        imageDigest: "sha256:def",
+        imageTag: "stable",
+        description: "desc",
+        remediation: "upgrade",
+        timeGenerated: "2026-07-01T00:00:00Z",
+      },
+    ]);
+
+    mockPrisma.vulnerability.findMany.mockResolvedValue([]);
+    mockPrisma.vulnerabilityHistory.findMany.mockResolvedValue([
+      {
+        id: "h-acr-fp-1",
+        pluginId: "CVE-2024-1111",
+        host: "myregistry/myrepo",
+        port: "curl",
+        cve: "CVE-2024-1111",
+        status: "FalsePositive",
+      },
+    ]);
+    mockPrisma.vulnerabilityHistory.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({});
+    mockPrisma.vulnerability.createMany.mockResolvedValue({ count: 0 });
+    mockPrisma.uploadHistory.update.mockResolvedValue({});
+
+    const { processAcrUpload } = await import("@/lib/ingest");
+
+    await processAcrUpload({ uploadId: "acr-u2", siteId: "site-acr", storageKey: "acr-key-2" });
+
+    expect(mockPrisma.vulnerability.createMany).not.toHaveBeenCalled();
+    expect(mockPrisma.vulnerabilityHistory.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["h-acr-fp-1"] } },
       data: { lastSeenAt: expect.any(Date) },
     });
   });

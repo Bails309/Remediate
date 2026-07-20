@@ -419,6 +419,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
     }
 
     const activeMap = new Map<string, { id: string }>();
+    const historyMap = new Map<string, { id: string }>();
     const keyList = Array.from(uniqueKeys.values());
 
     for (let i = 0; i < keyList.length; i += chunkSize) {
@@ -454,6 +455,29 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
           activeMap.set(key, { id: item.id });
         }
       }
+
+      // Also check the archive: FalsePositive / NoFixAvailable rows have been
+      // moved out of `vulnerability` into `vulnerabilityHistory`. If the same
+      // finding reappears in a subsequent scan we must NOT create a new Open
+      // issue — the user has already made a determination on it. Just refresh
+      // its lastSeenAt so it stays discoverable in the archive view. This
+      // mirrors the Nessus ingest reconciliation.
+      const history = await prisma.vulnerabilityHistory.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.ACR,
+          status: { in: [VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
+          OR: orClause,
+        },
+        orderBy: { lastSeenAt: "desc" },
+      });
+
+      for (const item of history) {
+        const key = `${item.pluginId}|${item.host}|${item.port}`;
+        if (!historyMap.has(key)) {
+          historyMap.set(key, { id: item.id });
+        }
+      }
     }
 
     // Mark all current ACR rows for this site as stale; the reconciliation
@@ -464,6 +488,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
     });
 
     const touchIds: string[] = [];
+    const touchHistoryIds: string[] = [];
     const createData: Prisma.VulnerabilityCreateManyInput[] = [];
 
     let processed = 0;
@@ -473,9 +498,14 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
       const port = row.packageName;
       const key = `${pluginId}|${host}|${port}`;
       const active = activeMap.get(key);
+      const history = historyMap.get(key);
 
       if (active) {
         touchIds.push(active.id);
+      } else if (history) {
+        // Finding was previously archived as FalsePositive / NoFixAvailable.
+        // Keep it archived — just refresh lastSeenAt so it's discoverable.
+        touchHistoryIds.push(history.id);
       } else {
         createData.push({
           siteId,
@@ -556,6 +586,17 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
           });
         }),
       );
+    }
+
+    // Refresh lastSeenAt on archived (FalsePositive / NoFixAvailable) rows
+    // whose findings reappeared in this scan. Do NOT resurrect them into the
+    // active table — the user's determination is preserved.
+    for (let i = 0; i < touchHistoryIds.length; i += chunkSize) {
+      const chunk = touchHistoryIds.slice(i, i + chunkSize);
+      await prisma.vulnerabilityHistory.updateMany({
+        where: { id: { in: chunk } },
+        data: { lastSeenAt: batchTime },
+      });
     }
 
     if (createData.length > 0) {
