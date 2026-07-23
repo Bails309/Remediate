@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.8.17] - 2026-07-23
+### Security
+- **Bumped `next` from `^16.2.6` to `^16.2.11`** to patch four high-severity Next.js advisories flagged by the CI `audit-filter` gate:
+  - GHSA-6gpp-xcg3-4w24 — middleware / proxy bypass in App Router with Turbopack + single locale.
+  - GHSA-m99w-x7hq-7vfj — DoS in App Router Server Actions.
+  - GHSA-89xv-2m56-2m9x — SSRF in Server Actions on custom servers.
+  - GHSA-p9j2-gv94-2wf4 — SSRF in rewrites via attacker-controlled destination hostname.
+- **Bumped `sharp` to `^0.35.3` and added an npm `overrides` entry** for `sharp` in [`package.json`](package.json) to force the patched version through Next.js's nested `optionalDependencies` (which otherwise pinned `sharp@0.34.5`). Addresses GHSA-f88m-g3jw-g9cj (inherited libvips CVE-2026-33327 / -33328 / -35590 / -35591). `npm audit --omit=dev` now reports 0 vulnerabilities and the CI `audit-filter` gate (level `high`) passes with 0 blocking advisories.
+
 ## [2.8.16] - 2026-07-23
 ### Added
 - **New `AwaitingVendor` vulnerability status** for findings escalated to an upstream vendor/supplier where the fix is out of the team's hands. Treated as an **active** status (same tier as `InProgress` / `InProgressWithCR` / `Sunset`) so the item stays in the triage queue, in the weekly assignment digest and leader digest, and in analytics/dashboard "active queue" metrics — rather than being archived like `Remediated` / `FalsePositive` / `NoFixAvailable`. Renders as a **teal** status dot on [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx) so it's visually distinct from the blue/indigo `InProgress*` and orange `Sunset` badges. Added to:
