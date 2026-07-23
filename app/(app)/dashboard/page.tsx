@@ -33,7 +33,7 @@ export default async function DashboardPage({
     .filter((s) => UUID_RE.test(s));
 
   // Get counts of logical issues (unique groups) per risk
-  const conditions: string[] = [`status IN ('Open', 'InProgress', 'InProgressWithCR')`];
+  const conditions: string[] = [`status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor')`];
   const values: (string | number)[] = [];
   if (bucketIds.length > 0) {
     const placeholders = bucketIds.map((_, i) => `$${i + 1}::uuid`).join(", ");

@@ -3,11 +3,12 @@ import { getReportConfig } from "./reports";
 import { sendEmail } from "./email";
 import { renderWeeklyAssignmentEmail, renderLeaderGroupDigest, AssignmentItem, LeaderGroupAssignmentItem } from "./assignment-email";
 // Using internal types to bypass environment-specific Prisma export issues while maintaining lint compliance
-type VulnerabilityStatusLabel = "Open" | "InProgress" | "InProgressWithCR" | "Remediated" | "FalsePositive" | "NoFixAvailable" | "Sunset";
+type VulnerabilityStatusLabel = "Open" | "InProgress" | "InProgressWithCR" | "Remediated" | "FalsePositive" | "NoFixAvailable" | "Sunset" | "AwaitingVendor";
 const VulnerabilityStatus = {
     Open: "Open" as VulnerabilityStatusLabel,
     InProgress: "InProgress" as VulnerabilityStatusLabel,
-    InProgressWithCR: "InProgressWithCR" as VulnerabilityStatusLabel
+    InProgressWithCR: "InProgressWithCR" as VulnerabilityStatusLabel,
+    AwaitingVendor: "AwaitingVendor" as VulnerabilityStatusLabel,
 };
 
 export async function dispatchWeeklyAssignmentEmails() {
@@ -23,11 +24,11 @@ export async function dispatchWeeklyAssignmentEmails() {
     // We only include the primary assignee
     const users = await prisma.user.findMany({
         where: {
-            vulnerabilities: { some: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } } }
+            vulnerabilities: { some: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.AwaitingVendor] } } }
         },
         include: {
             vulnerabilities: {
-                where: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] } }
+                where: { status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.AwaitingVendor] } }
             }
         }
     });
@@ -113,7 +114,7 @@ export async function dispatchWeeklyAssignmentEmails() {
                 }).vulnerability.findMany({
                     where: {
                         groupId: m.groupId,
-                        status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR] },
+                        status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.AwaitingVendor] },
                     },
                     select: {
                         id: true,

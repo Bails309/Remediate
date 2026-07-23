@@ -59,6 +59,7 @@ const statusDotMap: Record<string, string> = {
   InProgress: "bg-blue-500",
   InProgressWithCR: "bg-indigo-500",
   Sunset: "bg-orange-400",
+  AwaitingVendor: "bg-teal-500",
 };
 
 type Site = { id: string; name: string };
@@ -880,6 +881,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       { label: "Open", value: "Open" },
       { label: "In Progress", value: "InProgress" },
       { label: "In Progress with CR", value: "InProgressWithCR" },
+      { label: "Awaiting Vendor", value: "AwaitingVendor" },
       { label: "Sunset", value: "Sunset" },
       { label: "False Positive", value: "FalsePositive" },
       { label: "No Fix", value: "NoFixAvailable" },
@@ -1286,6 +1288,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                   { label: "Open", value: "Open" },
                   { label: "In Progress", value: "InProgress" },
                   { label: "In Progress with CR", value: "InProgressWithCR" },
+                  { label: "Awaiting Vendor", value: "AwaitingVendor" },
                   { label: "Sunset", value: "Sunset" },
                   { label: "False Positive", value: "FalsePositive" },
                   { label: "No Fix", value: "NoFixAvailable" },

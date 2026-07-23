@@ -79,7 +79,7 @@ export default async function AnalyticsPage({
         active_vulns AS (
             SELECT risk, "createdAt", NULL::timestamp as "archivedAt", "siteId"
             FROM "Vulnerability"
-            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR')
+            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor')
             AND status != 'Sunset'
             UNION ALL
             SELECT risk, "createdAt", "archivedAt", "siteId"
@@ -118,7 +118,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset' AND "assigneeId" IS NULL
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset' AND "assigneeId" IS NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY risk
@@ -141,7 +141,7 @@ export default async function AnalyticsPage({
         SELECT "siteId"::text as "siteId", risk::text, count(*)::int as count FROM (
             SELECT DISTINCT ON (name, host, port, "pluginId") "siteId", risk
             FROM "Vulnerability"
-            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
+            WHERE status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY "siteId", risk
@@ -197,7 +197,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") "assigneeId", risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset' AND "assigneeId" IS NOT NULL
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset' AND "assigneeId" IS NOT NULL
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY "assigneeId", risk
@@ -268,6 +268,7 @@ export default async function AnalyticsPage({
         Open: "#ef4444",         // Red
         InProgress: "#3b82f6",   // Blue
         InProgressWithCR: "#6366f1", // Indigo
+        AwaitingVendor: "#14b8a6",   // Teal
         Remediated: "#22c55e",   // Green
         FalsePositive: "#eab308", // Yellow
         NoFixAvailable: "#8b5cf6" // Purple
@@ -286,7 +287,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") host, risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY host, risk
@@ -316,7 +317,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") name, risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", risk ASC
         ) as groups
         GROUP BY name, risk
@@ -346,7 +347,7 @@ export default async function AnalyticsPage({
             SELECT DISTINCT ON (name, host, port, "pluginId") "createdAt", risk
             FROM "Vulnerability"
             ${whereClause}
-            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR') AND status != 'Sunset'
+            ${whereClause ? "AND" : "WHERE"} status IN ('Open', 'InProgress', 'InProgressWithCR', 'AwaitingVendor') AND status != 'Sunset'
             ORDER BY name, host, port, "pluginId", "createdAt" ASC
         ) as groups
     `, ...values)) as AgingRow[];

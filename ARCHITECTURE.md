@@ -63,8 +63,9 @@ A high-level view of Remediate components and interactions.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
 
 ## Vulnerability Lifecycle
-- **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
-- **Active Statuses**: `Open`, `InProgress`, `InProgressWithCR`, and `Sunset` remain in the triage queue.
+- **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
+- **Active Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, and `Sunset` remain in the triage queue.
+- **AwaitingVendor**: For findings escalated to an upstream vendor/supplier where the fix is out of the team's hands. Counted alongside `InProgress*` in the active queue (analytics/dashboard/leader digest) so the workload stays visible, but visually distinguished (teal dot) so triage can filter or prioritise it.
 - **Sunset**: Keeps items visible for tracking but excludes them from analytics metrics. A dedicated analytics section tracks sunset items separately.
 - **Comments**: Vulnerabilities support threaded comments. Admins, assignees, and collaborators can add, edit, and delete comments. Comment counts are surfaced as badges on table rows.
 

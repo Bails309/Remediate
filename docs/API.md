@@ -53,7 +53,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 
 ### Vulnerability statuses
 
-`Open`, `InProgress`, `InProgressWithCR`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`. Validated server-side as a `z.enum`.
+`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`. Validated server-side as a `z.enum`.
 
 ---
 

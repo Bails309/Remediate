@@ -136,7 +136,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
         where: {
           siteId,
           scannerType: ScannerType.NESSUS,
-          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.Sunset] },
+          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.Sunset, VulnerabilityStatus.AwaitingVendor] },
           OR: orClause,
         },
         orderBy: { lastSeenAt: "desc" },
@@ -442,6 +442,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
               VulnerabilityStatus.InProgress,
               VulnerabilityStatus.InProgressWithCR,
               VulnerabilityStatus.Sunset,
+              VulnerabilityStatus.AwaitingVendor,
             ],
           },
           OR: orClause,

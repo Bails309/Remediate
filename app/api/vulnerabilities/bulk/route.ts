@@ -17,13 +17,13 @@ import type { NextRequest } from "next/server";
 
 const bulkSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
-  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR", "Sunset"]).optional(),
+  status: z.enum(["Open", "Remediated", "FalsePositive", "NoFixAvailable", "InProgress", "InProgressWithCR", "Sunset", "AwaitingVendor"]).optional(),
   assigneeId: z.string().uuid().nullable().optional(),
   groupId: z.string().uuid().nullable().optional(),
   crNumber: z.string().optional(),
 });
 
-const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR", "Sunset"];
+const ACTIVE_STATUSES = ["Open", "InProgress", "InProgressWithCR", "Sunset", "AwaitingVendor"];
 
 export async function POST(request: NextRequest) {
   const rate = await enforceRateLimit(request);

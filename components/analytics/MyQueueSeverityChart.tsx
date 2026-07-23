@@ -31,6 +31,7 @@ const ACTIVE_STATUSES: Array<{ value: string; label: string }> = [
   { value: "Open", label: "Open" },
   { value: "InProgress", label: "In Progress" },
   { value: "InProgressWithCR", label: "In Progress with CR" },
+  { value: "AwaitingVendor", label: "Awaiting Vendor" },
   { value: "Sunset", label: "Sunset" },
   { value: "FalsePositive", label: "False Positive" },
   { value: "NoFixAvailable", label: "No Fix" },

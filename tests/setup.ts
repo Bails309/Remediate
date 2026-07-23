@@ -38,6 +38,7 @@ const VulnerabilityStatus = {
     InProgress: "InProgress",
     InProgressWithCR: "InProgressWithCR",
     Sunset: "Sunset",
+    AwaitingVendor: "AwaitingVendor",
 };
 const UploadStatus = {
     Processing: "Processing",
