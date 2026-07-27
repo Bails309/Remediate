@@ -1796,6 +1796,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
                       { label: "Open", value: "Open" },
                       { label: "In Progress", value: "InProgress" },
                       { label: "In Progress with CR", value: "InProgressWithCR" },
+                      { label: "Awaiting Vendor", value: "AwaitingVendor" },
                       { label: "Sunset", value: "Sunset" },
                       { label: "False Positive", value: "FalsePositive" },
                       { label: "No Fix Available", value: "NoFixAvailable" },
