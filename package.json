@@ -1,6 +1,6 @@
 {
   "name": "app",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -90,8 +90,8 @@
     "uuid": "14.0.0",
     "postcss": "8.5.25",
     "effect": "$effect",
-    "undici@^6.0.0": "6.27.0",
-    "undici@^7.0.0": "7.28.0",
+    "undici@^6.0.0": "6.28.0",
+    "undici@^7.0.0": "7.29.0",
     "@auth/core": "0.41.3",
     "sharp": "$sharp"
   }

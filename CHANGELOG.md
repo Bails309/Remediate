@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.9.3] - 2026-08-03
+### Security
+- **Bumped the `undici` npm `overrides` to patched releases** to clear 5 Dependabot advisories (1 high, 4 moderate) flagged on the default branch. `jsdom@28` (dev/test) pulled in `undici@7.28.0`, which the existing override pinned — the vulnerable version. Updated [`package.json`](package.json) overrides `undici@^7.0.0` → `7.29.0` and `undici@^6.0.0` → `6.28.0`. Advisories addressed:
+  - GHSA-8xcm-r25x-g524 (high) — downstream response desynchronization via the retry interceptor.
+  - GHSA-4cwx-7wf7-3272 — cross-user information disclosure and parse-time crash via degenerate private cache directives.
+  - GHSA-m8rv-5g2x-5cg5 — CRLF injection via a blob-like body `type` property.
+  - GHSA-jr45-8vmc-qm54 — cross-user information disclosure via whitespace around equals in `Cache-Control` directives.
+  - GHSA-v3r7-h72x-cjcm — cookie attribute injection via unsanitised domain and unparsed `setCookie` fields.
+  - `npm audit` now reports 0 vulnerabilities at the root; the backend package was already clean. Typecheck passes.
+
 ## [2.9.2] - 2026-08-03
 ### Fixed
 - **Page-level horizontal scrollbar when AI Insights returned results.** The app shell used an explicit `lg:grid-cols-[260px_1fr]` grid; a bare `1fr` track defaults to `min-width: auto`, so the content column refused to shrink below its widest child. When the AI results/summary introduced wide content, the column expanded past the viewport and produced a left-to-right scrollbar for the whole page (the vulnerabilities table's own `overflow-x-auto` couldn't contain it because its parent column was free to grow). Added `min-w-0` to the content column in [`app/(app)/layout.tsx`](app/(app)/layout.tsx) so the column stays within the viewport and inner scroll containers behave. Also hardened the AI summary banner with `min-w-0 break-words` in [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx) so a long unbroken token in an AI-generated summary can't widen the card.
