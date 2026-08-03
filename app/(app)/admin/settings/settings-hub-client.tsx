@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Database, Settings, Mail, Lock } from "lucide-react";
+import { Database, Settings, Mail, Lock, Sparkles } from "lucide-react";
 import { cn } from "@/components/cn";
 import { OidcClientForm } from "@/app/(app)/admin/oidc/oidc-client-form";
 import { StorageSettingsClient } from "@/app/(app)/admin/storage/storage-settings-client";
 import { ImportSettingsClient } from "@/app/(app)/admin/import/import-settings-client";
 import { ReportSettingsClient } from "@/app/(app)/admin/reports/report-settings-client";
+import { AiSettingsClient } from "@/app/(app)/admin/ai/ai-settings-client";
 
 const TABS = [
   { id: "auth", label: "Authentication", icon: Lock, component: OidcClientForm },
   { id: "storage", label: "Storage", icon: Database, component: StorageSettingsClient },
   { id: "import", label: "Scanner Import", icon: Settings, component: ImportSettingsClient },
   { id: "reports", label: "Reporting", icon: Mail, component: ReportSettingsClient },
+  { id: "ai", label: "AI Insights", icon: Sparkles, component: AiSettingsClient },
 ];
 
 export function SettingsHubClient() {

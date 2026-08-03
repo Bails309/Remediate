@@ -2,7 +2,12 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.8.0` (2026-07-15). The runtime expects Node.js 20 LTS, Next.js `^16.2.6`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.9.0` (2026-08-03). The runtime expects Node.js 20 LTS, Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+>
+> **v2.9.0 upgrade notes**:
+> - **Migration**: `20260803120000_add_ai_config` creates the `AiConfig` table (encrypted provider endpoint + API key, non-secret model / api-version) that backs the new AI-Powered Insights feature. It is additive and touches no existing tables. Runtime fallback via `scripts/migrate.js` applies it on first boot; the CI job in `.github/workflows/migrations.yml` is the recommended path for production.
+> - **AI insights are optional and disabled by default.** No new container is required — the query planner runs inside the existing `remediate-app` node. To enable, either configure a provider under **Settings > AI Insights** or set the `AI_*` env vars (see [`docs/AZURE_ENV_VARS.md`](docs/AZURE_ENV_VARS.md)). Ensure `remediate-app` has network egress to your chosen AI endpoint (Azure OpenAI, Azure AI Foundry, or an OpenAI-compatible `/v1` host). For air-gapped estates, point `AI_PROVIDER=openai-compatible` at a self-hosted model so no data leaves your network.
+> - **No key rotation impact** unless you enable the feature: the endpoint and API key are encrypted with `AUTH_SECRET`, so rotating `AUTH_SECRET` requires re-entering the AI key alongside the existing OIDC / SMTP / storage secrets.
 >
 > **v2.8.0 upgrade notes**:
 > - **Migration**: `20260715120000_add_acr_scanner_type` introduces the `ScannerType` enum (`NESSUS`, `ACR`), backfills every existing `Vulnerability` and `VulnerabilityHistory` row to `NESSUS`, adds the `AzureBlobIngestConfig` table (FK: `defaultSiteId → Site.id ON DELETE SET NULL`), and extends the composite dedup key to `(siteId, scannerType, pluginId, host, port)`. Runtime fallback via `scripts/migrate.js` will apply it on first boot; the CI job in `.github/workflows/migrations.yml` is the recommended path for production.

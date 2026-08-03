@@ -192,6 +192,23 @@ model OidcConfig {
   updatedAt        DateTime @updatedAt
 }
 
+// Connection settings for the AI-powered natural-language insights feature.
+// `providerType` selects the request shape (Azure OpenAI deployment URLs, Azure
+// AI Foundry, or any OpenAI-compatible /v1 endpoint such as OpenAI or Ollama).
+// `baseUrlEnc` and `apiKeyEnc` are AES-256-GCM encrypted (see lib/crypto). The
+// `model` (deployment name for Azure) and `apiVersion` are non-secret.
+model AiConfig {
+  id           String   @id @default(uuid()) @db.Uuid
+  enabled      Boolean  @default(true)
+  providerType String   @default("openai-compatible")
+  baseUrlEnc   String
+  apiKeyEnc    String
+  model        String
+  apiVersion   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model ReportConfig {
   id             String   @id @default(uuid()) @db.Uuid
   enabled        Boolean  @default(false)

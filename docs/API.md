@@ -74,6 +74,20 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | `PUT` | `/api/uploads/dead-letter` | 👑 | Bulk requeue all dead-letter entries. |
 | `DELETE` | `/api/uploads/dead-letter` | 👑 | Permanently removes a dead-letter entry. Query: `jobId`. |
 
+---
+
+## AI-Powered Insights
+
+Natural-language querying of the active vulnerability table. The language model **never receives vulnerability data** — it only translates the question into a strict, Zod-validated query specification (`lib/ai/query-spec.ts`), which is executed deterministically with Prisma under the caller's RBAC / group-visibility rules. Requires an admin to configure a provider (see the **AI Insights** tab in Admin → Settings, or the `AI_*` environment variables in [`AZURE_ENV_VARS.md`](AZURE_ENV_VARS.md)).
+
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/vulnerabilities/insights` | 🔒 | Reports whether the natural-language bar should be shown: `{ available: boolean }`. |
+| `POST` | `/api/vulnerabilities/insights` | 🔒 | Body: `{ question: string }` (3–500 chars). Plans a query via the configured model, executes it under the caller's visibility wall, and returns `{ summary, spec, items, total, limited }`. Rate-limited; audited as `ai_insight_query`. `400` when AI is unconfigured/disabled, `422` when the question can't be turned into a valid plan, `502` on provider error. |
+| `GET` | `/api/admin/ai` | 👑 | Returns the current provider configuration with the API key masked. |
+| `POST` | `/api/admin/ai` | 👑 | Upserts the provider configuration (endpoint + key encrypted at rest). Submitting `********` as the key preserves the stored secret. |
+| `POST` | `/api/admin/ai/test` | 👑 | Sends a minimal prompt to verify connectivity and credentials (accepts unsaved form overrides). |
+
 ### `scannerType` (v2.8.0)
 Every ingest job carries a `scannerType`:
 - `NESSUS` — processed by `lib/ingest.ts#processNessusUpload`. Sources: `/api/uploads/nessus`, `/api/uploads/pentest`.

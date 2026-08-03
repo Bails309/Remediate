@@ -40,6 +40,17 @@ Two operational knobs are still relevant at the container level:
 - **BullMQ / Redis**: the ACR ingest scheduler runs inside the worker container and enqueues on the shared `{upload-queue}` queue \u2014 no additional Redis config is required beyond the standard `REDIS_URL` / `REDIS_CLUSTER_MODE`.
 - **Migrations**: applying the `20260715120000_add_acr_scanner_type` migration is a prerequisite for the `/admin/azure-blob-ingest` console to load. `scripts/migrate.js` handles this automatically on container startup with an advisory lock.
 
+## Optional (AI-Powered Insights — v2.9.0)
+Powers the natural-language search on the Vulnerabilities page. Preferred configuration is the **AI Insights** tab under `/admin/settings` (endpoint + key are AES-256-GCM encrypted in the `AiConfig` table). These environment variables are a declarative fallback used only when no database row exists:
+- `AI_PROVIDER`: one of `azure-openai`, `foundry`, `openai-compatible`.
+- `AI_BASE_URL`: provider endpoint. Azure OpenAI resource root (`https://<res>.openai.azure.com`); Foundry models endpoint (`https://<res>.services.ai.azure.com/models`); or any OpenAI-compatible base including the version segment (`https://api.openai.com/v1`, `http://ollama:11434/v1`).
+- `AI_API_KEY`: provider API key.
+- `AI_MODEL`: model name — the **deployment name** for `azure-openai`.
+- `AI_API_VERSION`: *(Azure only)* e.g. `2024-10-21`.
+- `AI_INSIGHTS_ENABLED`: set to `false` to keep the feature switched off even when the other vars are present.
+
+> The model never receives vulnerability data — it only produces a validated query plan that the app executes under existing RBAC. Configuring this is optional; the "Ask AI" bar stays hidden until it is enabled.
+
 ## Optional (local/dev only)
 - `LOCAL_AUTH_ENABLED`, `LOCAL_AUTH_USER`, `LOCAL_AUTH_PASS`, `LOCAL_AUTH_EMAIL`, `LOCAL_AUTH_NAME`
 

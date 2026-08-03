@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.8.17 (2026-07-23)</p>
+  <p><strong>Version:</strong> 2.9.0 (2026-08-03)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -19,7 +19,9 @@ The platform features **Organizational Buckets** (formerly Sites), providing a f
 
 **Multi-scanner ingest** (v2.8.0) introduces a `ScannerType` enum (`NESSUS`, `ACR`) that scopes every reconciliation query so ACR and Nessus scans of the same bucket cannot archive each other. See the [Azure Container Registry Ingest](#azure-container-registry-ingest-v280) section below for the operator overview.
 
-Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
+**AI-Powered Insights** (v2.9.0) add a natural-language search bar to the Vulnerabilities page: operators can ask questions like *"Show me the most critical vulnerabilities that already have fixes available"* or *"Which packages should I prioritise updating first?"* instead of hand-assembling filters. The design is **privacy-first** — the language model never receives vulnerability data; it only translates the question into a strict, schema-validated query plan that Remediate executes deterministically under the caller's existing RBAC / group-visibility rules. The feature is **provider-abstracted** (Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible `/v1` endpoint) and stays hidden until an administrator enables it. See the [AI-Powered Insights](#ai-powered-insights-v290) section below.
+
+Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports, AI Insights) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
 Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
 
@@ -118,6 +120,15 @@ Configure via the Admin dashboard or env vars when persistent upload storage is 
 - `AZURE_STORAGE_SAS_TOKEN`
 - `AZURE_STORAGE_CONTAINER_NAME` (required when any Azure storage var is set)
 
+### AI-Powered Insights (Optional)
+Preferred configuration is the **Settings > AI Insights** dashboard (endpoint + key encrypted at rest in the `AiConfig` table). These variables are a declarative fallback used **only when no database row exists**:
+- `AI_PROVIDER`: one of `azure-openai`, `foundry`, `openai-compatible`.
+- `AI_BASE_URL`: provider endpoint (Azure OpenAI resource root, Foundry models endpoint, or an OpenAI-compatible base including the `/v1` segment).
+- `AI_API_KEY`: provider API key.
+- `AI_MODEL`: model name — the **deployment name** for Azure OpenAI.
+- `AI_API_VERSION`: *(Azure OpenAI / Foundry only)* e.g. `2024-10-21`.
+- `AI_INSIGHTS_ENABLED`: set to `false` to keep the feature off even when the other vars are present.
+
 ### Redis Requirements
 - **Modules**: None required.
 - **Eviction Policy**: `noeviction` is strongly recommended. Redis is used for job queueing and temporary payload storage; enabling eviction may lead to silent job loss if memory limits are reached.
@@ -152,6 +163,27 @@ timeGenerated, registryName, repository, imageDigest, severity, cveId, packageNa
 **Dedup key**: `(siteId, scannerType=ACR, pluginId=cveId, host, port)` where `host = "{registryName}/{repository}"`, `port = packageName`, `protocol = "container"`. `imageDigest` is stored but **excluded** from the dedup key so rescans on new digests touch the same finding rather than creating duplicates.
 
 **Storage credentials** are stored encrypted (AES-256-GCM via `lib/crypto.ts`) and never echoed back — the GET endpoint returns a `"****"` sentinel that means "keep the existing value" on save.
+
+## AI-Powered Insights (v2.9.0)
+Ask questions about your active findings in plain English instead of manually combining the risk / status / scanner / package filters. An **"Ask AI"** bar sits above the filter grid on the Vulnerabilities page; results render in the same table with a summary banner, and a **Clear** button restores normal filtering.
+
+**Example questions**
+- *"Show me the most critical vulnerabilities that already have fixes available."*
+- *"Which container packages should I prioritise updating first?"*
+- *"List internet-facing pentest findings with a CVSS of 7 or higher."*
+- *"What's still open on host web-prod-01?"*
+
+**How it works (privacy-first).** The model **never sees vulnerability data**. It receives only the question plus a description of the allowed fields, and must reply with a JSON *query plan* (severity, status, `hasFix`, `internetFacing`, package/CVE/host substrings, sort, limit). That plan is validated against a strict [Zod schema](lib/ai/query-spec.ts) — unknown keys the model might emit are stripped, so prompt-injection cannot widen the query — then translated into a Prisma `where`/`orderBy` and executed under the caller's existing **RBAC / group-visibility wall**. Non-members still cannot see grouped items, exactly as on the normal list. Every query is rate-limited and written to the audit log as `ai_insight_query`.
+
+**Providers.** The integration is abstracted over three request shapes, all speaking the OpenAI chat-completions format:
+
+| Provider | `AI_PROVIDER` | Endpoint (`AI_BASE_URL`) | Auth | `AI_MODEL` |
+| :--- | :--- | :--- | :--- | :--- |
+| Azure OpenAI | `azure-openai` | `https://<res>.openai.azure.com` | `api-key` header + `api-version` | Deployment name |
+| Azure AI Foundry | `foundry` | `https://<res>.services.ai.azure.com/models` | `api-key` header | Model name |
+| OpenAI-compatible | `openai-compatible` | e.g. `https://api.openai.com/v1`, `http://ollama:11434/v1` | `Authorization: Bearer` | Model name |
+
+**Configuration.** Configure once under **Settings > AI Insights** (endpoint and API key are AES-256-GCM encrypted in the `AiConfig` table, matching the OIDC / SMTP / storage pattern) or via the optional `AI_*` environment variables above. Use the **Test Connection** button to verify credentials before saving. The bar is hidden for all users until the feature is enabled.
 
 ## Threat Intelligence & Reports
 - **Live Feed**: View real-time vulnerability data from NVD, OSV, and CISA KEV in the Intelligence Centre.

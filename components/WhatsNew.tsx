@@ -3,50 +3,42 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, Container, CloudDownload, Layers, ShieldCheck, Zap } from "lucide-react";
+import { Sparkles, MessageSquareText, ShieldCheck, Plug, SlidersHorizontal } from "lucide-react";
 
-const TOUR_ID = "whats-new-jul-2026-v280";
+const TOUR_ID = "whats-new-aug-2026-v290";
 
 const features = [
   {
-    icon: Container,
+    icon: MessageSquareText,
     accent: "text-purple-500 dark:text-purple-400",
     bg: "bg-purple-100 dark:bg-purple-500/15",
-    title: "Azure Container Registry Ingest",
+    title: "Ask AI in Plain English",
     description:
-      "A new manual ACR CSV upload option and an automated Azure Blob container poller. Feed ACR vulnerability exports into the same triage queue, dashboards, RBAC, and comments you already use for Nessus — no separate workflow to learn.",
-  },
-  {
-    icon: CloudDownload,
-    accent: "text-cyan-500 dark:text-cyan-400",
-    bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Automated Blob Container Polling",
-    description:
-      "Point the new admin console at any Azure Blob container (its own account, container, and credentials — independent from the File Share automation). The scheduler polls on your interval, ingests every matching CSV, and deletes each blob after a successful queueing so rescans land as updates rather than duplicates.",
-  },
-  {
-    icon: Layers,
-    accent: "text-emerald-500 dark:text-emerald-400",
-    bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Multi-Scanner Data Model",
-    description:
-      "New ScannerType (NESSUS / ACR) scopes every reconciliation query. An ACR scan of a bucket never archives a Nessus finding (and vice versa) — even when they hit the same bucket in the same second. Future scanner families slot in the same way.",
+      "A new ‘Ask AI’ bar on the Vulnerabilities page lets you skip the manual filters. Ask ‘show me the most critical vulnerabilities that already have fixes available’ or ‘which packages should I prioritise updating first?’ and get a focused, sorted result set instantly.",
   },
   {
     icon: ShieldCheck,
-    accent: "text-sky-500 dark:text-sky-400",
-    bg: "bg-sky-100 dark:bg-sky-500/15",
-    title: "Encrypted Blob Credentials",
+    accent: "text-emerald-500 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    title: "Privacy-First by Design",
     description:
-      "Connection strings, account keys, and SAS tokens for the blob-ingest config are always AES-256-GCM encrypted at rest. The admin console shows a **** sentinel and treats **** on save as ‘keep the existing value’, matching the OIDC / SMTP / storage pattern you already know.",
+      "The AI never sees your vulnerability data. It only turns your question into a strict, schema-validated query plan that Remediate runs itself — under the exact same RBAC and group-visibility rules as the normal list. Prompt-injection can’t widen what you’re allowed to see.",
   },
   {
-    icon: Zap,
+    icon: Plug,
+    accent: "text-cyan-500 dark:text-cyan-400",
+    bg: "bg-cyan-100 dark:bg-cyan-500/15",
+    title: "Bring Your Own Provider",
+    description:
+      "Works with Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible /v1 endpoint — including self-hosted models like Ollama for fully air-gapped estates. Endpoint and API key are AES-256-GCM encrypted at rest, just like your OIDC and SMTP secrets.",
+  },
+  {
+    icon: SlidersHorizontal,
     accent: "text-amber-500 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "BullMQ Stuck-Uploads Fix",
+    title: "Enable It in Settings",
     description:
-      "v2.7.1 hardened the worker against Azure Redis idle-socket drops: every BullMQ Queue and Worker now owns its own connection with keepAlive and explicit reconnect-on-error triggers. A rolling QueueDepth log and a new diagnose-queue script keep the next incident visible in seconds, not hours.",
+      "AI Insights is optional and off by default. Admins configure a provider under Settings > AI Insights, use Test Connection to verify credentials, and flip it on. Every AI query is rate-limited and written to the audit log for full reviewability.",
   },
 ];
 
@@ -90,9 +82,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">July 2026 Update — v2.8.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.9.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Azure Container Registry vulnerability ingest — manual + automated — a new multi-scanner data model, and a long-term BullMQ hardening fix.
+            AI-Powered Insights: ask about your vulnerabilities in plain English. Privacy-first, provider-agnostic, and admin-gated.
           </p>
         </div>
 
