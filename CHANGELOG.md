@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.9.2] - 2026-08-03
+### Fixed
+- **Page-level horizontal scrollbar when AI Insights returned results.** The app shell used an explicit `lg:grid-cols-[260px_1fr]` grid; a bare `1fr` track defaults to `min-width: auto`, so the content column refused to shrink below its widest child. When the AI results/summary introduced wide content, the column expanded past the viewport and produced a left-to-right scrollbar for the whole page (the vulnerabilities table's own `overflow-x-auto` couldn't contain it because its parent column was free to grow). Added `min-w-0` to the content column in [`app/(app)/layout.tsx`](app/(app)/layout.tsx) so the column stays within the viewport and inner scroll containers behave. Also hardened the AI summary banner with `min-w-0 break-words` in [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx) so a long unbroken token in an AI-generated summary can't widen the card.
+
 ## [2.9.1] - 2026-08-03
 ### Fixed
 - **AI Insights: Azure AI Foundry connectivity and `gpt-5`-class model support.** The Foundry provider now targets the modern unified route `{{root}}/openai/v1/chat/completions?api-version=preview` and auto-derives the resource root, so pasting any Foundry endpoint shape works — including a project endpoint (`https://<res>.services.ai.azure.com/api/projects/<name>`), a `/models` inference endpoint, or the bare resource root ([`lib/ai/provider.ts`](lib/ai/provider.ts)). Previously it posted to `{{baseUrl}}/chat/completions` with a caller-supplied `api-version`, which returned `400 API version not supported` against project endpoints.

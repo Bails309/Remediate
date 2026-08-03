@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.9.1 (2026-08-03)</p>
+  <p><strong>Version:</strong> 2.9.2 (2026-08-03)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 

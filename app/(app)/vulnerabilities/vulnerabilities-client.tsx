@@ -1028,7 +1028,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           {aiMode && (
             <div className="mt-3 flex items-start gap-2 rounded-xl bg-accent/5 px-3 py-2 text-xs">
               <Sparkles size={14} className="mt-0.5 shrink-0 text-accent" />
-              <span className="opacity-80">
+              <span className="min-w-0 break-words opacity-80">
                 {aiSummary ? aiSummary : "Showing AI results."} Filters below are paused —{" "}
                 <button onClick={clearAiResults} className="underline hover:no-underline">
                   clear

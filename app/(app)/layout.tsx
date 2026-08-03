@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
       <div className="grid min-h-screen gap-8 p-6 lg:grid-cols-[260px_1fr]">
         <Sidebar session={session} />
-        <div className="flex flex-col gap-8">
+        <div className="flex min-w-0 flex-col gap-8">
           <Topbar session={session} />
           <main className="fade-up p-2 lg:p-6">
             {children}
