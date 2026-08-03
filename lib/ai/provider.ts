@@ -19,6 +19,21 @@ function trimTrailingSlash(url: string): string {
 }
 
 /**
+ * Reduce an Azure AI Foundry endpoint to its resource root so we can build the
+ * modern OpenAI v1 inference route. Foundry surfaces several endpoint shapes in
+ * the portal that people paste verbatim; strip the ones that aren't the root:
+ *   - https://res.services.ai.azure.com/api/projects/<project>  (project endpoint)
+ *   - https://res.services.ai.azure.com/models                  (model inference)
+ *   - https://res.services.ai.azure.com/openai/v1               (already v1)
+ */
+export function foundryResourceRoot(baseUrl: string): string {
+  let root = trimTrailingSlash(baseUrl);
+  root = root.replace(/\/api\/projects\/[^/]+$/i, "");
+  root = root.replace(/\/openai\/v1$/i, "").replace(/\/openai$/i, "").replace(/\/models$/i, "");
+  return trimTrailingSlash(root);
+}
+
+/**
  * Build the request URL + headers for a chat-completion call. Pure and
  * side-effect free so it can be unit tested against each provider shape.
  */
@@ -39,16 +54,30 @@ export function buildChatRequest(config: Pick<AiConfig, "providerType" | "baseUr
   }
 
   if (config.providerType === "foundry") {
-    // Azure AI Foundry model inference endpoint (OpenAI-compatible). The model
-    // is passed in the request body; auth is the resource api-key.
+    // Azure AI Foundry exposes the unified OpenAI v1 route at the resource root.
+    // The model is passed in the request body; auth is the resource api-key. The
+    // v1 surface expects `api-version=preview` (or `v1`), NOT a dated version.
     headers["api-key"] = config.apiKey;
-    const query = config.apiVersion ? `?api-version=${encodeURIComponent(config.apiVersion)}` : "";
-    return { url: `${base}/chat/completions${query}`, headers };
+    const apiVersion = config.apiVersion || "preview";
+    const root = foundryResourceRoot(config.baseUrl);
+    return {
+      url: `${root}/openai/v1/chat/completions?api-version=${encodeURIComponent(apiVersion)}`,
+      headers,
+    };
   }
 
   // openai-compatible: baseUrl already includes the version segment (e.g. /v1).
   headers["Authorization"] = `Bearer ${config.apiKey}`;
   return { url: `${base}/chat/completions`, headers };
+}
+
+/**
+ * Next-generation reasoning models (gpt-5 family, o-series) reject the classic
+ * `max_tokens` field (they require `max_completion_tokens`) and only support the
+ * default sampling temperature. Detect them so we can shape the body correctly.
+ */
+export function isReasoningModel(model: string): boolean {
+  return /gpt-5|(^|[-_/])o[134]([-_]|$)/i.test(model);
 }
 
 /**
@@ -82,9 +111,16 @@ export async function chatCompletion(options: ChatCompletionOptions): Promise<st
   const body: Record<string, unknown> = {
     model: bodyModel(config),
     messages,
-    temperature,
-    max_tokens: maxTokens,
   };
+  if (isReasoningModel(config.model)) {
+    // gpt-5 / o-series: use `max_completion_tokens` and leave temperature at the
+    // default. Reserve extra headroom so reasoning tokens don't starve the
+    // visible completion (which would surface as an "empty response").
+    body.max_completion_tokens = Math.max(maxTokens, 2048);
+  } else {
+    body.temperature = temperature;
+    body.max_tokens = maxTokens;
+  }
   if (json) {
     body.response_format = { type: "json_object" };
   }

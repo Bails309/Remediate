@@ -66,6 +66,23 @@ describe("chatCompletion", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
   });
 
+  it("shapes the body for reasoning models (max_completion_tokens, no temperature)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: "ok" } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await chatCompletion({
+      config: { ...BASE_CONFIG, model: "gpt-5-mini" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.temperature).toBeUndefined();
+    expect(body.max_tokens).toBeUndefined();
+    expect(body.max_completion_tokens).toBeGreaterThanOrEqual(2048);
+  });
+
   it("throws AiProviderError with the status on a non-ok response", async () => {
     vi.stubGlobal(
       "fetch",

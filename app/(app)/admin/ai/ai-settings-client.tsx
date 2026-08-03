@@ -40,9 +40,9 @@ const HINTS: Record<ProviderType, { baseUrl: string; model: string; apiVersion?:
     needsApiVersion: true,
   },
   foundry: {
-    baseUrl: "https://my-resource.services.ai.azure.com/models",
-    model: "Model name (e.g. gpt-4o-mini)",
-    apiVersion: "2024-05-01-preview",
+    baseUrl: "https://my-resource.services.ai.azure.com",
+    model: "Deployment name (e.g. gpt-5-mini)",
+    apiVersion: "preview",
     needsApiVersion: true,
   },
   "openai-compatible": {
@@ -226,6 +226,11 @@ export function AiSettingsClient() {
                 onChange={(e) => update("apiVersion", e.target.value)}
                 placeholder={hint.apiVersion}
               />
+              <p className="mt-2 text-xs text-muted-foreground">
+                {form.providerType === "foundry"
+                  ? "Use \u201cpreview\u201d (or \u201cv1\u201d) \u2014 not the model version."
+                  : "The Azure OpenAI REST API version, e.g. 2024-10-21."}
+              </p>
             </div>
           )}
         </div>

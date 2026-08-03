@@ -137,18 +137,30 @@ describe("buildChatRequest", () => {
     expect(headers.Authorization).toBeUndefined();
   });
 
-  it("builds a Foundry URL with optional api-version and api-key auth", () => {
+  it("builds a Foundry v1 URL from the resource root with api-key auth", () => {
     const { url, headers } = buildChatRequest({
       providerType: "foundry",
       baseUrl: "https://res.services.ai.azure.com/models",
       apiKey: "secret",
       model: "gpt-4o-mini",
-      apiVersion: "2024-05-01-preview",
+      apiVersion: "preview",
     });
     expect(url).toBe(
-      "https://res.services.ai.azure.com/models/chat/completions?api-version=2024-05-01-preview",
+      "https://res.services.ai.azure.com/openai/v1/chat/completions?api-version=preview",
     );
     expect(headers["api-key"]).toBe("secret");
+  });
+
+  it("normalises a Foundry project endpoint and defaults api-version to preview", () => {
+    const { url } = buildChatRequest({
+      providerType: "foundry",
+      baseUrl: "https://res.services.ai.azure.com/api/projects/remediate",
+      apiKey: "secret",
+      model: "gpt-5-mini",
+    });
+    expect(url).toBe(
+      "https://res.services.ai.azure.com/openai/v1/chat/completions?api-version=preview",
+    );
   });
 
   it("builds an OpenAI-compatible URL with Bearer auth", () => {

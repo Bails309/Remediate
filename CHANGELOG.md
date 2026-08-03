@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.9.1] - 2026-08-03
+### Fixed
+- **AI Insights: Azure AI Foundry connectivity and `gpt-5`-class model support.** The Foundry provider now targets the modern unified route `{{root}}/openai/v1/chat/completions?api-version=preview` and auto-derives the resource root, so pasting any Foundry endpoint shape works — including a project endpoint (`https://<res>.services.ai.azure.com/api/projects/<name>`), a `/models` inference endpoint, or the bare resource root ([`lib/ai/provider.ts`](lib/ai/provider.ts)). Previously it posted to `{{baseUrl}}/chat/completions` with a caller-supplied `api-version`, which returned `400 API version not supported` against project endpoints.
+  - **Request body now adapts to reasoning models.** `gpt-5` family and `o`-series (`o1`/`o3`/`o4`) deployments reject `max_tokens` and non-default `temperature`; the client now sends `max_completion_tokens` (with extra headroom so reasoning tokens don't starve the completion) and omits `temperature` for those models, while classic models keep `max_tokens` + `temperature`.
+  - **Settings UX**: the AI Insights admin form now shows the resource-root example for Foundry and clarifies that the API Version field expects `preview`/`v1` — not the model version date ([`app/(app)/admin/ai/ai-settings-client.tsx`](app/(app)/admin/ai/ai-settings-client.tsx)).
+  - **Tests**: added coverage for Foundry project-endpoint normalisation, the `preview` default, and reasoning-model body shaping across [`tests/lib/ai-insights.test.ts`](tests/lib/ai-insights.test.ts) and [`tests/lib/ai-provider.test.ts`](tests/lib/ai-provider.test.ts).
+
 ## [2.9.0] - 2026-08-03
 ### Added
 - **AI-powered natural-language insights on the Vulnerabilities page.** Operators can now ask questions in plain English — e.g. *"Show me the most critical vulnerabilities that already have fixes available"* or *"Which packages should I prioritise updating first?"* — instead of manually combining filters. An **"Ask AI"** bar sits above the existing filter grid ([`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx)); results render in the same table with a dismissible banner, and normal filters resume on **Clear**.

@@ -160,7 +160,7 @@ Vulnerabilities page  ──POST /api/vulnerabilities/insights { question }─�
 | `providerType` | URL construction | Auth header | Model location |
 | :--- | :--- | :--- | :--- |
 | `azure-openai` | `{baseUrl}/openai/deployments/{model}/chat/completions?api-version={v}` | `api-key` | deployment in URL |
-| `foundry` | `{baseUrl}/chat/completions[?api-version={v}]` | `api-key` | request body |
+| `foundry` | `{root}/openai/v1/chat/completions?api-version=preview` (root auto-derived) | `api-key` | request body |
 | `openai-compatible` | `{baseUrl}/chat/completions` | `Authorization: Bearer` | request body |
 
 ### Data model

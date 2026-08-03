@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.9.0 (2026-08-03)</p>
+  <p><strong>Version:</strong> 2.9.1 (2026-08-03)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -123,10 +123,10 @@ Configure via the Admin dashboard or env vars when persistent upload storage is 
 ### AI-Powered Insights (Optional)
 Preferred configuration is the **Settings > AI Insights** dashboard (endpoint + key encrypted at rest in the `AiConfig` table). These variables are a declarative fallback used **only when no database row exists**:
 - `AI_PROVIDER`: one of `azure-openai`, `foundry`, `openai-compatible`.
-- `AI_BASE_URL`: provider endpoint (Azure OpenAI resource root, Foundry models endpoint, or an OpenAI-compatible base including the `/v1` segment).
+- `AI_BASE_URL`: provider endpoint (Azure OpenAI resource root, Foundry resource root, or an OpenAI-compatible base including the `/v1` segment).
 - `AI_API_KEY`: provider API key.
 - `AI_MODEL`: model name — the **deployment name** for Azure OpenAI.
-- `AI_API_VERSION`: *(Azure OpenAI / Foundry only)* e.g. `2024-10-21`.
+- `AI_API_VERSION`: *(Azure OpenAI / Foundry only)* Azure OpenAI uses a dated version, e.g. `2024-10-21`; Foundry uses `preview` (the default) or `v1`.
 - `AI_INSIGHTS_ENABLED`: set to `false` to keep the feature off even when the other vars are present.
 
 ### Redis Requirements
@@ -180,7 +180,7 @@ Ask questions about your active findings in plain English instead of manually co
 | Provider | `AI_PROVIDER` | Endpoint (`AI_BASE_URL`) | Auth | `AI_MODEL` |
 | :--- | :--- | :--- | :--- | :--- |
 | Azure OpenAI | `azure-openai` | `https://<res>.openai.azure.com` | `api-key` header + `api-version` | Deployment name |
-| Azure AI Foundry | `foundry` | `https://<res>.services.ai.azure.com/models` | `api-key` header | Model name |
+| Azure AI Foundry | `foundry` | `https://<res>.services.ai.azure.com` | `api-key` header | Deployment name |
 | OpenAI-compatible | `openai-compatible` | e.g. `https://api.openai.com/v1`, `http://ollama:11434/v1` | `Authorization: Bearer` | Model name |
 
 **Configuration.** Configure once under **Settings > AI Insights** (endpoint and API key are AES-256-GCM encrypted in the `AiConfig` table, matching the OIDC / SMTP / storage pattern) or via the optional `AI_*` environment variables above. Use the **Test Connection** button to verify credentials before saving. The bar is hidden for all users until the feature is enabled.
