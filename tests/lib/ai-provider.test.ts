@@ -1,0 +1,113 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { chatCompletion, AiProviderError } from "@/lib/ai/provider";
+import type { AiConfig } from "@/lib/ai/config";
+
+const BASE_CONFIG: AiConfig = {
+  providerType: "openai-compatible",
+  baseUrl: "https://api.openai.com/v1",
+  apiKey: "secret",
+  model: "gpt-4o-mini",
+  enabled: true,
+  source: "db",
+};
+
+function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
+  return {
+    ok: init?.ok ?? true,
+    status: init?.status ?? 200,
+    json: async () => body,
+    text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
+  } as unknown as Response;
+}
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("chatCompletion", () => {
+  it("posts to the built URL and returns the assistant message content", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: "hello world" } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const content = await chatCompletion({
+      config: BASE_CONFIG,
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(content).toBe("hello world");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/chat/completions");
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("gpt-4o-mini");
+    expect(body.temperature).toBe(0);
+    expect(body.response_format).toBeUndefined();
+  });
+
+  it("adds a json response_format when json is requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: "{}" } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await chatCompletion({
+      config: BASE_CONFIG,
+      messages: [{ role: "user", content: "hi" }],
+      json: true,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("throws AiProviderError with the status on a non-ok response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse("rate limited", { ok: false, status: 429 })),
+    );
+
+    await expect(
+      chatCompletion({ config: BASE_CONFIG, messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toMatchObject({ name: "AiProviderError", status: 429 });
+  });
+
+  it("maps an aborted request to a 504 AiProviderError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" })),
+    );
+
+    await expect(
+      chatCompletion({
+        config: BASE_CONFIG,
+        messages: [{ role: "user", content: "hi" }],
+        timeoutMs: 5,
+      }),
+    ).rejects.toMatchObject({ name: "AiProviderError", status: 504 });
+  });
+
+  it("maps a network failure to a generic AiProviderError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    await expect(
+      chatCompletion({ config: BASE_CONFIG, messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toBeInstanceOf(AiProviderError);
+  });
+
+  it("throws when the provider returns no message content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ choices: [{ message: {} }] })),
+    );
+
+    await expect(
+      chatCompletion({ config: BASE_CONFIG, messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow(/empty response/i);
+  });
+});
