@@ -49,7 +49,7 @@ Powers the natural-language search on the Vulnerabilities page. Preferred config
 - `AI_API_VERSION`: *(Azure only)* e.g. `2024-10-21`.
 - `AI_INSIGHTS_ENABLED`: set to `false` to keep the feature switched off even when the other vars are present.
 
-> The model never receives vulnerability data — it only produces a validated query plan that the app executes under existing RBAC. Configuring this is optional; the "Ask AI" bar stays hidden until it is enabled.
+> The AI assistant reads finding data the caller is already permitted to see (RBAC-scoped) and can query public package registries to check for newer releases. Configuring this is optional; the "Ask AI" launcher stays hidden until it is enabled. For deployments where finding data must not leave the network, point `AI_PROVIDER=openai-compatible` at a self-hosted/air-gapped model.
 
 ## Optional (local/dev only)
 - `LOCAL_AUTH_ENABLED`, `LOCAL_AUTH_USER`, `LOCAL_AUTH_PASS`, `LOCAL_AUTH_EMAIL`, `LOCAL_AUTH_NAME`

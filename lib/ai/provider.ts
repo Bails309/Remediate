@@ -162,3 +162,106 @@ export async function chatCompletion(options: ChatCompletionOptions): Promise<st
   }
   return content;
 }
+
+/** A tool call the model asked us to run. */
+export type ToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+/**
+ * A message on the wire. Extends {@link ChatMessage} with the roles/fields needed
+ * for a tool-calling loop: assistant messages may carry `tool_calls`, and `tool`
+ * messages carry the result of a call keyed by `tool_call_id`.
+ */
+export type RawChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  name?: string;
+};
+
+export type ToolDefinition = {
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+
+export type ChatWithToolsOptions = {
+  config: AiConfig;
+  messages: RawChatMessage[];
+  tools: readonly ToolDefinition[];
+  temperature?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
+};
+
+export type AssistantTurn = {
+  content: string | null;
+  toolCalls: ToolCall[];
+};
+
+/**
+ * Single round-trip of a tool-calling chat completion. Returns the assistant
+ * message (which may contain `tool_calls` instead of, or alongside, content).
+ * The caller drives the loop: execute the tools, append `tool` messages, and
+ * call again until no more tool calls are returned.
+ */
+export async function chatWithTools(options: ChatWithToolsOptions): Promise<AssistantTurn> {
+  const { config, messages, tools, temperature = 0.2, maxTokens = 1200, timeoutMs = 30000 } = options;
+  const { url, headers } = buildChatRequest(config);
+
+  const body: Record<string, unknown> = {
+    model: bodyModel(config),
+    messages,
+    tools,
+    tool_choice: "auto",
+  };
+  if (isReasoningModel(config.model)) {
+    body.max_completion_tokens = Math.max(maxTokens, 2048);
+  } else {
+    body.temperature = temperature;
+    body.max_tokens = maxTokens;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AiProviderError("The AI provider timed out.", 504);
+    }
+    throw new AiProviderError("Could not reach the AI provider.");
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new AiProviderError(
+      `AI provider returned ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`,
+      response.status,
+    );
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | { choices?: Array<{ message?: { content?: string | null; tool_calls?: ToolCall[] } }> }
+    | null;
+  const message = payload?.choices?.[0]?.message;
+  if (!message) {
+    throw new AiProviderError("AI provider returned an empty response.");
+  }
+  return {
+    content: typeof message.content === "string" ? message.content : null,
+    toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+  };
+}

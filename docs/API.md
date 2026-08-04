@@ -78,12 +78,12 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 
 ## AI-Powered Insights
 
-Natural-language querying of the active vulnerability table. The language model **never receives vulnerability data** — it only translates the question into a strict, Zod-validated query specification (`lib/ai/query-spec.ts`), which is executed deterministically with Prisma under the caller's RBAC / group-visibility rules. Requires an admin to configure a provider (see the **AI Insights** tab in Admin → Settings, or the `AI_*` environment variables in [`AZURE_ENV_VARS.md`](AZURE_ENV_VARS.md)).
+A multi-turn AI assistant over the caller's vulnerabilities. Unlike the earlier query-planner, the model **does** receive finding data — but only the rows the caller is already permitted to see (RBAC / group-visibility is enforced inside the `search_vulnerabilities` tool). It can also call public package registries via a `get_latest_version` tool to report whether a component has a newer release. Requires an admin to configure a provider (see the **AI Insights** tab in Admin → Settings, or the `AI_*` environment variables in [`AZURE_ENV_VARS.md`](AZURE_ENV_VARS.md)). The model must support tool/function calling.
 
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/vulnerabilities/insights` | 🔒 | Reports whether the natural-language bar should be shown: `{ available: boolean }`. |
-| `POST` | `/api/vulnerabilities/insights` | 🔒 | Body: `{ question: string }` (3–500 chars). Plans a query via the configured model, executes it under the caller's visibility wall, and returns `{ summary, spec, items, total, limited }`. Rate-limited; audited as `ai_insight_query`. `400` when AI is unconfigured/disabled, `422` when the question can't be turned into a valid plan, `502` on provider error. |
+| `GET` | `/api/vulnerabilities/chat` | 🔒 | Reports whether the AI chat should be shown: `{ available: boolean }`. |
+| `POST` | `/api/vulnerabilities/chat` | 🔒 | Body: `{ messages: { role: "user"\|"assistant", content: string }[] }` (1–24 turns, last must be `user`). Runs a tool-using chat under the caller's visibility wall and returns `{ reply, tools }`. Rate-limited; audited as `ai_insight_chat`. `400` when AI is unconfigured/disabled or the payload is invalid, `502` on provider/chat error. |
 | `GET` | `/api/admin/ai` | 👑 | Returns the current provider configuration with the API key masked. |
 | `POST` | `/api/admin/ai` | 👑 | Upserts the provider configuration (endpoint + key encrypted at rest). Submitting `********` as the key preserves the stored secret. |
 | `POST` | `/api/admin/ai/test` | 👑 | Sends a minimal prompt to verify connectivity and credentials (accepts unsaved form overrides). |

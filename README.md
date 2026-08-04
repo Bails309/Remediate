@@ -19,7 +19,7 @@ The platform features **Organizational Buckets** (formerly Sites), providing a f
 
 **Multi-scanner ingest** (v2.8.0) introduces a `ScannerType` enum (`NESSUS`, `ACR`) that scopes every reconciliation query so ACR and Nessus scans of the same bucket cannot archive each other. See the [Azure Container Registry Ingest](#azure-container-registry-ingest-v280) section below for the operator overview.
 
-**AI-Powered Insights** (v2.9.0) add a natural-language search bar to the Vulnerabilities page: operators can ask questions like *"Show me the most critical vulnerabilities that already have fixes available"* or *"Which packages should I prioritise updating first?"* instead of hand-assembling filters. The design is **privacy-first** — the language model never receives vulnerability data; it only translates the question into a strict, schema-validated query plan that Remediate executes deterministically under the caller's existing RBAC / group-visibility rules. The feature is **provider-abstracted** (Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible `/v1` endpoint) and stays hidden until an administrator enables it. See the [AI-Powered Insights](#ai-powered-insights-v290) section below.
+**AI Assistant** (v2.10.0) adds a multi-turn chat to the Vulnerabilities page: operators can ask questions like *"Show me the most critical vulnerabilities that already have fixes available"* or *"Which packages should I prioritise updating first?"* instead of hand-assembling filters. The assistant reads findings through an **RBAC-scoped** `search_vulnerabilities` tool (it can only see rows the caller could already see) and checks a fixed allow-list of public package registries via `get_latest_version` to advise on upgrades. Because finding data is shared with the configured model, point it at a self-hosted/air-gapped endpoint if that data must not leave your network. The feature is **provider-abstracted** (Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible `/v1` endpoint that supports tool calling) and stays hidden until an administrator enables it. See the [AI Assistant](#ai-assistant-v2100) section below.
 
 Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports, AI Insights) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
@@ -164,8 +164,8 @@ timeGenerated, registryName, repository, imageDigest, severity, cveId, packageNa
 
 **Storage credentials** are stored encrypted (AES-256-GCM via `lib/crypto.ts`) and never echoed back — the GET endpoint returns a `"****"` sentinel that means "keep the existing value" on save.
 
-## AI-Powered Insights (v2.9.0)
-Ask questions about your active findings in plain English instead of manually combining the risk / status / scanner / package filters. An **"Ask AI"** bar sits above the filter grid on the Vulnerabilities page; results render in the same table with a summary banner, and a **Clear** button restores normal filtering.
+## AI Assistant (v2.10.0)
+Chat with an AI assistant about your active findings instead of manually combining the risk / status / scanner / package filters. An **"Ask AI"** launcher sits above the filter grid on the Vulnerabilities page and opens a multi-turn chat panel that reads your findings and can check for newer package releases.
 
 **Example questions**
 - *"Show me the most critical vulnerabilities that already have fixes available."*
@@ -173,7 +173,7 @@ Ask questions about your active findings in plain English instead of manually co
 - *"List internet-facing pentest findings with a CVSS of 7 or higher."*
 - *"What's still open on host web-prod-01?"*
 
-**How it works (privacy-first).** The model **never sees vulnerability data**. It receives only the question plus a description of the allowed fields, and must reply with a JSON *query plan* (severity, status, `hasFix`, `internetFacing`, package/CVE/host substrings, sort, limit). That plan is validated against a strict [Zod schema](lib/ai/query-spec.ts) — unknown keys the model might emit are stripped, so prompt-injection cannot widen the query — then translated into a Prisma `where`/`orderBy` and executed under the caller's existing **RBAC / group-visibility wall**. Non-members still cannot see grouped items, exactly as on the normal list. Every query is rate-limited and written to the audit log as `ai_insight_query`.
+**How it works.** The assistant is a tool-using chat. To answer, the model calls a `search_vulnerabilities` tool whose results are executed under your existing **RBAC / group-visibility wall** — so it can only ever read rows you could already see — and a `get_latest_version` tool that queries a fixed allow-list of public package registries (npm, PyPI, NuGet, Maven, RubyGems, crates.io, Packagist, Go) to tell you whether a newer, fixed release exists. Search arguments are validated against a strict [Zod schema](lib/ai/query-spec.ts) (unknown keys stripped) and there is no raw SQL in the path. Because finding data is sent to the configured model, point `AI_PROVIDER` at a self-hosted/air-gapped endpoint if that data must not leave your network. Every turn is rate-limited and written to the audit log as `ai_insight_chat`. The provider must support tool/function calling.
 
 **Providers.** The integration is abstracted over three request shapes, all speaking the OpenAI chat-completions format:
 

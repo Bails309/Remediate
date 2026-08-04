@@ -10,9 +10,10 @@ import { Badge } from "@/components/Badge";
 import { toast } from "@/lib/toast";
 import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
+import { AiChatPanel } from "@/components/AiChatPanel";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
-import { AlertTriangle, ChevronDown, ChevronRight, Globe, MessageSquare, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Globe, MessageSquare, Sparkles } from "lucide-react";
 
 // Pentest issues (imported from Trustmarque PDF) all target internet-facing systems and
 // carry a `PT`-prefixed pluginId. Surface them visually so operators triage them first.
@@ -205,13 +206,11 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const [idFilter, setIdFilter] = useState("");
   const [autoOpenTarget, setAutoOpenTarget] = useState<string | null>(null);
 
-  // AI-powered natural-language insights. When `aiMode` is active the table shows
-  // results returned by the /insights endpoint instead of the filtered query.
+  // AI assistant. A multi-turn chat panel that can read the user's findings
+  // (RBAC-scoped) and look up newer package releases. `aiAvailable` gates the
+  // launcher button on whether an admin has configured/enabled a provider.
   const [aiAvailable, setAiAvailable] = useState(false);
-  const [aiQuestion, setAiQuestion] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiMode, setAiMode] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -327,62 +326,18 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   useEffect(() => {
     // Call immediately; avoid requestAnimationFrame scheduling so tests with fake timers
     // behave deterministically and don't hang waiting for RAF to run.
-    // Skip while showing AI results so filter/paging state doesn't clobber them.
-    if (aiMode) return;
     void fetchData();
     return;
-  }, [fetchData, aiMode]);
+  }, [fetchData]);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/vulnerabilities/insights")
+    fetch("/api/vulnerabilities/chat")
       .then((r) => (r.ok ? r.json() : { available: false }))
       .then((d) => { if (active) setAiAvailable(Boolean(d.available)); })
       .catch(() => {});
     return () => { active = false; };
   }, []);
-
-  const runAiQuery = async () => {
-    const question = aiQuestion.trim();
-    if (question.length < 3) {
-      toast.error("Enter a question to ask AI.");
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const res = await fetch("/api/vulnerabilities/insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(payload.error || "AI query failed");
-        return;
-      }
-      setData(payload.items ?? []);
-      setTotal(payload.total ?? 0);
-      setAiSummary(payload.summary ?? null);
-      setAiMode(true);
-      setSelected([]);
-      setSelectedMeta({});
-      setExpandedGroups(new Set());
-      if ((payload.items ?? []).length === 0) {
-        toast.success("No matching vulnerabilities found.");
-      }
-    } catch {
-      toast.error("Network error during AI query");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const clearAiResults = () => {
-    setAiMode(false);
-    setAiSummary(null);
-    setAiQuestion("");
-    setPage(1);
-  };
 
   // Reset to first page when filters change: perform reset inline in handlers
 
@@ -999,51 +954,24 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       </div>
 
       {aiAvailable && !isArchivedView && (
-        <div className="glass glass-edge rounded-2xl p-4">
-          <div className="mb-2 flex items-center gap-2">
+        <div className="glass glass-edge flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
             <Sparkles size={16} className="text-accent" />
             <span className="text-sm font-semibold">Ask AI</span>
-            <span className="text-xs opacity-60">Ask in plain English — the AI builds the filter, your data never leaves your environment.</span>
+            <span className="text-xs opacity-60">
+              Chat about your findings — it reads the issues you can see and checks for newer package versions.
+            </span>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={aiQuestion}
-              onChange={(event) => setAiQuestion(event.target.value)}
-              placeholder='e.g. "Critical vulnerabilities that already have fixes available"'
-              onKeyDown={(event) => {
-                if (event.key === "Enter") runAiQuery();
-              }}
-            />
-            <div className="flex gap-2">
-              <Button onClick={runAiQuery} loading={aiLoading} title="Ask AI to find matching vulnerabilities">
-                Ask
-              </Button>
-              {aiMode && (
-                <Button variant="outline" onClick={clearAiResults} title="Return to normal filters">
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
-          {aiMode && (
-            <div className="mt-3 flex items-start gap-2 rounded-xl bg-accent/5 px-3 py-2 text-xs">
-              <Sparkles size={14} className="mt-0.5 shrink-0 text-accent" />
-              <span className="min-w-0 break-words opacity-80">
-                {aiSummary ? aiSummary : "Showing AI results."} Filters below are paused —{" "}
-                <button onClick={clearAiResults} className="underline hover:no-underline">
-                  clear
-                </button>{" "}
-                to resume normal filtering.
-              </span>
-              <button onClick={clearAiResults} className="ml-auto shrink-0 opacity-60 hover:opacity-100" title="Clear AI results" aria-label="Clear AI results">
-                <X size={14} />
-              </button>
-            </div>
-          )}
+          <Button onClick={() => setChatOpen(true)} title="Open the AI assistant">
+            <Sparkles size={15} className="mr-1.5" />
+            Ask AI
+          </Button>
         </div>
       )}
 
-      <div id="tour-vuln-filters" className={cn("grid gap-4 md:grid-cols-2 xl:grid-cols-6", aiMode && "pointer-events-none opacity-50")}>
+      <AiChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+
+      <div id="tour-vuln-filters" className={cn("grid gap-4 md:grid-cols-2 xl:grid-cols-6")}>
         <Select
           value={viewScope}
           onChange={(value) => {
@@ -1189,9 +1117,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-4">
           <div className="text-sm font-medium text-slate-700 dark:text-slate-400">
-            {aiMode
-              ? `Showing ${data.length} AI result${data.length === 1 ? "" : "s"}`
-              : `Showing ${(page - 1) * pageSize + (data.length ? 1 : 0)}-${(page - 1) * pageSize + data.length} of ${total}`}
+            {`Showing ${(page - 1) * pageSize + (data.length ? 1 : 0)}-${(page - 1) * pageSize + data.length} of ${total}`}
           </div>
           {session?.user?.id && assigneeId === session.user.id && (
             <div className="hidden h-6 w-px bg-slate-200 dark:bg-white/10 sm:block" aria-hidden />
@@ -1204,7 +1130,6 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             />
           )}
         </div>
-        {!aiMode && (
         <div className="flex flex-wrap items-center gap-3">
           <Select
             value={String(pageSize)}
@@ -1235,7 +1160,6 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             </Button>
           </div>
         </div>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 /**
- * The constrained "query plan" the language model is allowed to produce. The
- * model NEVER sees vulnerability data — it only translates a natural-language
- * question into this schema, which we validate and then execute deterministically
- * with Prisma under the caller's RBAC/visibility rules. Unknown keys emitted by
- * the model are stripped (Zod default), so prompt-injection cannot widen the query.
+ * The constrained argument schema for the AI assistant's `search_vulnerabilities`
+ * tool. The model may only express filters/sorts described here, which we validate
+ * before executing deterministically with Prisma under the caller's RBAC /
+ * visibility rules. Unknown keys emitted by the model are stripped (Zod default),
+ * so a prompt-injection payload cannot introduce raw SQL or arbitrary columns.
  */
 
 export const RISK_VALUES = ["Critical", "High", "Medium", "Low", "None"] as const;

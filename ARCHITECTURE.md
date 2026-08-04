@@ -34,7 +34,7 @@ A high-level view of Remediate components and interactions.
 - **Built-in Pentest PDF Parser** (`lib/pentest-pdf-builtin.ts`): In-process Trustmarque CHECK PDF parser. Uses [`pdf-parse`](https://www.npmjs.com/package/pdf-parse) for raw text extraction and [`pdfjs-dist`](https://www.npmjs.com/package/pdfjs-dist) (legacy build, loaded dynamically) for yellow-highlight detection via operator-list inspection. Yellow rectangles are intersected with text items per-page, joined into phrase buckets, and emitted as `\u0001HL\u0002...\u0001/HL\u0002` private-use markers in the persisted Examples payload. The client (`renderPluginOutput`) HTML-escapes the payload, then unwraps the markers into XSS-safe `<mark>` spans.
 - **Azure Blob Ingest service** (`lib/azure-blob-ingest.ts`): Standalone poller that reads its config from `AzureBlobIngestConfig`, lists blobs in the configured container / prefix, and for each matching CSV: validates headers before writing anything, persists the payload as `acr-{uploadId}.csv` in the active storage provider, creates the `UploadHistory` row (`scannerType = ACR`), enqueues on `{upload-queue}`, and — on successful enqueue — deletes the source blob (opt-out via the `deleteAfterImport` flag).
 - **Threat Intelligence Centre (Frontend)**: Real-time vulnerability feed with source-aware external linking.
-- **AI Insights engine** (`lib/ai/*`): Optional natural-language query planner for the Vulnerabilities page. `lib/ai/provider.ts` abstracts three OpenAI-compatible request shapes (Azure OpenAI, Azure AI Foundry, generic `/v1`); `lib/ai/insights.ts` prompts the model to emit a strict query plan, validates it against the `lib/ai/query-spec.ts` Zod schema, and translates it into a Prisma `where`/`orderBy` executed under the caller's RBAC wall. The model never receives vulnerability data — only the question and the field catalogue. Configuration lives in the encrypted `AiConfig` table (falling back to `AI_*` env vars).
+- **AI Assistant engine** (`lib/ai/*`): Optional tool-using chat for the Vulnerabilities page. `lib/ai/provider.ts` abstracts three OpenAI-compatible request shapes (Azure OpenAI, Azure AI Foundry, generic `/v1`) and adds a tool-calling round-trip; `lib/ai/chat.ts` orchestrates a bounded tool loop where the model calls `search_vulnerabilities` (RBAC-scoped, via `lib/ai/tools.ts` + `lib/ai/insights.ts`) to read findings and `get_latest_version` (`lib/ai/registry.ts`) to check public package registries. Finding data the caller can already see is shared with the model; configuration lives in the encrypted `AiConfig` table (falling back to `AI_*` env vars).
 - **Unified Risk Schema (Prisma)**: Relational datastore for Nessus, pentest, and ACR findings, plus global threats and user-specific intelligence subscriptions.
 - **Redis**: Job coordination via BullMQ, worker heartbeats, and temporary upload cache. Every BullMQ `Queue` / `Worker` opens its own connection via `lib/redis.ts#getBullmqConnection` (fixed in v2.7.1) with `keepAlive: 30_000` so idle-socket drops on managed Redis do not stall the queue.
 - **Azure Blob Storage (Optional)**: Persistent storage for upload payloads as an alternative to Redis (recommended for production clusters).
@@ -49,7 +49,7 @@ A high-level view of Remediate components and interactions.
 7. **Intelligence Aggregation**: Global threats are fetched, normalized via fallbacks (NVD Crisis logic), and stored with enrichment (CVSS/CISA KEV).
 8. **Notification**: The dispatcher matches new threats against user preferences (Risk level/CISA status) and sends scheduled email digests.
 9. **Analytics**: The UI queries aggregates to render dashboard metrics and the live intelligence feed.
-10. **AI Insights (optional)**: A user types a natural-language question on the Vulnerabilities page. `POST /api/vulnerabilities/insights` sends **only the question + field catalogue** (never row data) to the configured model, receives a JSON query plan, validates it against the Zod schema, intersects it with the caller's group-visibility wall, and executes a single Prisma read. Results render in the existing table; the query is rate-limited and audited (`ai_insight_query`).
+10. **AI Assistant (optional)**: A user chats with the assistant on the Vulnerabilities page. `POST /api/vulnerabilities/chat` runs a tool-using conversation: the model calls `search_vulnerabilities` (results scoped to the caller's group-visibility wall) to read findings and `get_latest_version` to check public package registries, then summarises and prioritises. The reply and the list of tools invoked are returned; the exchange is rate-limited and audited (`ai_insight_chat`).
 
 ## Scalability & Resiliency
 - Stateless `app` and `worker` images support horizontal scaling.
@@ -64,7 +64,7 @@ A high-level view of Remediate components and interactions.
 - **Encryption**: OIDC, SMTP, and Azure storage credentials are stored encrypted in Postgres using AES-256-GCM via `AUTH_SECRET`.
 - **CSP**: Middleware generates a cryptographic nonce (`crypto.randomUUID`) per request for script and style sources.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
-- **AI query isolation**: The AI insights feature never sends vulnerability data to the model. The model returns a schema-validated query plan (unknown keys stripped) that is executed under the same RBAC / group-visibility wall as the normal list, so prompt-injection cannot widen data access. Provider endpoint + API key are AES-256-GCM encrypted.
+- **AI RBAC scoping**: The AI assistant reads finding data through a `search_vulnerabilities` tool whose results are always `AND`-combined with the same group-visibility wall used by `GET /api/vulnerabilities` (`visibilityWhere(isAdmin, memberOf)`), so the model can never surface rows the caller could not already see. The `get_latest_version` tool only reaches a fixed allow-list of public package registries (hard-coded hosts, validated package names) and cannot be steered to arbitrary URLs. Provider endpoint + API key are AES-256-GCM encrypted.
 
 ## Vulnerability Lifecycle
 - **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
@@ -123,38 +123,39 @@ Authentication supports three modes matching the existing Azure File Share patte
 
 The three secret fields are **always** stored encrypted. The GET endpoint replaces them with `"****"`; passing `"****"` back on POST is treated as "keep the existing encrypted value" so administrators can edit the non-secret fields without re-entering credentials.
 
-## AI-Powered Insights (v2.9.0)
-An optional natural-language query layer over the active `Vulnerability` table. It is deliberately **not** a RAG/chat system: the language model is used purely as a translator from English to a constrained query specification, so sensitive vulnerability data never leaves the deployment and the blast radius of a compromised or manipulated model is bounded to "which rows the caller could already see".
+## AI Assistant (v2.10.0)
+A multi-turn, tool-using assistant over the active `Vulnerability` table. It replaces the earlier v2.9.0 query-planner: rather than translating English into a filter, the model now **reads finding data directly** to summarise, prioritise, and advise on upgrades. The trade-off is deliberate and bounded — the model only ever sees rows the caller could already see (RBAC enforced *inside* the search tool), and it reaches the outside world only through a fixed allow-list of public package registries.
 
 ### Request flow
 ```
-Vulnerabilities page  ──POST /api/vulnerabilities/insights { question }──▶  route handler
-        │                                                                        │
-        │                                            getAiConfig()  (DB row or AI_* env)
-        │                                                                        │
-        │                              planQuery(question, config)  ─────────────┤
-        │                                 │  system prompt = field catalogue only │
-        │                                 ▼                                        │
-        │                          AI provider (Azure OpenAI / Foundry / OpenAI)   │
-        │                                 │  returns JSON query plan               │
-        │                                 ▼                                        │
-        │                    querySpecSchema.safeParse()  (unknown keys stripped)  │
-        │                                 │                                        │
-        │              buildWhereFromSpec() + buildOrderBy()  ─▶ Prisma where/orderBy
-        │                                 │                                        │
-        │                    AND  visibilityWhere(isAdmin, memberOf)  (RBAC wall)  │
-        │                                 ▼                                        │
-        ◀──── { summary, spec, items, total } ◀── prisma.vulnerability.findMany ───┘
-                                                   (+ writeAuditLog: ai_insight_query)
+Ask AI panel  ──POST /api/vulnerabilities/chat { messages[] }──▶  route handler
+        │                                                              │
+        │                                  getAiConfig()  (DB row or AI_* env)
+        │                                                              │
+        │                          runChat(history, config, { isAdmin, memberOf })
+        │                                 │                             │
+        │                                 ▼   (bounded tool loop ≤ 6)   │
+        │                          AI provider (Azure OpenAI / Foundry / OpenAI)
+        │                                 │  returns content and/or tool_calls
+        │                                 ▼
+        │        ┌── search_vulnerabilities(spec) ─▶ buildWhereFromSpec()+buildOrderBy()
+        │        │        AND visibilityWhere(isAdmin, memberOf)  ─▶ prisma.findMany (capped)
+        │        └── get_latest_version(ecosystem, pkg) ─▶ allow-listed registry (cached)
+        │                                 │  tool results appended as `tool` messages
+        │                                 ▼
+        ◀──── { reply, tools } ◀── final assistant message  (+ writeAuditLog: ai_insight_chat)
 ```
 
 ### Modules (`lib/ai/`)
 | File | Responsibility |
 | :--- | :--- |
 | `config.ts` | Resolve effective config: encrypted `AiConfig` DB row first, else `AI_*` env vars. Encrypt/decrypt endpoint + key via `lib/crypto.ts`. |
-| `provider.ts` | `buildChatRequest()` constructs the URL + auth header per provider type; `chatCompletion()` performs the fetch with an `AbortController` timeout and normalises errors to `AiProviderError`. Pure `buildChatRequest` is unit-tested per provider. |
-| `query-spec.ts` | The `querySpecSchema` Zod contract (enum whitelists for risk/status/scanner, capped `limit`, bounded strings) plus derived value lists reused in the system prompt. |
-| `insights.ts` | `planQuery()` (prompt → model → `extractJson` → validate), `buildWhereFromSpec()` (spec → Prisma `where`, incl. the `hasFix` / `internetFacing` derivations), and `buildOrderBy()` (severity-first default). |
+| `provider.ts` | `buildChatRequest()` constructs the URL + auth header per provider type; `chatCompletion()` (single-shot) and `chatWithTools()` (tool-calling round-trip) perform the fetch with an `AbortController` timeout and normalise errors to `AiProviderError`. Pure `buildChatRequest` is unit-tested per provider. |
+| `chat.ts` | `runChat()` — the orchestrator. Seeds the system prompt, drives the bounded tool loop, executes each requested tool under the caller's `ToolContext`, and returns the final reply plus the list of tools invoked. |
+| `tools.ts` | Tool declarations + executors. `search_vulnerabilities` reuses `query-spec` + `buildWhereFromSpec`/`buildOrderBy` and always `AND`s the group-visibility wall; `get_latest_version` delegates to the registry module. Results are trimmed and row-capped for token safety. |
+| `registry.ts` | `getLatestVersion(ecosystem, package)` against a hard-coded allow-list of public registries (npm, PyPI, NuGet, Maven, RubyGems, crates.io, Packagist, Go). SSRF-safe (fixed hosts, validated names), timed out, and cached in-process. |
+| `query-spec.ts` | The `querySpecSchema` Zod contract (enum whitelists for risk/status/scanner, capped `limit`, bounded strings) that constrains the `search_vulnerabilities` arguments. |
+| `insights.ts` | `buildWhereFromSpec()` (spec → Prisma `where`, incl. the `hasFix` / `internetFacing` derivations) and `buildOrderBy()` (severity-first default), shared by the search tool. |
 
 ### Provider matrix
 | `providerType` | URL construction | Auth header | Model location |
@@ -175,7 +176,7 @@ AiConfig (singleton)
 ```
 Migration `20260803120000_add_ai_config` creates the table. No changes to the `Vulnerability` schema are required — the feature reads the existing columns (`risk`, `status`, `cvssScore`, `cve`, `host`, `packageName`, `solution`, `remediation`, `pluginId`, `scannerType`).
 
-### Domain mappings baked into the planner
+### Domain mappings baked into the search tool
 - *"already have fixes / patches available"* → `hasFix: true` → `status != NoFixAvailable` **and** (`solution` or `remediation` present).
 - *"internet-facing / pentest"* → `internetFacing: true` → `pluginId` starts with `PT`.
 - *"which packages should I prioritise"* → `scannerType: ACR`, `sortBy: cvssScore`, `sortDir: desc`, bounded `limit`.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { chatCompletion, AiProviderError } from "@/lib/ai/provider";
+import { chatCompletion, chatWithTools, AiProviderError } from "@/lib/ai/provider";
 import type { AiConfig } from "@/lib/ai/config";
 
 const BASE_CONFIG: AiConfig = {
@@ -128,3 +128,52 @@ describe("chatCompletion", () => {
     ).rejects.toThrow(/empty response/i);
   });
 });
+
+describe("chatWithTools", () => {
+  const TOOLS = [
+    {
+      type: "function" as const,
+      function: { name: "noop", description: "does nothing", parameters: { type: "object", properties: {} } },
+    },
+  ];
+
+  it("sends the tools and tool_choice, and returns parsed tool_calls", async () => {
+    const toolCalls = [
+      { id: "call_1", type: "function", function: { name: "noop", arguments: "{}" } },
+    ];
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: null, tool_calls: toolCalls } }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const turn = await chatWithTools({
+      config: BASE_CONFIG,
+      messages: [{ role: "user", content: "go" }],
+      tools: TOOLS,
+    });
+
+    expect(turn.content).toBeNull();
+    expect(turn.toolCalls).toEqual(toolCalls);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.tools).toEqual(TOOLS);
+    expect(body.tool_choice).toBe("auto");
+    expect(body.response_format).toBeUndefined();
+  });
+
+  it("returns content with an empty toolCalls array when the model answers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ choices: [{ message: { content: "done" } }] })),
+    );
+
+    const turn = await chatWithTools({
+      config: BASE_CONFIG,
+      messages: [{ role: "user", content: "go" }],
+      tools: TOOLS,
+    });
+
+    expect(turn.content).toBe("done");
+    expect(turn.toolCalls).toEqual([]);
+  });
+});
+
