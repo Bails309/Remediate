@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.10.1] - 2026-08-04
+### Fixed
+- **AI chat returned "The AI returned an empty response." with reasoning models (e.g. gpt-5-mini).** In the tool-calling path, reasoning models spend hidden tokens "thinking" before emitting tool calls or a visible answer; the `chatWithTools` cap of `max_completion_tokens: 2048` was exhausted by that reasoning across the tool loop, so the provider returned an empty completion with `finish_reason: "length"` ([`lib/ai/provider.ts`](lib/ai/provider.ts)). Raised the reasoning-model budget for tool chat to `8192`, stopped advertising an empty `tools: []` array on the final fallback call, and now surface/log `finish_reason` with a clearer user-facing message when the model truncates ([`lib/ai/chat.ts`](lib/ai/chat.ts)).
+
 ## [2.10.0] - 2026-08-04
 ### Changed
 - **The "Ask AI" feature is now a multi-turn assistant that reads your findings.** The v2.9.0 natural-language *query planner* (model → validated filter spec, model never saw data) has been **replaced** by a tool-using chat that reasons over the actual vulnerabilities so it can summarise, prioritise, and advise on upgrades — the workflow of "paste the table into an assistant and ask what to fix first", built in.

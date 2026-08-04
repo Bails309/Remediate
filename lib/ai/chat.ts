@@ -67,7 +67,17 @@ export async function runChat(
 
     if (turn.toolCalls.length === 0) {
       const reply = (turn.content ?? "").trim();
-      if (!reply) throw new AiChatError("The AI returned an empty response.");
+      if (!reply) {
+        console.error(
+          `[ai-chat] empty assistant reply (finish_reason=${turn.finishReason ?? "unknown"}, iteration=${i})`,
+        );
+        if (turn.finishReason === "length") {
+          throw new AiChatError(
+            "The AI ran out of response space before answering. Try a more specific question, or ask an administrator to use a larger model.",
+          );
+        }
+        throw new AiChatError("The AI returned an empty response.");
+      }
       return { reply, tools };
     }
 

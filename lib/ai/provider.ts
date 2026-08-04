@@ -200,6 +200,8 @@ export type ChatWithToolsOptions = {
 export type AssistantTurn = {
   content: string | null;
   toolCalls: ToolCall[];
+  /** Why the provider stopped: "stop", "tool_calls", "length", … Aids diagnosis. */
+  finishReason: string | null;
 };
 
 /**
@@ -215,11 +217,22 @@ export async function chatWithTools(options: ChatWithToolsOptions): Promise<Assi
   const body: Record<string, unknown> = {
     model: bodyModel(config),
     messages,
-    tools,
     tool_choice: "auto",
   };
+  // Only advertise tools when we actually have some; an empty array makes some
+  // providers reject the request or refuse to produce a normal completion.
+  if (tools.length > 0) {
+    body.tools = tools;
+  } else {
+    delete body.tool_choice;
+  }
   if (isReasoningModel(config.model)) {
-    body.max_completion_tokens = Math.max(maxTokens, 2048);
+    // Reasoning models (gpt-5, o-series) spend hidden tokens "thinking" before
+    // emitting tool calls or the visible answer. During a tool loop that budget
+    // has to cover BOTH the reasoning AND the completion across several turns,
+    // so keep it generous or the response comes back empty (finish_reason
+    // "length"), which surfaces to the user as an "empty response".
+    body.max_completion_tokens = Math.max(maxTokens, 8192);
   } else {
     body.temperature = temperature;
     body.max_tokens = maxTokens;
@@ -254,14 +267,21 @@ export async function chatWithTools(options: ChatWithToolsOptions): Promise<Assi
   }
 
   const payload = (await response.json().catch(() => null)) as
-    | { choices?: Array<{ message?: { content?: string | null; tool_calls?: ToolCall[] } }> }
+    | {
+        choices?: Array<{
+          message?: { content?: string | null; tool_calls?: ToolCall[] };
+          finish_reason?: string | null;
+        }>;
+      }
     | null;
-  const message = payload?.choices?.[0]?.message;
+  const choice = payload?.choices?.[0];
+  const message = choice?.message;
   if (!message) {
     throw new AiProviderError("AI provider returned an empty response.");
   }
   return {
     content: typeof message.content === "string" ? message.content : null,
     toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+    finishReason: choice?.finish_reason ?? null,
   };
 }
