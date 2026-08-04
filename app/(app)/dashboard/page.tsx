@@ -143,15 +143,21 @@ export default async function DashboardPage({
       {/* Secondary Row: Activity & Intelligence */}
       <div className="grid gap-8 lg:grid-cols-[380px_1fr]">
         <div className="flex flex-col gap-6">
-          <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+          <div className="group relative overflow-hidden glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8">
+            <span aria-hidden className="scanline-sweep" />
+            <div className="relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] opacity-40 mb-6 flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Recent Bucket Activity
             </h3>
             <div className="space-y-3">
               {latestUploads.length === 0 && <p className="text-xs opacity-50 italic">No activity yet recorded.</p>}
-              {latestUploads.map((upload: { id: string; site: { name: string }; status: string; uploadDate: Date }) => (
-                <div key={upload.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 transition-all hover:bg-white/[0.04]">
+              {latestUploads.map((upload: { id: string; site: { name: string }; status: string; uploadDate: Date }, idx: number) => (
+                <div
+                  key={upload.id}
+                  className="fade-up group/row relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 transition-all hover:bg-white/[0.04]"
+                  style={{ animationDelay: `${idx * 70}ms` }}
+                >
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "h-10 w-10 rounded-xl flex items-center justify-center ring-1 ring-inset",
@@ -175,9 +181,12 @@ export default async function DashboardPage({
                 </div>
               ))}
             </div>
+            </div>
           </div>
 
-          <div className="glass glass-edge rounded-[28px] p-6 lg:p-8">
+          <div className="group relative overflow-hidden glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8">
+            <span aria-hidden className="scanline-sweep" />
+            <div className="relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] opacity-40 mb-4">Operational Tips</h3>
             <ul className="space-y-3 text-xs opacity-60">
               <li className="flex gap-2">
@@ -189,6 +198,7 @@ export default async function DashboardPage({
                 <span>Review &quot;No Fix&quot; weekly for vendor updates.</span>
               </li>
             </ul>
+            </div>
           </div>
         </div>
 

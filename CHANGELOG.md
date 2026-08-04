@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.0] - 2026-08-04
+### Added
+- **Futuristic "command centre" UI pass.** A set of additive, opt-in visual effects that layer motion, depth, and HUD cues onto the existing glass design system — no layout changes.
+  - **Animated count-up stat numbers** ([`components/AnimatedNumber.tsx`](components/AnimatedNumber.tsx)) with severity-matched neon glow, used by [`StatCard`](components/StatCard.tsx). Honours `prefers-reduced-motion` (and SSR/tests) by rendering the final value instantly.
+  - **HUD corner brackets, accent hover-glow, cursor-following spotlight, and a one-shot scanline sweep** on glass cards, driven by new composable utilities in [`app/globals.css`](app/globals.css) (`.hud`, `.card-glow`, `.spotlight`, `.scanline-sweep`) and a global pointer tracker ([`components/CursorSpotlight.tsx`](components/CursorSpotlight.tsx)). The effects use `::after` / background layers / child elements so they compose cleanly with the existing `.glass-edge` (`::before`).
+  - **Ambient animated backdrop** (drifting radial-gradient mesh), a masked perspective grid, and subtle film grain behind the app in dark mode.
+  - **Pulsing "live" indicator** on the Live Intelligence card ([`components/ThreatSummaryCard.tsx`](components/ThreatSummaryCard.tsx)) and staggered entrance for the Recent Bucket Activity rows ([`app/(app)/dashboard/page.tsx`](app/(app)/dashboard/page.tsx)).
+  - All motion is disabled under `prefers-reduced-motion`.
+
 ## [2.11.0] - 2026-08-04
 ### Added
 - **Ask AI about a single finding.** The **Vulnerability Details** side sheet now has an **"Ask AI about this finding"** button that opens a chat scoped to that one issue, with issue-specific prompts (explain the risk, get remediation steps, check for a newer package version). The panel header shows the CVE/title and each finding starts a fresh conversation ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx), [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx)).

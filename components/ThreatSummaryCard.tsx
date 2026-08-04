@@ -50,14 +50,19 @@ export function ThreatSummaryCard() {
   }
 
   return (
-    <div id="tour-live-intelligence" className="glass glass-edge rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
+    <div id="tour-live-intelligence" className="glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
+      <span aria-hidden className="scanline-sweep" />
+      <div className="relative z-10 flex flex-col h-full">
       <div className="flex items-center justify-between mb-8">
         <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
           <Activity className="h-4 w-4" />
           Live Intelligence
         </h3>
         <div className="flex items-center gap-3">
-           <Badge tone="low" className="text-[10px] uppercase tracking-widest py-0 px-2 h-5 flex items-center bg-blue-500/10 text-blue-600 dark:text-blue-400 border-none">Active</Badge>
+           <Badge tone="low" className="text-[10px] uppercase tracking-widest py-0 px-2 h-5 flex items-center gap-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-none">
+             <span className="live-dot" aria-hidden />
+             Active
+           </Badge>
         </div>
       </div>
 
@@ -120,6 +125,7 @@ export function ThreatSummaryCard() {
             <ChevronRight className="h-3 w-3 transition-transform group-hover/link:translate-x-1" />
           </Link>
         </div>
+      </div>
       </div>
     </div>
   );

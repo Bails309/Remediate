@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { ProductTour } from "@/components/ProductTour";
 import { WhatsNew } from "@/components/WhatsNew";
 import { IdleTimeout } from "@/components/IdleTimeout";
+import { CursorSpotlight } from "@/components/CursorSpotlight";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <Providers>
       <div id="app-layout-debug" style={{ display: 'none' }} data-session={!!session} data-user={!!dbUser} />
       <IdleTimeout />
+      <CursorSpotlight />
       {dbUser && !process.env.E2E_TESTING && (
         <>
           <ProductTour 
