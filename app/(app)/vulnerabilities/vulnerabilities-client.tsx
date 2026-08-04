@@ -964,7 +964,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
               Chat about your findings — it reads the issues you can see and checks for newer package versions.
             </span>
           </div>
-          <Button onClick={() => setChatOpen(true)} title="Open the AI assistant">
+          <Button onClick={() => { setChatFocus(null); setChatOpen(true); }} title="Open the AI assistant">
             <Sparkles size={15} className="mr-1.5" />
             Ask AI
           </Button>
@@ -1578,13 +1578,14 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
           {aiAvailable && detail && (
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setChatOpen(false);
                 setChatFocus({
                   id: detail.id,
                   title: detail.cve || (detail.name.length > 48 ? `${detail.name.slice(0, 48)}…` : detail.name),
                   subtitle: `${detail.risk} · ${detail.host}`,
-                })
-              }
+                });
+              }}
               className="flex w-full items-center gap-2 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-2.5 text-left text-sm font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/10"
             >
               <Sparkles size={16} className="shrink-0" />

@@ -94,18 +94,15 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
-  // Close on Escape and lock body scroll while the panel is open.
+  // Close on Escape while the panel is open.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
     };
   }, [open, onClose]);
 
@@ -153,23 +150,15 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[100]"
+      className={cn(
+        "group fixed bottom-4 right-4 z-[100] flex w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl",
+        "h-[min(620px,calc(100vh-6rem))]",
+        "border border-white/40 bg-white/90 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/90",
+        "shadow-[0_20px_70px_-15px_rgba(2,6,23,0.55)] animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out",
+      )}
       role="dialog"
-      aria-modal="true"
       aria-label={focus ? `Ask AI about ${focus.title}` : "Ask AI"}
     >
-      {/* Backdrop — consistent full-screen dim + blur */}
-      <div
-        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
-      />
-      <div
-        className={cn(
-          "group absolute right-0 top-0 flex h-full w-full max-w-xl flex-col overflow-hidden",
-          "border-l border-white/40 bg-white/85 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/85",
-          "shadow-[0_8px_60px_-12px_rgba(2,6,23,0.5)] animate-in slide-in-from-right duration-300 ease-out",
-        )}
-      >
         {/* Accent top edge + ambient glow */}
         <div
           aria-hidden
@@ -181,7 +170,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
         />
 
         {/* Header */}
-        <div className="relative z-10 flex items-center justify-between border-b border-slate-200/70 px-6 py-4 dark:border-white/10">
+        <div className="relative z-10 flex items-center justify-between border-b border-slate-200/70 px-4 py-3 dark:border-white/10">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-2 text-white shadow-lg shadow-accent/30">
               <Sparkles size={18} />
@@ -303,7 +292,6 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
             AI can make mistakes — verify critical remediation steps. Queries are rate-limited and audited.
           </p>
         </div>
-      </div>
     </div>
   );
 }

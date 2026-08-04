@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.2] - 2026-08-04
+### Changed
+- **"Ask AI" now opens as a compact floating chat window instead of a full-page side sheet** ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx)). Removed the full-screen dimming overlay so the page stays visible and interactive; the panel is a rounded glass card docked to the bottom-right (capped to the viewport) with a fade/slide-up entrance. Dropped the body scroll lock (no longer modal); `Escape` still closes it.
+- Opening the general assistant now closes any per-finding chat and vice-versa, so the two windows never stack in the same corner ([`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx)).
+
 ## [2.12.1] - 2026-08-04
 ### Changed
 - **Refreshed the "Ask AI" side panel for a cleaner, more professional look** ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx)). The overlay now covers the full viewport consistently (raised stacking above floating page chrome so nothing pokes through at the bottom), with a softer, even backdrop dim + blur and a slide-in entrance. Added a glass panel with an accent top edge and ambient glow, a gradient AI badge in the header, hover-lift suggestion chips, and an accent focus ring on the composer.
