@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.9.4] - 2026-08-04
+### Fixed
+- **"What's New" v2.9.0 card reappeared on every page refresh.** The [`WhatsNew`](components/WhatsNew.tsx) component dismisses by POSTing its `tourId` (`whats-new-aug-2026-v290`) to [`/api/tours/complete`](app/api/tours/complete/route.ts), but that ID was missing from the endpoint's `VALID_TOURS` allow-list. The Zod `enum` check rejected it with `400 Invalid tourId`, so the dismissal was never persisted to `completedTours` and the modal re-opened on the next load. Added `whats-new-aug-2026-v290` to `VALID_TOURS`.
+
 ## [2.9.3] - 2026-08-03
 ### Security
 - **Bumped the `undici` npm `overrides` to patched releases** to clear 5 Dependabot advisories (1 high, 4 moderate) flagged on the default branch. `jsdom@28` (dev/test) pulled in `undici@7.28.0`, which the existing override pinned — the vulnerable version. Updated [`package.json`](package.json) overrides `undici@^7.0.0` → `7.29.0` and `undici@^6.0.0` → `6.28.0`. Advisories addressed:
