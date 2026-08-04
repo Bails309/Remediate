@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.1] - 2026-08-04
+### Changed
+- **Refreshed the "Ask AI" side panel for a cleaner, more professional look** ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx)). The overlay now covers the full viewport consistently (raised stacking above floating page chrome so nothing pokes through at the bottom), with a softer, even backdrop dim + blur and a slide-in entrance. Added a glass panel with an accent top edge and ambient glow, a gradient AI badge in the header, hover-lift suggestion chips, and an accent focus ring on the composer.
+### Added
+- **`Escape` closes the AI panel** and background scroll is locked while it is open; added `role="dialog"`/`aria-modal` for accessibility.
+
 ## [2.12.0] - 2026-08-04
 ### Added
 - **Futuristic "command centre" UI pass.** A set of additive, opt-in visual effects that layer motion, depth, and HUD cues onto the existing glass design system — no layout changes.

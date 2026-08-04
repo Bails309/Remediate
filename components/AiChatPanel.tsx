@@ -94,6 +94,21 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
+  // Close on Escape and lock body scroll while the panel is open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
+
   const send = async (text: string) => {
     const question = text.trim();
     if (!question || loading) return;
@@ -137,20 +152,42 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
   const suggestions = focus ? FOCUS_SUGGESTIONS : SUGGESTIONS;
 
   return (
-    <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-[100]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={focus ? `Ask AI about ${focus.title}` : "Ask AI"}
+    >
+      {/* Backdrop — consistent full-screen dim + blur */}
+      <div
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300"
+        onClick={onClose}
+      />
       <div
         className={cn(
-          "absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white/95 backdrop-blur-xl shadow-2xl dark:bg-gray-900/95",
-          "border-l border-slate-200 dark:border-gray-800",
+          "group absolute right-0 top-0 flex h-full w-full max-w-xl flex-col overflow-hidden",
+          "border-l border-white/40 bg-white/85 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/85",
+          "shadow-[0_8px_60px_-12px_rgba(2,6,23,0.5)] animate-in slide-in-from-right duration-300 ease-out",
         )}
       >
+        {/* Accent top edge + ambient glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/70 to-transparent"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-accent/15 blur-3xl"
+        />
+
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-gray-800">
-          <div className="flex min-w-0 items-center gap-2">
-            <Sparkles size={18} className="text-accent shrink-0" />
+        <div className="relative z-10 flex items-center justify-between border-b border-slate-200/70 px-6 py-4 dark:border-white/10">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-2 text-white shadow-lg shadow-accent/30">
+              <Sparkles size={18} />
+            </span>
             <div className="min-w-0">
-              <h3 className="truncate text-base font-semibold">
+              <h3 className="truncate text-base font-semibold tracking-tight">
                 {focus ? `Ask AI — ${focus.title}` : "Ask AI"}
               </h3>
               <p className="truncate text-xs opacity-60">
@@ -161,7 +198,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
             </div>
           </div>
           <button
-            className="rounded-full p-1.5 opacity-60 transition-opacity hover:opacity-100"
+            className="rounded-full p-1.5 opacity-60 transition-all hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
             onClick={onClose}
             aria-label="Close AI chat"
           >
@@ -170,7 +207,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
         </div>
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        <div ref={scrollRef} className="relative z-10 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {messages.length === 0 && (
             <div className="space-y-3">
               <p className="text-sm opacity-70">
@@ -187,7 +224,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-left text-sm transition-colors hover:border-accent hover:bg-accent/5 dark:border-gray-700"
+                    className="rounded-xl border border-slate-200/80 bg-white/40 px-3 py-2 text-left text-sm transition-all hover:-translate-y-px hover:border-accent hover:bg-accent/5 hover:shadow-sm dark:border-white/10 dark:bg-white/[0.03]"
                   >
                     {s}
                   </button>
@@ -243,7 +280,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
         </div>
 
         {/* Composer */}
-        <div className="border-t border-slate-200 px-6 py-4 dark:border-gray-800">
+        <div className="relative z-10 border-t border-slate-200/70 px-6 py-4 dark:border-white/10">
           <div className="flex items-end gap-2">
             <textarea
               value={input}
@@ -256,7 +293,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
               }}
               rows={1}
               placeholder="Ask about your vulnerabilities…"
-              className="max-h-32 min-h-[42px] flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-accent dark:border-gray-700 dark:bg-gray-800"
+              className="max-h-32 min-h-[42px] flex-1 resize-none rounded-xl border border-slate-200 bg-white/70 px-3 py-2.5 text-sm outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-white/10 dark:bg-white/[0.04]"
             />
             <Button onClick={() => send(input)} disabled={loading || !input.trim()} title="Send">
               <Send size={16} />
