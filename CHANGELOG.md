@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.11.0] - 2026-08-04
+### Added
+- **Ask AI about a single finding.** The **Vulnerability Details** side sheet now has an **"Ask AI about this finding"** button that opens a chat scoped to that one issue, with issue-specific prompts (explain the risk, get remediation steps, check for a newer package version). The panel header shows the CVE/title and each finding starts a fresh conversation ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx), [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx)).
+  - **RBAC-safe scoping.** The client sends only the finding's `id`; the server re-fetches it via `getFocusContext` under the same group-visibility wall as the search tool ([`lib/ai/tools.ts`](lib/ai/tools.ts)), so a caller can never pin the assistant to a finding they aren't allowed to see, and the context handed to the model is trusted database data rather than anything the client supplied. The resolved details are injected as a focused system message that keeps the model scoped to the issue and skips a redundant search ([`lib/ai/chat.ts`](lib/ai/chat.ts)).
+  - **Endpoint** [`/api/vulnerabilities/chat`](app/api/vulnerabilities/chat/route.ts) now accepts an optional `focusId`; an unknown or out-of-scope id simply yields an unfocused chat. `focusId` is recorded in the `ai_insight_chat` audit entry.
+
 ## [2.10.1] - 2026-08-04
 ### Fixed
 - **AI chat returned "The AI returned an empty response." with reasoning models (e.g. gpt-5-mini).** In the tool-calling path, reasoning models spend hidden tokens "thinking" before emitting tool calls or a visible answer; the `chatWithTools` cap of `max_completion_tokens: 2048` was exhausted by that reasoning across the tool loop, so the provider returned an empty completion with `finish_reason: "length"` ([`lib/ai/provider.ts`](lib/ai/provider.ts)). Raised the reasoning-model budget for tool chat to `8192`, stopped advertising an empty `tools: []` array on the final fallback call, and now surface/log `finish_reason` with a clearer user-facing message when the model truncates ([`lib/ai/chat.ts`](lib/ai/chat.ts)).

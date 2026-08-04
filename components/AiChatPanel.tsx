@@ -23,6 +23,15 @@ const SUGGESTIONS = [
   "What are my most urgent internet-facing issues right now?",
 ];
 
+const FOCUS_SUGGESTIONS = [
+  "Explain this finding in plain English — what's the actual risk?",
+  "What are the exact steps to remediate this?",
+  "Is there a newer, fixed version of the affected package?",
+  "How urgent is this compared to a typical finding?",
+];
+
+type Focus = { id: string; title: string; subtitle?: string };
+
 function toolLabel(name: string): string {
   if (name === "search_vulnerabilities") return "Searched vulnerabilities";
   if (name === "get_latest_version") return "Checked package registry";
@@ -64,13 +73,22 @@ function AssistantContent({ text }: { text: string }) {
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** When set, the conversation is scoped to a single finding. */
+  focus?: Focus;
 };
 
-export function AiChatPanel({ open, onClose }: Props) {
+export function AiChatPanel({ open, onClose, focus }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Start a fresh conversation whenever the focused finding changes (or when
+  // switching between focused and general chat).
+  useEffect(() => {
+    setMessages([]);
+    setInput("");
+  }, [focus?.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -91,6 +109,7 @@ export function AiChatPanel({ open, onClose }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          ...(focus ? { focusId: focus.id } : {}),
         }),
       });
       const payload = await res.json().catch(() => ({}));
@@ -115,6 +134,8 @@ export function AiChatPanel({ open, onClose }: Props) {
 
   if (!open) return null;
 
+  const suggestions = focus ? FOCUS_SUGGESTIONS : SUGGESTIONS;
+
   return (
     <div className="fixed inset-0 z-[60]">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -126,11 +147,17 @@ export function AiChatPanel({ open, onClose }: Props) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-accent" />
-            <div>
-              <h3 className="text-base font-semibold">Ask AI</h3>
-              <p className="text-xs opacity-60">Reads your findings and checks for newer releases.</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <Sparkles size={18} className="text-accent shrink-0" />
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold">
+                {focus ? `Ask AI — ${focus.title}` : "Ask AI"}
+              </h3>
+              <p className="truncate text-xs opacity-60">
+                {focus
+                  ? focus.subtitle ?? "Questions about this specific finding."
+                  : "Reads your findings and checks for newer releases."}
+              </p>
             </div>
           </div>
           <button
@@ -147,11 +174,16 @@ export function AiChatPanel({ open, onClose }: Props) {
           {messages.length === 0 && (
             <div className="space-y-3">
               <p className="text-sm opacity-70">
-                Ask about your vulnerabilities in plain English. The assistant can search your findings
-                (only what you&apos;re allowed to see) and look up whether packages have newer versions.
+                {focus ? (
+                  <>Ask anything about this finding. The assistant already has its details and can look
+                  up whether the affected package has a newer, fixed release.</>
+                ) : (
+                  <>Ask about your vulnerabilities in plain English. The assistant can search your findings
+                  (only what you&apos;re allowed to see) and look up whether packages have newer versions.</>
+                )}
               </p>
               <div className="flex flex-col gap-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     onClick={() => send(s)}

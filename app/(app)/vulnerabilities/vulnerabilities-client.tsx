@@ -211,6 +211,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   // launcher button on whether an admin has configured/enabled a provider.
   const [aiAvailable, setAiAvailable] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // When set, an AI chat scoped to a single finding (opened from its detail view).
+  const [chatFocus, setChatFocus] = useState<{ id: string; title: string; subtitle?: string } | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -970,6 +972,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       )}
 
       <AiChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      <AiChatPanel open={Boolean(chatFocus)} onClose={() => setChatFocus(null)} focus={chatFocus ?? undefined} />
 
       <div id="tour-vuln-filters" className={cn("grid gap-4 md:grid-cols-2 xl:grid-cols-6")}>
         <Select
@@ -1572,6 +1575,27 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         title="Vulnerability Details"
       >
         <div className="space-y-4">
+          {aiAvailable && detail && (
+            <button
+              type="button"
+              onClick={() =>
+                setChatFocus({
+                  id: detail.id,
+                  title: detail.cve || (detail.name.length > 48 ? `${detail.name.slice(0, 48)}…` : detail.name),
+                  subtitle: `${detail.risk} · ${detail.host}`,
+                })
+              }
+              className="flex w-full items-center gap-2 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-2.5 text-left text-sm font-semibold text-accent transition-colors hover:border-accent hover:bg-accent/10"
+            >
+              <Sparkles size={16} className="shrink-0" />
+              <span className="min-w-0">
+                Ask AI about this finding
+                <span className="block text-[11px] font-normal opacity-70">
+                  Explain the risk, get remediation steps, or check for a newer package version.
+                </span>
+              </span>
+            </button>
+          )}
           {detail && isInternetFacing(detail.pluginId) && (
             <div className="flex items-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs font-semibold text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
               <Globe size={14} />

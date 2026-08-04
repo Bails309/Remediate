@@ -7,6 +7,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getAiConfig } from "@/lib/ai/config";
 import { runChat, AiChatError, type ChatTurn } from "@/lib/ai/chat";
+import { getFocusContext } from "@/lib/ai/tools";
 import { AiProviderError } from "@/lib/ai/provider";
 
 const bodySchema = z.object({
@@ -19,6 +20,8 @@ const bodySchema = z.object({
     )
     .min(1)
     .max(24),
+  /** Optional id of a single finding to scope the conversation to. */
+  focusId: z.string().trim().min(1).max(64).optional(),
 });
 
 /** GET reports whether the AI chat should be offered in the UI. */
@@ -62,10 +65,17 @@ export async function POST(request: NextRequest) {
     (WEB_APP_ADMIN_ROLES as readonly string[]).includes(r),
   );
   const ctx = await getGroupContext(userId);
+  const toolCtx = { isAdmin, memberOf: ctx.memberOf };
+
+  // Resolve the focused finding server-side under RBAC; an unknown or out-of-scope
+  // id simply yields an unfocused chat rather than leaking existence.
+  const focus = parsed.data.focusId
+    ? await getFocusContext(parsed.data.focusId, toolCtx)
+    : null;
 
   let result;
   try {
-    result = await runChat(history, config, { isAdmin, memberOf: ctx.memberOf });
+    result = await runChat(history, config, toolCtx, focus);
   } catch (error) {
     if (error instanceof AiChatError) {
       return NextResponse.json({ error: error.message }, { status: 502 });
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
     entityType: "Vulnerability",
     newValue: {
       question: history[history.length - 1].content,
+      focusId: focus?.id ?? null,
       tools: result.tools.map((t) => ({ name: t.name, ok: t.ok })),
     },
     ipAddress:

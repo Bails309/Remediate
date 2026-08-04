@@ -200,6 +200,73 @@ async function runVersionLookup(args: unknown): Promise<ToolResult> {
   return { ok: !result.error, content: JSON.stringify(result) };
 }
 
+/** A single finding's context, used to scope a chat to one specific issue. */
+export type FocusContext = {
+  id: string;
+  cve: string | null;
+  name: string | null;
+  risk: string;
+  cvss: number | null;
+  status: string;
+  scanner: string;
+  host: string;
+  package: string | null;
+  installedVersion: string | null;
+  synopsis: string | null;
+  description: string | null;
+  solution: string | null;
+  internetFacing: boolean;
+};
+
+/**
+ * Fetch a single finding by id for a "focused" chat, re-applying the caller's
+ * group-visibility wall. Returns `null` when the id is unknown or the caller is
+ * not permitted to see it — so a client can never pin the assistant to a finding
+ * outside its RBAC scope. The context is built server-side from the database
+ * rather than trusting anything the client sends.
+ */
+export async function getFocusContext(id: string, ctx: ToolContext): Promise<FocusContext | null> {
+  const wall = visibilityWhere(ctx);
+  const where: Prisma.VulnerabilityWhereInput = wall ? { AND: [{ id }, wall] } : { id };
+  const row = await prisma.vulnerability.findFirst({
+    where,
+    select: {
+      id: true,
+      cve: true,
+      name: true,
+      risk: true,
+      cvssScore: true,
+      status: true,
+      scannerType: true,
+      host: true,
+      packageName: true,
+      installedVersion: true,
+      synopsis: true,
+      description: true,
+      solution: true,
+      remediation: true,
+      pluginId: true,
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    cve: row.cve,
+    name: truncate(row.name, 200),
+    risk: row.risk,
+    cvss: row.cvssScore,
+    status: row.status,
+    scanner: row.scannerType,
+    host: row.host,
+    package: row.packageName,
+    installedVersion: row.installedVersion,
+    synopsis: truncate(row.synopsis, 400),
+    description: truncate(row.description, 1200),
+    solution: truncate(row.solution ?? row.remediation, 600),
+    internetFacing: /^PT/i.test(row.pluginId),
+  };
+}
+
 /** Dispatch a tool call by name. Unknown tools return a structured error. */
 export async function executeTool(name: string, args: unknown, ctx: ToolContext): Promise<ToolResult> {
   switch (name) {
