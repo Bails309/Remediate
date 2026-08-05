@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.6] - 2026-08-05
+### Fixed
+- **`ClusterAllFailedError: Failed to refresh slots cache` on the managed (cluster) Redis** (`lastNodeError: Error: timeout` at `refreshSlotsCache`). ioredis's default `slotsRefreshTimeout` is **1s**, which is too tight for a TLS-fronted managed Redis cluster — `CLUSTER SLOTS` topology discovery routinely overran it and threw, intermittently breaking connections. Compounding it, per-shard TLS handshakes had no SNI pinned, so shards advertised by `CLUSTER SLOTS` could fail validation and surface as the same slots-refresh timeout.
+  - [`lib/redis.ts`](lib/redis.ts) — the `Redis.Cluster` config now sets a generous `slotsRefreshTimeout` (default **15s**, env `REDIS_SLOTS_REFRESH_TIMEOUT_MS`) and a calmer `slotsRefreshInterval` (default **60s**, env `REDIS_SLOTS_REFRESH_INTERVAL_MS`), and pins the TLS **SNI** (`servername`) to the endpoint hostname for `rediss://` so every discovered shard's TLS handshake validates.
+### Added
+- Coverage for the clustered Redis path ([`tests/lib/redis.test.ts`](tests/lib/redis.test.ts)) — asserts the raised slots-refresh timeout, the `REDIS_SLOTS_REFRESH_TIMEOUT_MS` override, TLS SNI pinning, and the cluster retry/DNS callbacks.
+
 ## [2.12.5] - 2026-08-05
 ### Fixed
 - **Uploads still hung in "Processing" (and blocked every later upload) even after the 2.12.4 progress fix.** On a managed **cluster** Redis, the ingest's per-site lock also ran through the shared `redis` client (`maxRetriesPerRequest: null`). A socket drop made the `finally` lock-release `EVAL` queue *forever* — so the job never returned, the BullMQ worker stayed wedged, and subsequent uploads piled up as "Processing" behind it (observed: parse logged `Parsed N rows`, then silence). The lock **acquire** had the same latent hang.

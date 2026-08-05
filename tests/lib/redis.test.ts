@@ -2,10 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock ioredis BEFORE importing lib/redis
 vi.mock("ioredis", () => {
+    const RedisMock: any = vi.fn(function (url, options) {
+        return { url, options };
+    });
+    RedisMock.Cluster = vi.fn(function (nodes, options) {
+        return { nodes, options, isCluster: true };
+    });
     return {
-        default: vi.fn(function (url, options) {
-            return { url, options };
-        }),
+        default: RedisMock,
     };
 });
 
@@ -239,6 +243,64 @@ describe("createDedicatedRedis", () => {
         const client = createDedicatedRedis() as any;
 
         expect(client.url).toBe("redis://localhost:6379");
+    });
+});
+
+describe("cluster mode", () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        // The lib caches clients on globalThis keyed by URL; clear it so each
+        // test builds a fresh Cluster instead of reusing a cached one.
+        delete (globalThis as any).redisMap;
+        process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+        process.env = originalEnv;
+    });
+
+    it("builds a Redis.Cluster with generous slots-refresh timeout and SNI over TLS", async () => {
+        process.env.REDIS_CLUSTER_MODE = "true";
+        process.env.REDIS_URL = "rediss://:secret@remediate.uksouth.redis.azure.net:10000";
+        delete process.env.REDIS_SLOTS_REFRESH_TIMEOUT_MS;
+
+        const { redis } = await import("@/lib/redis");
+        void (redis as any).options; // trigger lazy init
+
+        const ClusterMock = ((await import("ioredis")).default as any).Cluster;
+        expect(ClusterMock).toHaveBeenCalled();
+
+        const [nodes, options] = ClusterMock.mock.calls[0];
+        expect(nodes).toEqual([{ host: "remediate.uksouth.redis.azure.net", port: 10000 }]);
+        // The default 1s slots-refresh timeout is the cause of the
+        // "Failed to refresh slots cache" errors; ensure we raised it well past it.
+        expect(options.slotsRefreshTimeout).toBeGreaterThanOrEqual(10_000);
+        // SNI must be pinned to the endpoint host so per-shard TLS validates.
+        expect(options.redisOptions.tls.servername).toBe("remediate.uksouth.redis.azure.net");
+        expect(options.redisOptions.password).toBe("secret");
+
+        // Exercise the callbacks so their behaviour is covered, not just present.
+        expect(options.clusterRetryStrategy(1)).toBe(100);
+        expect(options.clusterRetryStrategy(1000)).toBe(2000);
+        const seen: string[] = [];
+        options.dnsLookup("shard-1.internal", (_e: Error | null, addr: string) => seen.push(addr));
+        expect(seen).toEqual(["shard-1.internal"]);
+    });
+
+    it("honours REDIS_SLOTS_REFRESH_TIMEOUT_MS override", async () => {
+        process.env.REDIS_CLUSTER_MODE = "true";
+        process.env.REDIS_URL = "rediss://:secret@remediate.uksouth.redis.azure.net:10000";
+        process.env.REDIS_SLOTS_REFRESH_TIMEOUT_MS = "22000";
+
+        const { redis } = await import("@/lib/redis");
+        void (redis as any).options; // trigger lazy init
+
+        const ClusterMock = ((await import("ioredis")).default as any).Cluster;
+        const [, options] = ClusterMock.mock.calls[0];
+        expect(options.slotsRefreshTimeout).toBe(22_000);
     });
 });
 

@@ -35,8 +35,25 @@ function createRedisInstance(url: string, options?: RedisOptions) {
         redisOptions: {
           ...options,
           password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+          // Managed Redis (e.g. Azure Managed Redis) fronts its shards behind a
+          // single endpoint whose TLS cert is issued for the endpoint hostname.
+          // When CLUSTER SLOTS advertises per-shard nodes, pin the TLS SNI to
+          // that hostname so each shard's TLS handshake validates instead of
+          // silently failing — a failed handshake surfaces as a slots-refresh
+          // timeout ("Failed to refresh slots cache").
+          ...(isRediss && options?.tls
+            ? { tls: { ...(options.tls as object), servername: parsed.hostname } }
+            : {}),
         },
         clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
+        // The ioredis default `slotsRefreshTimeout` is 1s, which is too tight
+        // for a TLS managed-Redis cluster: `CLUSTER SLOTS` topology discovery
+        // routinely exceeds it and throws
+        // `ClusterAllFailedError: Failed to refresh slots cache`
+        // (lastNodeError: timeout). Give discovery generous headroom and don't
+        // refresh so aggressively. Both are env-tunable.
+        slotsRefreshTimeout: Number(process.env.REDIS_SLOTS_REFRESH_TIMEOUT_MS) || 15_000,
+        slotsRefreshInterval: Number(process.env.REDIS_SLOTS_REFRESH_INTERVAL_MS) || 60_000,
         // Ensure TLS is enabled for all discovered shards in clustered mode
         ...(isRediss && {
           dnsLookup: (address: string, callback: (err: Error | null, address: string) => void) => callback(null, address),
