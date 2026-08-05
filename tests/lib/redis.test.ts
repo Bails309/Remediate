@@ -134,6 +134,13 @@ describe("getBullmqConnection", () => {
         expect(conn.tls).toBeUndefined();
         // Retry strategy must be a function so ioredis reconnects
         expect(typeof conn.retryStrategy).toBe("function");
+        // Exercise the reconnect callbacks: backoff caps at 5s and only the
+        // recoverable socket errors trigger a reconnect-on-error.
+        expect((conn.retryStrategy as (t: number) => number)(1)).toBe(200);
+        expect((conn.retryStrategy as (t: number) => number)(1000)).toBe(5_000);
+        const reconnect = conn.reconnectOnError as (e: Error) => boolean;
+        expect(reconnect(new Error("ETIMEDOUT"))).toBe(true);
+        expect(reconnect(new Error("nope"))).toBe(false);
     });
 
     it("adds TLS options for rediss:// URL and honours REDIS_TLS_REJECT_UNAUTHORIZED=false", async () => {
@@ -190,6 +197,15 @@ describe("createDedicatedRedis", () => {
         expect(client.options.tls).toBeUndefined();
         expect(typeof client.options.retryStrategy).toBe("function");
         expect(typeof client.options.reconnectOnError).toBe("function");
+
+        // Invoke the callbacks so their behaviour (not just their presence) is
+        // exercised: backoff grows then caps at 5s, and reconnectOnError only
+        // triggers for the recoverable socket errors.
+        expect(client.options.retryStrategy(1)).toBe(200);
+        expect(client.options.retryStrategy(100)).toBe(5_000);
+        expect(client.options.reconnectOnError(new Error("READONLY You can't write"))).toBe(true);
+        expect(client.options.reconnectOnError(new Error("ECONNRESET"))).toBe(true);
+        expect(client.options.reconnectOnError(new Error("some unrelated failure"))).toBe(false);
     });
 
     it("adds TLS options for a rediss:// URL", async () => {
