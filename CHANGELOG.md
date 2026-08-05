@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.3] - 2026-08-05
+### Fixed
+- **Worker intermittently reported as "Stale" in the health check while still processing jobs.** The heartbeat wrote through the shared `redis` proxy, which uses `maxRetriesPerRequest: null` (required for BullMQ). When the managed-Redis socket dropped (idle timeout / topology refresh / failover), the `SET worker:heartbeat` command queued in ioredis's offline queue *indefinitely* with no error, silently freezing the heartbeat so a healthy worker looked stale.
+  - `lib/redis.ts` — new `createDedicatedRedis()` factory that builds a fresh, non-cached client with the same URL/TLS/cluster handling but caller-provided overrides.
+  - `scripts/worker.ts` — the heartbeat now uses a dedicated fail-fast connection (`commandTimeout: 5000`, `maxRetriesPerRequest: 3`) with an `error` listener and explicit `[Heartbeat]` failure logging. A stuck write now rejects within a few seconds, ioredis reconnects, and the next tick refreshes the heartbeat instead of freezing.
+
 ## [2.12.2] - 2026-08-04
 ### Changed
 - **"Ask AI" now opens as a compact floating chat window instead of a full-page side sheet** ([`components/AiChatPanel.tsx`](components/AiChatPanel.tsx)). Removed the full-screen dimming overlay so the page stays visible and interactive; the panel is a rounded glass card docked to the bottom-right (capped to the viewport) with a fade/slide-up entrance. Dropped the body scroll lock (no longer modal); `Escape` still closes it.

@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { setProgress } from "../lib/progress";
 import { uploadQueue, pentestPdfQueue, QUEUE_NAME, PENTEST_QUEUE_NAME } from "../lib/queue";
-import { redis, getBullmqConnection } from "../lib/redis";
+import { getBullmqConnection, createDedicatedRedis } from "../lib/redis";
 import { processNessusUpload, processAcrUpload } from "../lib/ingest";
 import { processPentestPdfUpload } from "../lib/pentest-pdf";
 // Removed problematic UploadStatus import
@@ -82,11 +82,30 @@ async function run() {
 
   const HEARTBEAT_KEY = "worker:heartbeat";
   const HEARTBEAT_INTERVAL_MS = 10_000;
+  // Dedicated, fail-fast connection for the heartbeat. Previously this wrote
+  // through the shared `redis` proxy, which is created with
+  // `maxRetriesPerRequest: null` (required for BullMQ). When the managed-Redis
+  // socket dropped (idle timeout / topology refresh / failover) that setting
+  // left the `SET` queued in the offline queue *forever* with no error, so the
+  // heartbeat silently froze and a perfectly healthy worker showed up as
+  // "Stale" in the health check. A finite `commandTimeout` + `maxRetriesPerRequest`
+  // makes a stuck write reject within a few seconds — it gets logged, ioredis
+  // reconnects, and the next tick refreshes the heartbeat.
+  const heartbeatRedis = createDedicatedRedis({
+    commandTimeout: 5_000,
+    maxRetriesPerRequest: 3,
+  });
+  heartbeatRedis.on("error", (err: Error) => {
+    console.error("[Heartbeat] Redis connection error:", err.message);
+  });
   setInterval(async () => {
     try {
-      await redis.set(HEARTBEAT_KEY, Date.now().toString());
+      await heartbeatRedis.set(HEARTBEAT_KEY, Date.now().toString());
     } catch (err) {
-      console.error("Failed to set worker heartbeat", err);
+      console.error(
+        "[Heartbeat] Failed to write worker heartbeat:",
+        err instanceof Error ? err.message : err,
+      );
     }
   }, HEARTBEAT_INTERVAL_MS);
 

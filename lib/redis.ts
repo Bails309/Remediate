@@ -98,6 +98,38 @@ function buildRedisInstance() {
 }
 
 /**
+ * Create a fresh, dedicated (non-cached) Redis client using the same
+ * URL / TLS / cluster handling as the shared client, but with caller-provided
+ * option overrides.
+ *
+ * Unlike the shared `redis` proxy (which uses `maxRetriesPerRequest: null` for
+ * BullMQ and therefore lets commands queue forever while disconnected), this is
+ * intended for fail-fast side channels such as the worker heartbeat: pass a
+ * finite `commandTimeout` / `maxRetriesPerRequest` so a dropped socket surfaces
+ * an error quickly instead of silently hanging.
+ */
+export function createDedicatedRedis(overrides: RedisOptions = {}): Redis {
+  const url = process.env.REDIS_URL || DEFAULT_REDIS_URL;
+  const isTls = url.startsWith("rediss://");
+  const tlsReject = isTls
+    ? process.env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false"
+    : undefined;
+
+  return createRedisInstance(url, {
+    keepAlive: 30_000,
+    retryStrategy: (times: number) => Math.min(times * 200, 5_000),
+    reconnectOnError: (err: Error) =>
+      /READONLY|ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND/i.test(err.message),
+    ...(isTls && {
+      tls: {
+        rejectUnauthorized: tlsReject,
+      },
+    }),
+    ...overrides,
+  });
+}
+
+/**
  * Build a connection descriptor for BullMQ Queue/Worker instances.
  *
  * BullMQ v5 strongly recommends that each Queue/Worker own its own Redis
