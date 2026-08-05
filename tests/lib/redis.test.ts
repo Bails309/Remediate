@@ -162,3 +162,67 @@ describe("getBullmqConnection", () => {
     });
 });
 
+describe("createDedicatedRedis", () => {
+    const origEnv = process.env;
+
+    beforeEach(() => {
+        vi.resetModules();
+        process.env = { ...origEnv };
+        delete process.env.REDIS_CLUSTER_MODE;
+        delete process.env.REDIS_TLS_REJECT_UNAUTHORIZED;
+    });
+
+    afterEach(() => {
+        process.env = origEnv;
+    });
+
+    it("builds a plaintext client with fail-fast overrides applied", async () => {
+        process.env.REDIS_URL = "redis://redis-host:6379";
+        const { createDedicatedRedis } = await import("@/lib/redis");
+        const client = createDedicatedRedis({ commandTimeout: 5_000, maxRetriesPerRequest: 3 }) as any;
+
+        expect(client.url).toBe("redis://redis-host:6379");
+        expect(client.options).toMatchObject({
+            keepAlive: 30_000,
+            commandTimeout: 5_000,
+            maxRetriesPerRequest: 3,
+        });
+        expect(client.options.tls).toBeUndefined();
+        expect(typeof client.options.retryStrategy).toBe("function");
+        expect(typeof client.options.reconnectOnError).toBe("function");
+    });
+
+    it("adds TLS options for a rediss:// URL", async () => {
+        process.env.REDIS_URL = "rediss://secure-host:6380";
+        const { createDedicatedRedis } = await import("@/lib/redis");
+        const client = createDedicatedRedis() as any;
+
+        expect(client.options.tls).toEqual({ rejectUnauthorized: true });
+    });
+
+    it("honours REDIS_TLS_REJECT_UNAUTHORIZED=false for a rediss:// URL", async () => {
+        process.env.REDIS_URL = "rediss://secure-host:6380";
+        process.env.REDIS_TLS_REJECT_UNAUTHORIZED = "false";
+        const { createDedicatedRedis } = await import("@/lib/redis");
+        const client = createDedicatedRedis() as any;
+
+        expect(client.options.tls).toEqual({ rejectUnauthorized: false });
+    });
+
+    it("lets caller overrides win over the defaults", async () => {
+        process.env.REDIS_URL = "redis://redis-host:6379";
+        const { createDedicatedRedis } = await import("@/lib/redis");
+        const client = createDedicatedRedis({ keepAlive: 1_234 }) as any;
+
+        expect(client.options.keepAlive).toBe(1_234);
+    });
+
+    it("falls back to localhost when REDIS_URL is unset", async () => {
+        delete process.env.REDIS_URL;
+        const { createDedicatedRedis } = await import("@/lib/redis");
+        const client = createDedicatedRedis() as any;
+
+        expect(client.url).toBe("redis://localhost:6379");
+    });
+});
+

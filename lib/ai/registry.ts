@@ -13,6 +13,8 @@
  *    hammering registries during a multi-turn conversation.
  */
 
+// This is an HTTP User-Agent header value sent to public package registries,
+// not a credential. nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 const USER_AGENT = "Remediate-AI/1.0 (+vulnerability-remediation-assistant)";
 const REQUEST_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours

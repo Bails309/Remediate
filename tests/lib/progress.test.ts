@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/redis", () => ({
   redis: {
-    set: vi.fn(),
+    set: vi.fn().mockResolvedValue("OK"),
     eval: vi.fn().mockResolvedValue(1),
     ttl: vi.fn().mockResolvedValue(60),
   },
@@ -25,5 +25,27 @@ describe("progress.setProgress", () => {
       "EX",
       expect.any(Number)
     );
+  });
+
+  it("never throws when the redis write rejects", async () => {
+    const { redis } = await import("@/lib/redis");
+    (redis.set as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Redis down"));
+
+    await expect(
+      setProgress("u-err", { step: "Comparing diffs", progress: 40 })
+    ).resolves.toBeUndefined();
+  });
+
+  it("does not hang when the redis write stalls (fails fast via timeout)", async () => {
+    vi.useFakeTimers();
+    const { redis } = await import("@/lib/redis");
+    // Simulate a stalled connection: the SET never settles.
+    (redis.set as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+
+    const pending = setProgress("u-stall", { step: "Comparing diffs", progress: 40 });
+    // Advance past the internal write timeout so the guard fires.
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(pending).resolves.toBeUndefined();
+    vi.useRealTimers();
   });
 });
