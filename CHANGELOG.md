@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.0] - 2026-08-05
+### Added
+- **Negated search on the vulnerabilities list** — prefix a search term with `!` or `-` to *exclude* matching findings instead of including them (e.g. `!apache` hides Apache findings). Works across name, host, pluginId, and CVE, in both the folded (raw SQL) and unfolded (Prisma) query paths.
+  - [`app/api/vulnerabilities/route.ts`](app/api/vulnerabilities/route.ts) — parses the `!`/`-` prefix into a `queryNegated` flag; the raw-SQL path wraps the ILIKE match in `NOT COALESCE(…, false)` so NULL columns (e.g. `cve`) don't drop rows under negation, and the Prisma path switches the `OR` block to a null-safe `NOT`.
+  - [`app/(app)/vulnerabilities/vulnerabilities-client.tsx`](app/(app)/vulnerabilities/vulnerabilities-client.tsx) — search placeholder and tooltip now document the exclude syntax.
+
 ## [2.12.6] - 2026-08-05
 ### Fixed
 - **`ClusterAllFailedError: Failed to refresh slots cache` on the managed (cluster) Redis** (`lastNodeError: Error: timeout` at `refreshSlotsCache`). ioredis's default `slotsRefreshTimeout` is **1s**, which is too tight for a TLS-fronted managed Redis cluster — `CLUSTER SLOTS` topology discovery routinely overran it and threw, intermittently breaking connections. Compounding it, per-shard TLS handshakes had no SNI pinned, so shards advertised by `CLUSTER SLOTS` could fail validation and surface as the same slots-refresh timeout.

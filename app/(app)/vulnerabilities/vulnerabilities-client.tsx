@@ -1048,7 +1048,8 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         <Input
           value={query}
           onChange={(event) => { setQuery(event.target.value); setPage(1); }}
-          placeholder="Search by host, plugin, CVE"
+          placeholder="Search host, plugin, CVE (! to exclude)"
+          title="Prefix your search with ! or - to exclude matches instead of including them (e.g. !apache)"
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               fetchData();

@@ -67,7 +67,10 @@ export async function GET(request: NextRequest) {
     : [];
   const status = searchParams.get("status") ?? undefined;
   const risk = searchParams.get("risk") ?? undefined;
-  const query = searchParams.get("q") ?? undefined;
+  const rawQuery = searchParams.get("q") ?? undefined;
+  // A leading "!" or "-" negates the search: exclude rows matching the term rather than include them.
+  const queryNegated = /^[!-]/.test(rawQuery ?? "");
+  const query = rawQuery ? (queryNegated ? rawQuery.slice(1) : rawQuery) : undefined;
   const assigneeId = searchParams.get("assigneeId") ?? undefined;
 
   // Group filter: ?groupIds=uuid1,uuid2  (or the keyword "unassigned" to include items with no group).
@@ -198,7 +201,9 @@ export async function GET(request: NextRequest) {
     }
     if (query) {
       const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
-      conditions.push(`(name ILIKE $${valIdx} ESCAPE '\\' OR host ILIKE $${valIdx} ESCAPE '\\' OR "pluginId" ILIKE $${valIdx} ESCAPE '\\' OR cve ILIKE $${valIdx} ESCAPE '\\')`);
+      const matchExpr = `(name ILIKE $${valIdx} ESCAPE '\\' OR host ILIKE $${valIdx} ESCAPE '\\' OR "pluginId" ILIKE $${valIdx} ESCAPE '\\' OR cve ILIKE $${valIdx} ESCAPE '\\')`;
+      // COALESCE keeps NULL columns (e.g. cve) from swallowing rows under negation.
+      conditions.push(queryNegated ? `NOT COALESCE(${matchExpr}, false)` : matchExpr);
       values.push(`%${escapedQuery}%`);
       valIdx++;
     }
@@ -319,7 +324,7 @@ export async function GET(request: NextRequest) {
       : {}),
     ...(query
       ? {
-        OR: [
+        [queryNegated ? "NOT" : "OR"]: [
           { name: { contains: query, mode: "insensitive" as const } },
           { host: { contains: query, mode: "insensitive" as const } },
           { pluginId: { contains: query, mode: "insensitive" as const } },
