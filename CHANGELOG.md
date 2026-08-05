@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.12.5] - 2026-08-05
+### Fixed
+- **Uploads still hung in "Processing" (and blocked every later upload) even after the 2.12.4 progress fix.** On a managed **cluster** Redis, the ingest's per-site lock also ran through the shared `redis` client (`maxRetriesPerRequest: null`). A socket drop made the `finally` lock-release `EVAL` queue *forever* — so the job never returned, the BullMQ worker stayed wedged, and subsequent uploads piled up as "Processing" behind it (observed: parse logged `Parsed N rows`, then silence). The lock **acquire** had the same latent hang.
+  - [`lib/ingest.ts`](lib/ingest.ts) — extracted fail-fast `acquireSiteLock` / `releaseSiteLock` helpers (shared by the Nessus and ACR paths) that cap every lock op with a timeout. Acquire fails fast (surfaced as a failed upload) instead of hanging; **release never throws or blocks** — a stalled Redis is logged and left to the lock's TTL, so the worker always returns and the queue keeps draining.
+### Note
+- Requires deploying the updated **worker** image. Uploads already stuck in "Processing" were never written to the database (they hung before any DB write) — re-upload after deploying.
+
 ## [2.12.4] - 2026-08-05
 ### Fixed
 - **Uploads (ACR/Nessus) could sit in "Processing" forever and never reach "Completed".** The ingest wrote progress through the shared `redis` proxy (`maxRetriesPerRequest: null`, required for BullMQ). When the managed-Redis socket dropped mid-ingest, a `SET upload:progress:*` command queued in ioredis's offline queue *indefinitely* with no error, so the `await setProgress(...)` never resolved — the loop never reached the Postgres `Completed` write and the UI polled a progress key that never advanced. Same root cause as the 2.12.3 heartbeat freeze, on the ingest's own progress writes.

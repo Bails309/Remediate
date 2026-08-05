@@ -40,6 +40,8 @@ vi.mock("@/lib/storage", () => ({ getStorageProvider: vi.fn(async () => mockStor
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRedis.expire.mockResolvedValue(1);
+  mockRedis.eval.mockResolvedValue(1);
   mockPrisma.vulnerabilityHistory.findMany.mockResolvedValue([]);
 });
 
@@ -309,5 +311,54 @@ describe("processAcrUpload", () => {
       where: { id: { in: ["h-acr-fp-1"] } },
       data: { lastSeenAt: expect.any(Date) },
     });
+  });
+
+  it("still completes the upload when the lock release fails (Redis stalled)", async () => {
+    mockRedis.set.mockResolvedValue("OK");
+    // Simulate a degraded Redis: the atomic lock-release eval rejects. This must
+    // NOT prevent the upload from being marked Completed, and must not throw
+    // (otherwise a wedged worker would block every subsequent upload).
+    mockRedis.eval.mockRejectedValue(new Error("Redis cluster unreachable"));
+    mockStorage.read.mockResolvedValue("acr-csv-data");
+
+    const { parseAcrCsv } = await import("@/lib/csv");
+    (parseAcrCsv as any).mockImplementation(() => [
+      {
+        cveId: "CVE-2024-2222",
+        registryName: "myregistry",
+        repository: "myrepo",
+        packageName: "zlib",
+        installedVersion: "1.2.13",
+        severity: "High",
+        imageDigest: "sha256:ghi",
+        imageTag: "latest",
+        description: "desc",
+        remediation: "upgrade",
+        timeGenerated: "2026-07-01T00:00:00Z",
+      },
+    ]);
+
+    mockPrisma.vulnerability.findMany.mockResolvedValue([]);
+    mockPrisma.vulnerability.updateMany.mockResolvedValue({});
+    mockPrisma.vulnerability.createMany.mockResolvedValue({ count: 1 });
+    mockPrisma.uploadHistory.update.mockResolvedValue({});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { processAcrUpload } = await import("@/lib/ingest");
+
+    await expect(
+      processAcrUpload({ uploadId: "acr-u3", siteId: "site-acr", storageKey: "acr-key-3" }),
+    ).resolves.toBeUndefined();
+
+    // The upload was still marked Completed despite the release failure.
+    expect(mockPrisma.uploadHistory.update).toHaveBeenCalledWith({
+      where: { id: "acr-u3" },
+      data: { status: expect.anything(), rowCount: 1 },
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Lock release failed"),
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 });

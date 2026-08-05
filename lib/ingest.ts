@@ -7,6 +7,83 @@ import { getLockKey } from "@/lib/queue";
 import { isValid, parse } from "date-fns";
 import { getStorageProvider } from "./storage";
 
+// Per-site ingest lock timing. These operations run against the shared `redis`
+// client, which uses `maxRetriesPerRequest: null` (required for BullMQ) and
+// therefore lets commands queue *indefinitely* while the socket is down. On a
+// managed/cluster Redis a dropped connection would otherwise hang the whole
+// ingest job — either mid-run or, worse, in the `finally` lock release *after*
+// the DB write, leaving the worker wedged so every subsequent upload piles up
+// in "Processing". Cap each lock op so a degraded Redis fails fast instead.
+const LOCK_TTL_SECONDS = 1800;
+const LOCK_ACQUIRE_TIMEOUT_MS = 10_000;
+const LOCK_RELEASE_TIMEOUT_MS = 5_000;
+
+function withRedisTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Redis ${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/**
+ * Acquire the per-site ingest lock (re-entrant for the same uploadId so BullMQ
+ * retries of the same job succeed). Fails fast if Redis is unreachable rather
+ * than hanging the worker; the caller surfaces that as a failed upload.
+ */
+async function acquireSiteLock(lockKey: string, lockValue: string) {
+  const locked = await withRedisTimeout(
+    redis.set(lockKey, lockValue, "EX", LOCK_TTL_SECONDS, "NX"),
+    LOCK_ACQUIRE_TIMEOUT_MS,
+    "lock acquire",
+  );
+  if (!locked) {
+    const currentLock = await withRedisTimeout(redis.get(lockKey), LOCK_ACQUIRE_TIMEOUT_MS, "lock read");
+    if (currentLock !== lockValue) {
+      throw new Error("Lock already held for this site");
+    }
+    // Refresh TTL if we already own it (re-entrant retry).
+    await withRedisTimeout(redis.expire(lockKey, LOCK_TTL_SECONDS), LOCK_ACQUIRE_TIMEOUT_MS, "lock refresh");
+  }
+}
+
+/**
+ * Release the per-site ingest lock atomically (only if we still own it). Never
+ * throws and never blocks: a release failure is logged and left to the lock's
+ * TTL, so a stalled Redis can't wedge the worker after the job has completed.
+ */
+async function releaseSiteLock(lockKey: string, lockValue: string, siteId: string) {
+  const script = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("del", KEYS[1])
+    else
+      return 0
+    end
+  `;
+  try {
+    await withRedisTimeout(
+      (redis as { eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown> }).eval(
+        script,
+        1,
+        lockKey,
+        lockValue,
+      ),
+      LOCK_RELEASE_TIMEOUT_MS,
+      "lock release",
+    );
+  } catch (err) {
+    console.warn(`[Ingest] Lock release failed for site ${siteId} (lock will expire via its TTL):`, err);
+  }
+}
+
 function parseValidDate(value?: string | null) {
   if (!value) return null;
   const s = value.toString().trim();
@@ -55,19 +132,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
   const lockKey = getLockKey(siteId);
   const lockValue = uploadId;
 
-  // Try to acquire the lock. 
-  // NX = Only set if not exists. 
-  // If it fails, check if we already own it (re-entrant for retries).
-  const locked = await redis.set(lockKey, lockValue, "EX", 1800, "NX");
-
-  if (!locked) {
-    const currentLock = await redis.get(lockKey);
-    if (currentLock !== lockValue) {
-      throw new Error("Lock already held for this site");
-    }
-    // Refresh TTL if we already own it
-    await redis.expire(lockKey, 1800);
-  }
+  await acquireSiteLock(lockKey, lockValue);
 
   try {
     const storage = await getStorageProvider();
@@ -322,15 +387,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     // Cleanup storage after successful processing
     await storage.delete(storageKey);
   } finally {
-    // Atomic lock release: only delete if the value matches our uploadId
-    const script = `
-      if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("del", KEYS[1])
-      else
-        return 0
-      end
-    `;
-    await (redis as { eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown> }).eval(script, 1, lockKey, lockValue);
+    await releaseSiteLock(lockKey, lockValue, siteId);
   }
 }
 
@@ -372,14 +429,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
   const lockKey = getLockKey(siteId);
   const lockValue = uploadId;
 
-  const locked = await redis.set(lockKey, lockValue, "EX", 1800, "NX");
-  if (!locked) {
-    const currentLock = await redis.get(lockKey);
-    if (currentLock !== lockValue) {
-      throw new Error("Lock already held for this site");
-    }
-    await redis.expire(lockKey, 1800);
-  }
+  await acquireSiteLock(lockKey, lockValue);
 
   try {
     const storage = await getStorageProvider();
@@ -672,17 +722,6 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
 
     await storage.delete(storageKey);
   } finally {
-    const script = `
-      if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("del", KEYS[1])
-      else
-        return 0
-      end
-    `;
-    await (
-      redis as {
-        eval: (script: string, numKeys: number, ...args: (string | number)[]) => Promise<unknown>;
-      }
-    ).eval(script, 1, lockKey, lockValue);
+    await releaseSiteLock(lockKey, lockValue, siteId);
   }
 }
