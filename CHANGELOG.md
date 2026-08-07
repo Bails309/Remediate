@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.6] - 2026-08-07
+### Fixed
+- **Threat sync still starved the upload queue after 2.13.5.** The KEV cache and `addBulk()` fixed the enqueue phase — queueing dropped from ~20s to **1s** and peak loop blocking from 20,519ms to ~6,233ms — but the **1,565 ingest jobs themselves** then ran unthrottled in the same process as the upload worker. Each does an OSV/NVD fetch, normalisation and a Prisma upsert; back-to-back they kept timers starved, so Redis writes still took 10–32s, BullMQ lost job locks (`could not renew lock`), and the `{upload-queue}` / `{pentest-pdf-queue}` blocking clients reconnected repeatedly (three `Ready` lines in 40s).
+  - [`lib/threat-intelligence/worker.ts`](lib/threat-intelligence/worker.ts) — the threat worker now runs `concurrency: 1` with a `limiter` of **5 jobs/second**, capping the drain rate so imports keep getting scheduled.
+  - [`lib/report-scheduler.ts`](lib/report-scheduler.ts) — the startup sync is skipped when `threatFeedMetadata.lastSyncedAt` is under **6h** old, so a deploy no longer queues ~1,600 jobs on every boot. The scheduled sync is unchanged.
+### Changed
+- **Corrected two instrumentation artefacts that made the 2.13.4 logs ambiguous.**
+  - [`scripts/worker.ts`](scripts/worker.ts) — loop-delay sampling moved to its own *synchronous* interval. Reading and resetting the histogram inside the async heartbeat meant backed-up ticks fired in a burst after a stall and reset it before the stall was reported — which is how `Redis SET took 32256ms (loop lag 0ms)` was logged while the loop was in fact starved.
+  - [`scripts/worker.ts`](scripts/worker.ts) — `withTimeout()` now reports when the timer *actually* fired, not just its configured budget. `queue depth read timed out after 15000ms` had been logged 52,985ms in, hiding the fact that timers themselves were 38s late.
+
 ## [2.13.5] - 2026-08-07
 ### Fixed
 - **Root cause of the recurring "Stale" worker and wedged imports: the startup threat sync was blocking the event loop for ~20s at a time.** The 2.13.4 instrumentation caught it on the first run — `[Heartbeat] Event loop blocked for up to 20519ms` immediately after `[Sync] Found 1604 vulnerabilities. Queueing ingestion...`. Every `ingestThreat()` job called `fetchCisaKev()`, which had **no cache**, so a 1,604-CVE sync downloaded and synchronously `JSON.parse`d the multi-megabyte CISA KEV catalogue **1,604 times**. With the loop blocked, ioredis could not read its sockets: `CLUSTER SLOTS` discovery hit its 15s timeout (`ClusterAllFailedError`), BullMQ's 30s job locks expired (`could not renew lock` → `Missing lock for job … moveToFinished`), and the upload queue stalled as collateral damage. It fired on **every worker boot** via `[Scheduler] Triggering immediate startup threat sync`, which is why it recurred after each deploy.

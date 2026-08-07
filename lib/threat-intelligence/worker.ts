@@ -175,6 +175,13 @@ if (process.env.NODE_ENV !== "test") {
     }, {
         // Own our BullMQ connections -- see lib/redis.ts getBullmqConnection().
         connection: getBullmqConnection(),
+        // Threat ingestion shares a process with the upload worker. A sync
+        // queues ~1,600 fetch + parse + upsert jobs at once; ungoverned, that
+        // saturates the event loop, delays timers, and costs BullMQ the job
+        // locks it needs to renew every 30s. Cap the drain rate so imports
+        // keep getting scheduled.
+        concurrency: 1,
+        limiter: { max: 5, duration: 1_000 },
     });
 
     threatWorker.on('ready', () => {

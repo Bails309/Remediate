@@ -15,10 +15,16 @@ import { monitorEventLoopDelay } from "node:perf_hooks";
 
 /** Reject rather than hang so a stalled probe is visible in logs. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  const started = Date.now();
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      // Report when the timer actually fired: a large gap over `ms` means timers
+      // themselves were starved, which is a different fault to a slow command.
+      const timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms (timer fired at ${Date.now() - started}ms)`)),
+        ms,
+      );
       timer.unref();
     }),
   ]);
@@ -115,20 +121,27 @@ async function run() {
   // A blocked event loop and an unreachable Redis look identical from the
   // outside (heartbeat stops advancing, worker shows "Stale") but need
   // opposite fixes. Sample the loop delay so the logs say which one it was.
+  // This runs on its own synchronous interval: reading and resetting the
+  // histogram inside the async heartbeat let backed-up ticks fire in a burst
+  // after a stall and reset it before the stall was ever reported, which is how
+  // a 32s Redis write came to be logged alongside "loop lag 0ms".
   const loopDelay = monitorEventLoopDelay({ resolution: 20 });
   loopDelay.enable();
   const LOOP_LAG_WARN_MS = 1_000;
+  let lastLoopLagMs = 0;
 
-  setInterval(async () => {
-    const maxLagMs = loopDelay.max / 1e6;
+  setInterval(() => {
+    lastLoopLagMs = loopDelay.max / 1e6;
     loopDelay.reset();
-    if (maxLagMs > LOOP_LAG_WARN_MS) {
+    if (lastLoopLagMs > LOOP_LAG_WARN_MS) {
       console.warn(
-        `[Heartbeat] Event loop blocked for up to ${Math.round(maxLagMs)}ms in the last interval — ` +
+        `[Heartbeat] Event loop blocked for up to ${Math.round(lastLoopLagMs)}ms in the last interval — ` +
           `timers and Redis responses are delayed; this is a CPU/sync-work stall, not a Redis outage.`,
       );
     }
+  }, HEARTBEAT_INTERVAL_MS).unref();
 
+  setInterval(async () => {
     const started = Date.now();
     try {
       // `commandTimeout` only bounds per-node commands; in cluster mode a write
@@ -141,12 +154,12 @@ async function run() {
       );
       const elapsed = Date.now() - started;
       if (elapsed > 1_000) {
-        console.warn(`[Heartbeat] Redis SET took ${elapsed}ms (loop lag ${Math.round(maxLagMs)}ms)`);
+        console.warn(`[Heartbeat] Redis SET took ${elapsed}ms (loop lag ${Math.round(lastLoopLagMs)}ms)`);
       }
     } catch (err) {
       console.error(
         `[Heartbeat] Failed to write worker heartbeat after ${Date.now() - started}ms ` +
-          `(loop lag ${Math.round(maxLagMs)}ms):`,
+          `(loop lag ${Math.round(lastLoopLagMs)}ms):`,
         err instanceof Error ? err.message : err,
       );
     }

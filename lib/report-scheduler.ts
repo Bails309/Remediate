@@ -8,6 +8,32 @@ import { dispatchWeeklyAssignmentEmails } from "./assignment-notifications";
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 
+// Every worker boot used to kick off a full sync, so each deploy queued ~1,600
+// ingest jobs that saturated the process and starved the upload queue. The
+// scheduled sync still runs on its own cadence; this only covers a cold start
+// where the feed may genuinely be empty or stale.
+const STARTUP_SYNC_MIN_AGE_MS = 6 * 60 * 60 * 1000;
+
+async function runStartupThreatSync() {
+  try {
+    const meta = await prisma.threatFeedMetadata.findUnique({ where: { id: "CISA_KEV" } });
+    const lastSyncedAt = meta?.lastSyncedAt ? new Date(meta.lastSyncedAt).getTime() : null;
+    const ageMs = lastSyncedAt ? Date.now() - lastSyncedAt : null;
+
+    if (ageMs !== null && ageMs < STARTUP_SYNC_MIN_AGE_MS) {
+      console.log(
+        `[Scheduler] Skipping startup threat sync \u2014 last sync was ${Math.round(ageMs / 60_000)}m ago.`,
+      );
+      return;
+    }
+
+    console.log("[Scheduler] Triggering immediate startup threat sync...");
+    await syncAllThreats();
+  } catch (err) {
+    console.error("Startup threat sync failed:", err);
+  }
+}
+
 import { toDate } from "date-fns-tz";
 
 function isTimeToSend(config: { dayOfWeek: number; hour: number; minute: number; timezone: string }, lastSentAt: Date | null) {
@@ -40,9 +66,7 @@ function isTimeToSend(config: { dayOfWeek: number; hour: number; minute: number;
 }
 
 export function startReportScheduler() {
-  // Trigger an immediate sync on startup to populate the feed
-  console.log("[Scheduler] Triggering immediate startup threat sync...");
-  syncAllThreats().catch(err => console.error("Startup threat sync failed:", err));
+  void runStartupThreatSync();
 
   setInterval(async () => {
     try {
