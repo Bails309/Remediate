@@ -11,6 +11,18 @@ import { startAzureFileShareScheduler } from "../lib/azure-file-share-scheduler"
 import { startAzureBlobIngestScheduler } from "../lib/azure-blob-ingest-scheduler";
 import { ScannerType } from "@prisma/client";
 import { Worker, Job } from "bullmq";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+
+/** Reject rather than hang so a stalled probe is visible in logs. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      timer.unref();
+    }),
+  ]);
+}
 
 async function processJob(job: Job<{ uploadId: string; storageKey: string }>) {
   const { uploadId, storageKey } = job.data;
@@ -98,12 +110,35 @@ async function run() {
   heartbeatRedis.on("error", (err: Error) => {
     console.error("[Heartbeat] Redis connection error:", err.message);
   });
+
+  // A blocked event loop and an unreachable Redis look identical from the
+  // outside (heartbeat stops advancing, worker shows "Stale") but need
+  // opposite fixes. Sample the loop delay so the logs say which one it was.
+  const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+  loopDelay.enable();
+  const LOOP_LAG_WARN_MS = 1_000;
+
   setInterval(async () => {
+    const maxLagMs = loopDelay.max / 1e6;
+    loopDelay.reset();
+    if (maxLagMs > LOOP_LAG_WARN_MS) {
+      console.warn(
+        `[Heartbeat] Event loop blocked for up to ${Math.round(maxLagMs)}ms in the last interval — ` +
+          `timers and Redis responses are delayed; this is a CPU/sync-work stall, not a Redis outage.`,
+      );
+    }
+
+    const started = Date.now();
     try {
       await heartbeatRedis.set(HEARTBEAT_KEY, Date.now().toString());
+      const elapsed = Date.now() - started;
+      if (elapsed > 1_000) {
+        console.warn(`[Heartbeat] Redis SET took ${elapsed}ms (loop lag ${Math.round(maxLagMs)}ms)`);
+      }
     } catch (err) {
       console.error(
-        "[Heartbeat] Failed to write worker heartbeat:",
+        `[Heartbeat] Failed to write worker heartbeat after ${Date.now() - started}ms ` +
+          `(loop lag ${Math.round(maxLagMs)}ms):`,
         err instanceof Error ? err.message : err,
       );
     }
@@ -179,16 +214,24 @@ async function run() {
   // future recurrence is immediately visible without needing to shell in.
   const DEPTH_LOG_INTERVAL_MS = 60_000;
   setInterval(async () => {
+    const started = Date.now();
     try {
-      const [uploadCounts, pentestCounts] = await Promise.all([
-        uploadQueue.getJobCounts("waiting", "active", "delayed", "failed"),
-        pentestPdfQueue.getJobCounts("waiting", "active", "delayed", "failed"),
-      ]);
+      // The shared BullMQ client uses `maxRetriesPerRequest: null`, so a read
+      // issued while the socket is down queues forever and this probe silently
+      // stops reporting. Time-cap it so the gap is logged instead.
+      const [uploadCounts, pentestCounts] = await withTimeout(
+        Promise.all([
+          uploadQueue.getJobCounts("waiting", "active", "delayed", "failed"),
+          pentestPdfQueue.getJobCounts("waiting", "active", "delayed", "failed"),
+        ]),
+        15_000,
+        "queue depth read",
+      );
       console.log(
-        `[QueueDepth] upload=${JSON.stringify(uploadCounts)} pentest=${JSON.stringify(pentestCounts)}`,
+        `[QueueDepth] upload=${JSON.stringify(uploadCounts)} pentest=${JSON.stringify(pentestCounts)} (${Date.now() - started}ms)`,
       );
     } catch (err) {
-      console.error("[QueueDepth] failed to read counts:", err);
+      console.error(`[QueueDepth] failed to read counts after ${Date.now() - started}ms:`, err);
     }
   }, DEPTH_LOG_INTERVAL_MS);
 

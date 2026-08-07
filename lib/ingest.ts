@@ -160,6 +160,20 @@ function indexReconciliationRows<T extends { id: string; pluginId: string; host:
   return map;
 }
 
+/**
+ * Log how long each ingest phase took. An ingest that stalls produces silence
+ * between two of these lines, which names the culprit (storage read, a
+ * specific query, Redis) instead of leaving only "Parsed N rows" to go on.
+ */
+async function timed<T>(label: string, step: string, fn: () => Promise<T>): Promise<T> {
+  const started = Date.now();
+  try {
+    return await fn();
+  } finally {
+    console.log(`[${label}] ${step}: ${Date.now() - started}ms`);
+  }
+}
+
 type Params = {
   uploadId: string;
   siteId: string;
@@ -174,7 +188,7 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
 
   try {
     const storage = await getStorageProvider();
-    const text = await storage.read(storageKey);
+    const text = await timed("Ingest", "storage read", () => storage.read(storageKey));
 
     await setProgress(uploadId, { step: "Extracting data", progress: 10 });
 
@@ -223,26 +237,30 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       cve: true,
     } as const;
 
-    const activeRows = await prisma.vulnerability.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.NESSUS,
-        status: { in: RECONCILABLE_STATUSES },
-      },
-      select: reconciliationSelect,
-      orderBy: { lastSeenAt: "desc" },
-    });
+    const activeRows = await timed("Ingest", "load active candidates", () =>
+      prisma.vulnerability.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.NESSUS,
+          status: { in: RECONCILABLE_STATUSES },
+        },
+        select: reconciliationSelect,
+        orderBy: { lastSeenAt: "desc" },
+      }),
+    );
     const activeMap = indexReconciliationRows(activeRows, true);
 
-    const historyRows = await prisma.vulnerabilityHistory.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.NESSUS,
-        status: { in: ARCHIVED_DETERMINATION_STATUSES },
-      },
-      select: reconciliationSelect,
-      orderBy: { lastSeenAt: "desc" },
-    });
+    const historyRows = await timed("Ingest", "load archived candidates", () =>
+      prisma.vulnerabilityHistory.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.NESSUS,
+          status: { in: ARCHIVED_DETERMINATION_STATUSES },
+        },
+        select: reconciliationSelect,
+        orderBy: { lastSeenAt: "desc" },
+      }),
+    );
     const historyMap = indexReconciliationRows(historyRows, true);
 
     console.log(
@@ -450,7 +468,7 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
 
   try {
     const storage = await getStorageProvider();
-    const text = await storage.read(storageKey);
+    const text = await timed("Ingest:ACR", "storage read", () => storage.read(storageKey));
 
     await setProgress(uploadId, { step: "Extracting data", progress: 10 });
 
@@ -481,15 +499,17 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
       port: true,
     } as const;
 
-    const activeRows = await prisma.vulnerability.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.ACR,
-        status: { in: RECONCILABLE_STATUSES },
-      },
-      select: reconciliationSelect,
-      orderBy: { lastSeenAt: "desc" },
-    });
+    const activeRows = await timed("Ingest:ACR", "load active candidates", () =>
+      prisma.vulnerability.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.ACR,
+          status: { in: RECONCILABLE_STATUSES },
+        },
+        select: reconciliationSelect,
+        orderBy: { lastSeenAt: "desc" },
+      }),
+    );
     const activeMap = indexReconciliationRows(activeRows, false);
 
     // Also check the archive: FalsePositive / NoFixAvailable rows have been
@@ -498,15 +518,17 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
     // issue — the user has already made a determination on it. Just refresh
     // its lastSeenAt so it stays discoverable in the archive view. This
     // mirrors the Nessus ingest reconciliation.
-    const historyRows = await prisma.vulnerabilityHistory.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.ACR,
-        status: { in: ARCHIVED_DETERMINATION_STATUSES },
-      },
-      select: reconciliationSelect,
-      orderBy: { lastSeenAt: "desc" },
-    });
+    const historyRows = await timed("Ingest:ACR", "load archived candidates", () =>
+      prisma.vulnerabilityHistory.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.ACR,
+          status: { in: ARCHIVED_DETERMINATION_STATUSES },
+        },
+        select: reconciliationSelect,
+        orderBy: { lastSeenAt: "desc" },
+      }),
+    );
     const historyMap = indexReconciliationRows(historyRows, false);
 
     console.log(
@@ -515,10 +537,12 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
 
     // Mark all current ACR rows for this site as stale; the reconciliation
     // loop below will flip the ones that reappear back to isCurrent = true.
-    await prisma.vulnerability.updateMany({
-      where: { siteId, scannerType: ScannerType.ACR },
-      data: { isCurrent: false },
-    });
+    await timed("Ingest:ACR", "mark stale", () =>
+      prisma.vulnerability.updateMany({
+        where: { siteId, scannerType: ScannerType.ACR },
+        data: { isCurrent: false },
+      }),
+    );
 
     const touchIds: string[] = [];
     const touchHistoryIds: string[] = [];
@@ -595,31 +619,33 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
       }
     }
 
-    for (let i = 0; i < touchIds.length; i += chunkSize) {
-      const chunk = touchIds.slice(i, i + chunkSize);
+    await timed("Ingest:ACR", `refresh ${touchIds.length} existing rows`, async () => {
+      for (let i = 0; i < touchIds.length; i += chunkSize) {
+        const chunk = touchIds.slice(i, i + chunkSize);
 
-      await prisma.$transaction(
-        chunk.map((id) => {
-          const row = rowForId.get(id);
-          return prisma.vulnerability.update({
-            where: { id },
-            data: {
-              lastSeenAt: batchTime,
-              isCurrent: true,
-              ...(row
-                ? {
-                    imageDigest: row.imageDigest,
-                    imageTag: row.imageTag ?? null,
-                    installedVersion: row.installedVersion ?? null,
-                    remediation: row.remediation ?? null,
-                    timeGenerated: parseIsoDate(row.timeGenerated),
-                  }
-                : {}),
-            },
-          });
-        }),
-      );
-    }
+        await prisma.$transaction(
+          chunk.map((id) => {
+            const row = rowForId.get(id);
+            return prisma.vulnerability.update({
+              where: { id },
+              data: {
+                lastSeenAt: batchTime,
+                isCurrent: true,
+                ...(row
+                  ? {
+                      imageDigest: row.imageDigest,
+                      imageTag: row.imageTag ?? null,
+                      installedVersion: row.installedVersion ?? null,
+                      remediation: row.remediation ?? null,
+                      timeGenerated: parseIsoDate(row.timeGenerated),
+                    }
+                  : {}),
+              },
+            });
+          }),
+        );
+      }
+    });
 
     // Refresh lastSeenAt on archived (FalsePositive / NoFixAvailable) rows
     // whose findings reappeared in this scan. Do NOT resurrect them into the
@@ -633,20 +659,24 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
     }
 
     if (createData.length > 0) {
-      for (let i = 0; i < createData.length; i += chunkSize) {
-        const chunk = createData.slice(i, i + chunkSize);
-        await prisma.vulnerability.createMany({ data: chunk });
-      }
+      await timed("Ingest:ACR", `insert ${createData.length} new rows`, async () => {
+        for (let i = 0; i < createData.length; i += chunkSize) {
+          const chunk = createData.slice(i, i + chunkSize);
+          await prisma.vulnerability.createMany({ data: chunk });
+        }
+      });
     }
 
     // Archive rows that were present before but absent from this scan.
-    const remediated = await prisma.vulnerability.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.ACR,
-        lastSeenAt: { lt: batchTime },
-      },
-    });
+    const remediated = await timed("Ingest:ACR", "find remediated", () =>
+      prisma.vulnerability.findMany({
+        where: {
+          siteId,
+          scannerType: ScannerType.ACR,
+          lastSeenAt: { lt: batchTime },
+        },
+      }),
+    );
 
     if (remediated.length > 0) {
       const historyData = remediated.map((v) => ({

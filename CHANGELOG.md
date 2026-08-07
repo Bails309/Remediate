@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.4] - 2026-08-07
+### Added
+- **Diagnostics to tell a blocked event loop apart from a Redis stall.** Both present identically from outside — the heartbeat stops advancing and the worker shows "Stale" — but they need opposite fixes, and the 2.13.3 incident had no `[Heartbeat]` error lines *and* a missing `[QueueDepth]` tick, which fits either. The logs now say which.
+  - [`scripts/worker.ts`](scripts/worker.ts) — the heartbeat samples `perf_hooks.monitorEventLoopDelay()` and warns when the loop was blocked for **>1s** in an interval, so a CPU/sync-work stall is named explicitly rather than inferred. Heartbeat writes also log their own duration (>1s) and include the loop lag in failure messages.
+  - [`scripts/worker.ts`](scripts/worker.ts) — the `[QueueDepth]` probe is time-capped at 15s and reports elapsed time. The shared BullMQ client runs `maxRetriesPerRequest: null`, so a read issued while the socket is down previously queued **forever** and the probe silently stopped reporting — the gap is now logged as a failure instead of vanishing.
+  - [`lib/ingest.ts`](lib/ingest.ts) — per-phase timings (`storage read`, `load active candidates`, `load archived candidates`, `mark stale`, `refresh N existing rows`, `insert N new rows`, `find remediated`). A stalled import now leaves a named last-completed phase instead of only `Parsed N rows` followed by silence.
+
 ## [2.13.3] - 2026-08-07
 ### Fixed
 - **Worker flapping to "Stale" and uploads wedging, with `ClusterAllFailedError: Failed to refresh slots cache` / `None of startup nodes is available` against Azure Managed Redis.** Not an outage — `[QueueDepth]` reads were succeeding *between* the failures, so AMR was up and only per-client topology discovery was failing. `getBullmqConnection()` returned a **brand-new `Redis.Cluster` on every call**, and BullMQ additionally `duplicate()`s that instance for each `Worker`'s blocking client. The worker process therefore ran **~11 independent Cluster clients** (shared proxy, heartbeat, 3 Queues, 3 Workers × main + duplicated blocking), each holding a socket to every shard and each polling `CLUSTER SLOTS` on its own 60s timer. Azure Managed Redis [rate-limits new connection creation](https://learn.microsoft.com/en-us/azure/redis/best-practices-connection), so a single discovery timeout tore a client down, triggered a fresh burst of connections, and the reconnect storm sustained itself.
