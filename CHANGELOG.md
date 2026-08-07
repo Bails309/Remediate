@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.2] - 2026-08-07
+### Security
+- **Bumped the `js-yaml` npm `override` to a patched release** to clear the high-severity Dependabot advisory flagged on the default branch. The existing override pinned `js-yaml@4.3.0` — itself the vulnerable version — which `eslint@9` pulls in transitively via `@eslint/eslintrc`. Updated [`package.json`](package.json) override `js-yaml` `4.3.0` → `4.3.1`.
+  - GHSA-5p4m-2wfm-xmqj (high) — quadratic CPU consumption in `!!omap` resolution; the CVE-2026-59870 fix was not backported to `>=4.0.0 <4.3.1`.
+  - Dev-only dependency (lint toolchain); it is not part of the runtime image. `npm audit` now reports **0 vulnerabilities** at the root, and the `pentest-backend` package was already clean.
+- Resynced [`package-lock.json`](package-lock.json), whose root `version` field had drifted to `2.9.2` across earlier releases.
+
 ## [2.13.1] - 2026-08-07
 ### Fixed
 - **Uploads stuck in "Processing" again — this time a database problem, not Redis.** The ingest diff step looked up existing findings with chunked queries containing a **500-way `OR`** over `(pluginId, host, port[, cve])`. `VulnerabilityHistory` had no index covering those columns, so Postgres could not use an index for that predicate and each chunk degraded into a **full sequential scan of the entire 12-month archive**, re-evaluating 500 branches per row. A 3,528-row ACR scan issued 16 such scans; with no job timeout the worker sat there indefinitely and the upload never left "Processing" (observed: `[Ingest:ACR] Parsed 3528 rows`, then silence).
