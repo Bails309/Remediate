@@ -50,13 +50,17 @@ export async function fetchOsvById(osvId: string): Promise<Record<string, unknow
  * 1,604-CVE sync previously downloaded and parsed it 1,604 times, blocking the
  * event loop for ~20s at a stretch — which stalled ioredis, timed out cluster
  * slot discovery, and cost BullMQ its job locks.
- */
-const KEV_CACHE_TTL_MS = 60 * 60 * 1000;
+ */const KEV_CACHE_TTL_MS = 60 * 60 * 1000;
+// Failures are cached too, briefly. Caching only successes meant a timing-out
+// CISA endpoint left every ingest job re-attempting the multi-megabyte download.
+const KEV_FAILURE_TTL_MS = 5 * 60 * 1000;
 let kevCache: { data: Record<string, unknown>; expiresAt: number } | null = null;
+let kevFailedUntil = 0;
 let kevInflight: Promise<Record<string, unknown>> | null = null;
 
 export async function fetchCisaKev(): Promise<Record<string, unknown>> {
     if (kevCache && kevCache.expiresAt > Date.now()) return kevCache.data;
+    if (Date.now() < kevFailedUntil) return kevCache?.data ?? {};
     // Collapse concurrent callers onto a single fetch.
     kevInflight ??= (async () => {
         try {
@@ -65,7 +69,16 @@ export async function fetchCisaKev(): Promise<Record<string, unknown>> {
             if (!res.ok) throw new Error(`CISA KEV fetch failed: ${res.statusText}`);
             const data = (await res.json()) as Record<string, unknown>;
             kevCache = { data, expiresAt: Date.now() + KEV_CACHE_TTL_MS };
+            kevFailedUntil = 0;
             return data;
+        } catch (err) {
+            kevFailedUntil = Date.now() + KEV_FAILURE_TTL_MS;
+            console.warn(
+                `[ThreatIntel] CISA KEV unavailable, backing off ${KEV_FAILURE_TTL_MS / 60_000}m:`,
+                err instanceof Error ? err.message : err,
+            );
+            // Serve stale data if we have any rather than failing the ingest.
+            return kevCache?.data ?? {};
         } finally {
             kevInflight = null;
         }

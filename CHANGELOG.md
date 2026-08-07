@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.7] - 2026-08-07
+### Fixed
+- **Worker container crash-looping: `ERR_STRING_TOO_LONG` from the Azure File Share import.** This is the actual root cause behind the whole "worker goes Stale / imports stuck" sequence, and it supersedes the earlier diagnoses in 2.13.1–2.13.6.
+
+  `AzureFileShareService.processFile()` downloaded the matched CSV and passed it to `streamToString()`, which buffered **the entire file** in memory and then called `Buffer.concat(chunks).toString("utf8")`. For `prod_triage.csv` the result exceeded Node's hard limit on string length (`0x1fffffe8` characters, ~512MB) and threw. Because the throw happened inside the stream's `end` **event listener** — after the `Promise` executor had already returned — it bypassed the enclosing promise *and* the caller's `try/catch`, surfacing as an uncaught exception that terminated the process.
+
+  The polling scheduler runs on every worker boot (`[AzureFileShare] Matching file prod_triage.csv to site Azure Production`, ~6s after start), so this repeated on every deploy and restart. Even when the file stayed just under the string limit, buffering hundreds of megabytes and converting to a UTF-16 string drove the heap into sustained GC pauses — which is what produced the 18–48s event-loop stalls, the `Failed to refresh slots cache` / `None of startup nodes is available` cluster errors, the multi-second Redis writes, and the lost BullMQ job locks. Those were all **downstream symptoms of memory pressure**, not independent Redis faults.
+  - [`lib/azure-file-share.ts`](lib/azure-file-share.ts) — `processFile()` now checks `contentLength` via `getProperties()` before downloading and skips anything over the import limit, recording a `Failed` `UploadHistory` row so the operator sees it in the UI rather than losing the file silently. Limit defaults to **128MB**, tunable via `AZURE_FILE_SHARE_MAX_IMPORT_MB`.
+  - [`lib/azure-file-share.ts`](lib/azure-file-share.ts) — `streamToString()` enforces the same cap while accumulating (destroying the stream early instead of filling the heap) and wraps the `end` handler in `try/catch` so any failure rejects the promise instead of killing the worker.
+- **CISA KEV cache only cached successes.** The logs showed the fetch timing out (`DOMException [TimeoutError]`, `FETCH_TIMEOUT` is 15s), which left `kevCache` unpopulated so every ingest job re-attempted the multi-megabyte download — the 2.13.5 fix silently did nothing whenever CISA was slow.
+  - [`lib/threat-intelligence/fetcher.ts`](lib/threat-intelligence/fetcher.ts) — failures are now negatively cached for 5 minutes and stale data is served if available, so an unreachable CISA endpoint degrades gracefully instead of restoring the original hot loop.
+### Added
+- [`scripts/worker.ts`](scripts/worker.ts) — heap/RSS reporting alongside event-loop lag, plus an explicit warning at **85% of the V8 heap limit**. Long *growing* pauses are usually GC under memory pressure rather than application CPU, and previously ended in an unexplained container crash with nothing in the logs to distinguish them.
+### Note
+- The 2.13.1 indexes, 2.13.3 connection pooling, and 2.13.5/2.13.6 threat-sync work remain valid improvements — the 20.5s stall from the uncached KEV download was real and independently worth fixing — but none of them was the cause of the crash loop.
+
 ## [2.13.6] - 2026-08-07
 ### Fixed
 - **Threat sync still starved the upload queue after 2.13.5.** The KEV cache and `addBulk()` fixed the enqueue phase — queueing dropped from ~20s to **1s** and peak loop blocking from 20,519ms to ~6,233ms — but the **1,565 ingest jobs themselves** then ran unthrottled in the same process as the upload worker. Each does an OSV/NVD fetch, normalisation and a Prisma upsert; back-to-back they kept timers starved, so Redis writes still took 10–32s, BullMQ lost job locks (`could not renew lock`), and the `{upload-queue}` / `{pentest-pdf-queue}` blocking clients reconnected repeatedly (three `Ready` lines in 40s).

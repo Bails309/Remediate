@@ -12,6 +12,7 @@ import { startAzureBlobIngestScheduler } from "../lib/azure-blob-ingest-schedule
 import { ScannerType } from "@prisma/client";
 import { Worker, Job } from "bullmq";
 import { monitorEventLoopDelay } from "node:perf_hooks";
+import v8 from "node:v8";
 
 /** Reject rather than hang so a stalled probe is visible in logs. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -133,10 +134,27 @@ async function run() {
   setInterval(() => {
     lastLoopLagMs = loopDelay.max / 1e6;
     loopDelay.reset();
+
+    // Long, *growing* pauses are usually GC under memory pressure rather than
+    // application CPU, and end in an OOM kill that looks like an unexplained
+    // container crash. Report heap so the two are distinguishable.
+    const mem = process.memoryUsage();
+    const heapUsedMb = Math.round(mem.heapUsed / 1048576);
+    const heapTotalMb = Math.round(mem.heapTotal / 1048576);
+    const rssMb = Math.round(mem.rss / 1048576);
+    const heapLimitMb = Math.round(v8.getHeapStatistics().heap_size_limit / 1048576);
+
     if (lastLoopLagMs > LOOP_LAG_WARN_MS) {
       console.warn(
         `[Heartbeat] Event loop blocked for up to ${Math.round(lastLoopLagMs)}ms in the last interval — ` +
-          `timers and Redis responses are delayed; this is a CPU/sync-work stall, not a Redis outage.`,
+          `heap ${heapUsedMb}/${heapTotalMb}MB (limit ${heapLimitMb}MB), rss ${rssMb}MB.`,
+      );
+    }
+
+    if (heapUsedMb > heapLimitMb * 0.85) {
+      console.error(
+        `[Heartbeat] Heap at ${heapUsedMb}MB of ${heapLimitMb}MB limit (rss ${rssMb}MB) — ` +
+          `approaching OOM; long pauses from here are GC, not application CPU.`,
       );
     }
   }, HEARTBEAT_INTERVAL_MS).unref();
