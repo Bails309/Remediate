@@ -181,6 +181,7 @@ model Vulnerability {
   @@index([risk, lastSeenAt(sort: Desc)])
   @@index([groupId, status])
   @@index([siteId, scannerType, imageDigest])
+  @@index([siteId, scannerType, status])
 }
 
 model OidcConfig {
@@ -378,6 +379,7 @@ model VulnerabilityHistory {
   @@index([siteId, risk])
   @@index([groupId])
   @@index([siteId, scannerType])
+  @@index([siteId, scannerType, status])
 }
 
 model Comment {

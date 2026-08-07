@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.1] - 2026-08-07
+### Fixed
+- **Uploads stuck in "Processing" again — this time a database problem, not Redis.** The ingest diff step looked up existing findings with chunked queries containing a **500-way `OR`** over `(pluginId, host, port[, cve])`. `VulnerabilityHistory` had no index covering those columns, so Postgres could not use an index for that predicate and each chunk degraded into a **full sequential scan of the entire 12-month archive**, re-evaluating 500 branches per row. A 3,528-row ACR scan issued 16 such scans; with no job timeout the worker sat there indefinitely and the upload never left "Processing" (observed: `[Ingest:ACR] Parsed 3528 rows`, then silence).
+  - [`lib/ingest.ts`](lib/ingest.ts) — both `processNessusUpload` and `processAcrUpload` now load reconciliation candidates with **two indexed scans** keyed on `(siteId, scannerType, status)` and a narrow `select`, building the dedup maps in memory via a shared `indexReconciliationRows` helper. 16 sequential scans → 2 index scans. Added a candidate-count log line so a future recurrence shows the working-set size directly in container logs.
+  - [`lib/ingest.ts`](lib/ingest.ts) — the ACR "touch" loop rebuilt its `id → row` reverse index on every chunk with an O(n) `chunk.includes()` inside, ~14M comparisons per ingest. Now built once per scan.
+  - [`prisma/schema.prisma`](prisma/schema.prisma) + migration `20260807180000_add_ingest_reconciliation_indexes` — added `@@index([siteId, scannerType, status])` to **`Vulnerability`** and **`VulnerabilityHistory`**.
+### Note
+- Requires applying the migration and deploying the updated **worker** image. A job wedged on the old code is still `active` in BullMQ and will stall-recover on worker restart; the per-site ingest lock self-clears via its 1800s TTL, so the retry is not blocked.
+
 ## [2.13.0] - 2026-08-05
 ### Added
 - **Negated search on the vulnerabilities list** — prefix a search term with `!` or `-` to *exclude* matching findings instead of including them (e.g. `!apache` hides Apache findings). Works across name, host, pluginId, and CVE, in both the folded (raw SQL) and unfolded (Prisma) query paths.

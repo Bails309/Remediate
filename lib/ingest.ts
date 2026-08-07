@@ -122,6 +122,44 @@ function normalizeRisk(risk?: string) {
   return Risk.None;
 }
 
+// Statuses that keep a finding in the live `vulnerability` table.
+const RECONCILABLE_STATUSES = [
+  VulnerabilityStatus.Open,
+  VulnerabilityStatus.FalsePositive,
+  VulnerabilityStatus.NoFixAvailable,
+  VulnerabilityStatus.InProgress,
+  VulnerabilityStatus.InProgressWithCR,
+  VulnerabilityStatus.Sunset,
+  VulnerabilityStatus.AwaitingVendor,
+];
+
+// Archived statuses that represent a *user determination* and must never be
+// resurrected as a new Open finding when the same row reappears in a scan.
+const ARCHIVED_DETERMINATION_STATUSES = [
+  VulnerabilityStatus.FalsePositive,
+  VulnerabilityStatus.NoFixAvailable,
+];
+
+// Reconciliation candidates are loaded with two indexed scans keyed on
+// (siteId, scannerType, status). The previous implementation issued chunked
+// queries containing a 500-way OR over (pluginId, host, port[, cve]); Postgres
+// cannot serve that from an index on VulnerabilityHistory, so every chunk
+// became a full sequential scan of the 12-month archive and the worker wedged
+// mid-ingest with the upload stuck in "Processing".
+function indexReconciliationRows<T extends { id: string; pluginId: string; host: string; port: string; cve?: string | null }>(
+  rows: T[],
+  includeCve: boolean,
+) {
+  const map = new Map<string, { id: string }>();
+  for (const item of rows) {
+    const key = includeCve
+      ? `${item.pluginId}|${item.host}|${item.port}|${item.cve ?? ""}`
+      : `${item.pluginId}|${item.host}|${item.port}`;
+    if (!map.has(key)) map.set(key, { id: item.id });
+  }
+  return map;
+}
+
 type Params = {
   uploadId: string;
   siteId: string;
@@ -176,61 +214,40 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
 
     const batchTime = new Date();
     const chunkSize = 500;
-    const uniqueKeys = new Map<string, { pluginId: string; host: string; port: string; cve: string | null }>();
-    for (const row of filteredRows) {
-      const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
-      if (!uniqueKeys.has(key)) {
-        uniqueKeys.set(key, { pluginId: row.pluginId, host: row.host, port: row.port, cve: row.cve ?? null });
-      }
-    }
 
-    const activeMap = new Map<string, { id: string }>();
-    const historyMap = new Map<string, { id: string }>();
-    const keyList = Array.from(uniqueKeys.values());
+    const reconciliationSelect = {
+      id: true,
+      pluginId: true,
+      host: true,
+      port: true,
+      cve: true,
+    } as const;
 
-    for (let i = 0; i < keyList.length; i += chunkSize) {
-      const chunk = keyList.slice(i, i + chunkSize);
-      const orClause = chunk.map((entry) => ({
-        pluginId: entry.pluginId,
-        host: entry.host,
-        port: entry.port,
-        cve: entry.cve,
-      }));
+    const activeRows = await prisma.vulnerability.findMany({
+      where: {
+        siteId,
+        scannerType: ScannerType.NESSUS,
+        status: { in: RECONCILABLE_STATUSES },
+      },
+      select: reconciliationSelect,
+      orderBy: { lastSeenAt: "desc" },
+    });
+    const activeMap = indexReconciliationRows(activeRows, true);
 
-      const active = await prisma.vulnerability.findMany({
-        where: {
-          siteId,
-          scannerType: ScannerType.NESSUS,
-          status: { in: [VulnerabilityStatus.Open, VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable, VulnerabilityStatus.InProgress, VulnerabilityStatus.InProgressWithCR, VulnerabilityStatus.Sunset, VulnerabilityStatus.AwaitingVendor] },
-          OR: orClause,
-        },
-        orderBy: { lastSeenAt: "desc" },
-      });
+    const historyRows = await prisma.vulnerabilityHistory.findMany({
+      where: {
+        siteId,
+        scannerType: ScannerType.NESSUS,
+        status: { in: ARCHIVED_DETERMINATION_STATUSES },
+      },
+      select: reconciliationSelect,
+      orderBy: { lastSeenAt: "desc" },
+    });
+    const historyMap = indexReconciliationRows(historyRows, true);
 
-      for (const item of active) {
-        const key = `${item.pluginId}|${item.host}|${item.port}|${item.cve ?? ""}`;
-        if (!activeMap.has(key)) {
-          activeMap.set(key, { id: item.id });
-        }
-      }
-
-      const history = await prisma.vulnerabilityHistory.findMany({
-        where: {
-          siteId,
-          scannerType: ScannerType.NESSUS,
-          status: { in: [VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
-          OR: orClause,
-        },
-        orderBy: { lastSeenAt: "desc" },
-      });
-
-      for (const item of history) {
-        const key = `${item.pluginId}|${item.host}|${item.port}|${item.cve ?? ""}`;
-        if (!historyMap.has(key)) {
-          historyMap.set(key, { id: item.id });
-        }
-      }
-    }
+    console.log(
+      `[Ingest] Reconciliation candidates for site ${siteId}: ${activeRows.length} active, ${historyRows.length} archived`,
+    );
 
     await prisma.vulnerability.updateMany({
       where: { siteId, scannerType: ScannerType.NESSUS },
@@ -457,79 +474,44 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
     // new digest for the same repo/package/CVE is still the same finding until
     // it's patched out (at which point the row disappears from the next scan
     // and gets archived by the diff step below).
-    const uniqueKeys = new Map<string, { pluginId: string; host: string; port: string }>();
-    for (const row of filteredRows) {
-      const pluginId = row.cveId;
-      const host = acrHost(row);
-      const port = row.packageName;
-      const key = `${pluginId}|${host}|${port}`;
-      if (!uniqueKeys.has(key)) {
-        uniqueKeys.set(key, { pluginId, host, port });
-      }
-    }
+    const reconciliationSelect = {
+      id: true,
+      pluginId: true,
+      host: true,
+      port: true,
+    } as const;
 
-    const activeMap = new Map<string, { id: string }>();
-    const historyMap = new Map<string, { id: string }>();
-    const keyList = Array.from(uniqueKeys.values());
+    const activeRows = await prisma.vulnerability.findMany({
+      where: {
+        siteId,
+        scannerType: ScannerType.ACR,
+        status: { in: RECONCILABLE_STATUSES },
+      },
+      select: reconciliationSelect,
+      orderBy: { lastSeenAt: "desc" },
+    });
+    const activeMap = indexReconciliationRows(activeRows, false);
 
-    for (let i = 0; i < keyList.length; i += chunkSize) {
-      const chunk = keyList.slice(i, i + chunkSize);
-      const orClause = chunk.map((entry) => ({
-        pluginId: entry.pluginId,
-        host: entry.host,
-        port: entry.port,
-      }));
+    // Also check the archive: FalsePositive / NoFixAvailable rows have been
+    // moved out of `vulnerability` into `vulnerabilityHistory`. If the same
+    // finding reappears in a subsequent scan we must NOT create a new Open
+    // issue — the user has already made a determination on it. Just refresh
+    // its lastSeenAt so it stays discoverable in the archive view. This
+    // mirrors the Nessus ingest reconciliation.
+    const historyRows = await prisma.vulnerabilityHistory.findMany({
+      where: {
+        siteId,
+        scannerType: ScannerType.ACR,
+        status: { in: ARCHIVED_DETERMINATION_STATUSES },
+      },
+      select: reconciliationSelect,
+      orderBy: { lastSeenAt: "desc" },
+    });
+    const historyMap = indexReconciliationRows(historyRows, false);
 
-      const active = await prisma.vulnerability.findMany({
-        where: {
-          siteId,
-          scannerType: ScannerType.ACR,
-          status: {
-            in: [
-              VulnerabilityStatus.Open,
-              VulnerabilityStatus.FalsePositive,
-              VulnerabilityStatus.NoFixAvailable,
-              VulnerabilityStatus.InProgress,
-              VulnerabilityStatus.InProgressWithCR,
-              VulnerabilityStatus.Sunset,
-              VulnerabilityStatus.AwaitingVendor,
-            ],
-          },
-          OR: orClause,
-        },
-        orderBy: { lastSeenAt: "desc" },
-      });
-
-      for (const item of active) {
-        const key = `${item.pluginId}|${item.host}|${item.port}`;
-        if (!activeMap.has(key)) {
-          activeMap.set(key, { id: item.id });
-        }
-      }
-
-      // Also check the archive: FalsePositive / NoFixAvailable rows have been
-      // moved out of `vulnerability` into `vulnerabilityHistory`. If the same
-      // finding reappears in a subsequent scan we must NOT create a new Open
-      // issue — the user has already made a determination on it. Just refresh
-      // its lastSeenAt so it stays discoverable in the archive view. This
-      // mirrors the Nessus ingest reconciliation.
-      const history = await prisma.vulnerabilityHistory.findMany({
-        where: {
-          siteId,
-          scannerType: ScannerType.ACR,
-          status: { in: [VulnerabilityStatus.FalsePositive, VulnerabilityStatus.NoFixAvailable] },
-          OR: orClause,
-        },
-        orderBy: { lastSeenAt: "desc" },
-      });
-
-      for (const item of history) {
-        const key = `${item.pluginId}|${item.host}|${item.port}`;
-        if (!historyMap.has(key)) {
-          historyMap.set(key, { id: item.id });
-        }
-      }
-    }
+    console.log(
+      `[Ingest:ACR] Reconciliation candidates for site ${siteId}: ${activeRows.length} active, ${historyRows.length} archived`,
+    );
 
     // Mark all current ACR rows for this site as stale; the reconciliation
     // loop below will flip the ones that reappear back to isCurrent = true.
@@ -601,20 +583,20 @@ export async function processAcrUpload({ uploadId, siteId, storageKey }: Params)
       }
     }
 
+    // Also refresh the ACR-specific fields (installedVersion, imageDigest,
+    // timeGenerated) since a re-scan may report a newer image digest for the
+    // same finding. Build the id -> row reverse index once for the whole scan.
+    const rowForId = new Map<string, AcrRow>();
+    for (const row of filteredRows) {
+      const key = `${row.cveId}|${acrHost(row)}|${row.packageName}`;
+      const hit = activeMap.get(key);
+      if (hit) {
+        rowForId.set(hit.id, row);
+      }
+    }
+
     for (let i = 0; i < touchIds.length; i += chunkSize) {
       const chunk = touchIds.slice(i, i + chunkSize);
-      // Also refresh the ACR-specific fields (installedVersion, imageDigest,
-      // timeGenerated) since a re-scan may report a newer image digest for
-      // the same finding.
-      const rowForId = new Map<string, AcrRow>();
-      // Build a reverse index once per chunk. Cheap because touchIds is small.
-      for (const row of filteredRows) {
-        const key = `${row.cveId}|${acrHost(row)}|${row.packageName}`;
-        const hit = activeMap.get(key);
-        if (hit && chunk.includes(hit.id)) {
-          rowForId.set(hit.id, row);
-        }
-      }
 
       await prisma.$transaction(
         chunk.map((id) => {
