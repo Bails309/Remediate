@@ -283,8 +283,12 @@ describe("cluster mode", () => {
         expect(options.redisOptions.password).toBe("secret");
 
         // Exercise the callbacks so their behaviour is covered, not just present.
-        expect(options.clusterRetryStrategy(1)).toBe(100);
-        expect(options.clusterRetryStrategy(1000)).toBe(2000);
+        // Backoff is jittered to avoid a thundering herd against a managed Redis
+        // that rate-limits new connections, so assert bounds rather than exact values.
+        expect(options.clusterRetryStrategy(1)).toBeGreaterThanOrEqual(200);
+        expect(options.clusterRetryStrategy(1)).toBeLessThan(450);
+        expect(options.clusterRetryStrategy(1000)).toBeGreaterThanOrEqual(10_000);
+        expect(options.clusterRetryStrategy(1000)).toBeLessThan(10_250);
         const seen: string[] = [];
         options.dnsLookup("shard-1.internal", (_e: Error | null, addr: string) => seen.push(addr));
         expect(seen).toEqual(["shard-1.internal"]);

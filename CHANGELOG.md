@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.3] - 2026-08-07
+### Fixed
+- **Worker flapping to "Stale" and uploads wedging, with `ClusterAllFailedError: Failed to refresh slots cache` / `None of startup nodes is available` against Azure Managed Redis.** Not an outage — `[QueueDepth]` reads were succeeding *between* the failures, so AMR was up and only per-client topology discovery was failing. `getBullmqConnection()` returned a **brand-new `Redis.Cluster` on every call**, and BullMQ additionally `duplicate()`s that instance for each `Worker`'s blocking client. The worker process therefore ran **~11 independent Cluster clients** (shared proxy, heartbeat, 3 Queues, 3 Workers × main + duplicated blocking), each holding a socket to every shard and each polling `CLUSTER SLOTS` on its own 60s timer. Azure Managed Redis [rate-limits new connection creation](https://learn.microsoft.com/en-us/azure/redis/best-practices-connection), so a single discovery timeout tore a client down, triggered a fresh burst of connections, and the reconnect storm sustained itself.
+  - [`lib/redis.ts`](lib/redis.ts) — `getBullmqConnection()` now returns **one process-wide `Redis.Cluster`** in cluster mode. This is safe by BullMQ's own contract: `RedisConnection` marks a caller-supplied instance `shared` and never closes it, raises its max-listener budget per consumer, and each `Worker` still `duplicate()`s it for its own blocking socket — so blocking clients remain isolated. Cluster clients per worker process: **11 → 6**.
+  - [`lib/redis.ts`](lib/redis.ts) — `clusterRetryStrategy` backoff relaxed from `min(times × 100, 2s)` to `min(times × 200, 10s)` **plus jitter**, so simultaneous reconnects stagger instead of thundering-herding a connection-rate-limited endpoint.
+  - [`lib/redis.ts`](lib/redis.ts) — default `slotsRefreshInterval` raised **60s → 180s** (still `REDIS_SLOTS_REFRESH_INTERVAL_MS`). ioredis refreshes on `MOVED` regardless, so topology changes are still picked up promptly.
+### Added
+- Regression coverage ([`tests/lib/redis.modes.test.ts`](tests/lib/redis.modes.test.ts)) asserting `getBullmqConnection()` returns the *same* Cluster instance across calls, and still returns a plain descriptor (not a client) in standard mode.
+### Note
+- Applies only to `REDIS_CLUSTER_MODE=true` deployments. Azure Managed Redis clustering policy is fixed at creation time; this keeps the OSS policy working rather than requiring a move to the Enterprise policy.
+
 ## [2.13.2] - 2026-08-07
 ### Security
 - **Bumped the `js-yaml` npm `override` to a patched release** to clear the high-severity Dependabot advisory flagged on the default branch. The existing override pinned `js-yaml@4.3.0` — itself the vulnerable version — which `eslint@9` pulls in transitively via `@eslint/eslintrc`. Updated [`package.json`](package.json) override `js-yaml` `4.3.0` → `4.3.1`.

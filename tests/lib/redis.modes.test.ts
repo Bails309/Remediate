@@ -62,4 +62,25 @@ describe("redis URL modes", () => {
     const conn = mod.getBullmqConnection() as any;
     expect(conn.opts?.redisOptions?.tls?.rejectUnauthorized).toBe(false);
   });
+
+  it("getBullmqConnection reuses one Cluster instance per process", async () => {
+    // Regression: a fresh Redis.Cluster per call left the worker running ~11
+    // clients, each polling CLUSTER SLOTS and holding a socket per shard, which
+    // tripped Azure Managed Redis connection rate limits and cascaded into
+    // "Failed to refresh slots cache" / "None of startup nodes is available".
+    process.env.REDIS_CLUSTER_MODE = "true";
+    process.env.REDIS_URL = "rediss://cluster-node:6380";
+    const mod = await import("@/lib/redis");
+    expect(mod.getBullmqConnection()).toBe(mod.getBullmqConnection());
+  });
+
+  it("getBullmqConnection returns a plain descriptor (not a client) in standard mode", async () => {
+    delete process.env.REDIS_CLUSTER_MODE;
+    process.env.REDIS_URL = "redis://localhost:6379";
+    const mod = await import("@/lib/redis");
+    const conn = mod.getBullmqConnection() as any;
+    expect(conn.__isRedis).toBeUndefined();
+    expect(conn.host).toBe("localhost");
+    expect(conn.port).toBe(6379);
+  });
 });

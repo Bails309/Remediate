@@ -45,7 +45,11 @@ function createRedisInstance(url: string, options?: RedisOptions) {
             ? { tls: { ...(options.tls as object), servername: parsed.hostname } }
             : {}),
         },
-        clusterRetryStrategy: (times) => Math.min(times * 100, 2000),
+        // Jittered backoff with a higher ceiling. Azure Managed Redis rate-limits
+        // new connection creation, so a tight fixed retry across several clients
+        // produces a thundering herd that keeps topology discovery timing out.
+        clusterRetryStrategy: (times) =>
+          Math.min(times * 200, 10_000) + Math.floor(Math.random() * 250),
         // The ioredis default `slotsRefreshTimeout` is 1s, which is too tight
         // for a TLS managed-Redis cluster: `CLUSTER SLOTS` topology discovery
         // routinely exceeds it and throws
@@ -53,7 +57,7 @@ function createRedisInstance(url: string, options?: RedisOptions) {
         // (lastNodeError: timeout). Give discovery generous headroom and don't
         // refresh so aggressively. Both are env-tunable.
         slotsRefreshTimeout: Number(process.env.REDIS_SLOTS_REFRESH_TIMEOUT_MS) || 15_000,
-        slotsRefreshInterval: Number(process.env.REDIS_SLOTS_REFRESH_INTERVAL_MS) || 60_000,
+        slotsRefreshInterval: Number(process.env.REDIS_SLOTS_REFRESH_INTERVAL_MS) || 180_000,
         // Ensure TLS is enabled for all discovered shards in clustered mode
         ...(isRediss && {
           dnsLookup: (address: string, callback: (err: Error | null, address: string) => void) => callback(null, address),
@@ -155,10 +159,23 @@ export function createDedicatedRedis(overrides: RedisOptions = {}): Redis {
  * leave workers silently unable to pull jobs when the blocking socket dies.
  *
  * For standard mode we return a plain RedisOptions object so BullMQ can
- * construct (and later `duplicate()`) its own dedicated clients. For cluster
- * mode we build a fresh `Redis.Cluster` instance per caller for the same
- * reason — never shared with the general `redis` client.
+ * construct (and later `duplicate()`) its own dedicated clients.
+ *
+ * For cluster mode BullMQ requires a real `Redis.Cluster` instance, so we hand
+ * back a single **process-wide** one. BullMQ never closes an instance the
+ * caller passes in (`RedisConnection` marks it `shared`), it bumps max
+ * listeners per consumer, and every `Worker` independently `duplicate()`s it
+ * for its blocking client — so sharing is safe and blocking sockets stay
+ * isolated. Returning a fresh Cluster per call previously left the worker
+ * process running ~11 independent Cluster clients, each holding a socket to
+ * every shard and each polling CLUSTER SLOTS on its own timer. Azure Managed
+ * Redis rate-limits new connection creation, so one discovery timeout cascaded
+ * into a self-sustaining reconnect storm surfacing as
+ * `ClusterAllFailedError: Failed to refresh slots cache` and
+ * `None of startup nodes is available`.
  */
+let bullmqClusterConnection: Redis | undefined;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getBullmqConnection(): any {
   const rawUrl = process.env.REDIS_URL || DEFAULT_REDIS_URL;
@@ -168,13 +185,11 @@ export function getBullmqConnection(): any {
     : undefined;
 
   if (isCluster) {
-    // Cluster mode: BullMQ requires an actual Cluster instance; build a
-    // dedicated one so BullMQ owns its lifecycle end-to-end.
     // NOTE: TLS options must be forwarded here so `Redis.Cluster` applies
     // them to every discovered shard. Without this, connecting to
     // `rediss://` cluster endpoints closes the socket during handshake
     // and surfaces as `ClusterAllFailedError: Failed to refresh slots cache`.
-    return createRedisInstance(rawUrl, {
+    bullmqClusterConnection ??= createRedisInstance(rawUrl, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       keepAlive: 30_000,
@@ -184,6 +199,7 @@ export function getBullmqConnection(): any {
         },
       }),
     });
+    return bullmqClusterConnection;
   }
 
   let parsed: URL;
