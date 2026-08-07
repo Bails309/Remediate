@@ -25,14 +25,26 @@ const mockRedis: any = {
 
 const mockStorage = {
   read: vi.fn(),
+  readStream: vi.fn(),
   delete: vi.fn(),
 };
 
 const mockSetProgress = vi.fn();
 
+/** Drive the streaming Nessus parser from a fixed row set. */
+function streamRows(rows: unknown[]) {
+  return async function* () {
+    for (const row of rows) yield row;
+  };
+}
+
 // Register module mocks at top-level so vitest can hoist them correctly
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("@/lib/csv", () => ({ parseNessusCsv: vi.fn(), parseAcrCsv: vi.fn() }));
+vi.mock("@/lib/csv", () => ({
+  parseNessusCsv: vi.fn(),
+  parseNessusCsvStream: vi.fn(),
+  parseAcrCsv: vi.fn(),
+}));
 vi.mock("@/lib/progress", () => ({ setProgress: mockSetProgress }));
 vi.mock("@/lib/redis", () => ({ redis: mockRedis }));
 vi.mock("@/lib/queue", () => ({ getLockKey: (siteId: string) => `lock:${siteId}` }));
@@ -62,23 +74,25 @@ describe("processNessusUpload", () => {
     // Acquire lock
     mockRedis.set.mockResolvedValue("OK");
 
-    // Storage returns CSV text (not parsed in our mock)
-    mockStorage.read.mockResolvedValue("csv-data");
+    // Storage returns a CSV stream (the mocked parser ignores its contents)
+    mockStorage.readStream.mockResolvedValue({} as never);
 
     // import config has grace days > 0
     mockPrisma.importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 365 });
 
     // CSV returns a single row with recent pluginPublicationDate and medium risk
-    const { parseNessusCsv } = await import("@/lib/csv");
-    (parseNessusCsv as any).mockImplementation(() => [
-      {
-        pluginId: "100",
-        host: "1.2.3.4",
-        port: "80",
-        risk: "Medium",
-        pluginPublicationDate: new Date().toISOString(),
-      },
-    ]);
+    const { parseNessusCsvStream } = await import("@/lib/csv");
+    (parseNessusCsvStream as any).mockImplementation(
+      streamRows([
+        {
+          pluginId: "100",
+          host: "1.2.3.4",
+          port: "80",
+          risk: "Medium",
+          pluginPublicationDate: new Date().toISOString(),
+        },
+      ]),
+    );
 
     // No existing active vulnerabilities
     mockPrisma.vulnerability.findMany.mockResolvedValue([]);
@@ -96,28 +110,30 @@ describe("processNessusUpload", () => {
 
   it("creates vulnerabilities when none exist and updates uploadHistory", async () => {
     mockRedis.set.mockResolvedValue("OK");
-    mockStorage.read.mockResolvedValue("csv-data");
+    mockStorage.readStream.mockResolvedValue({} as never);
     mockPrisma.importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 0 });
 
-    const { parseNessusCsv } = await import("@/lib/csv");
-    (parseNessusCsv as any).mockImplementation(() => [
-      {
-        pluginId: "200",
-        host: "10.0.0.1",
-        port: "443",
-        risk: "High",
-        pluginPublicationDate: "2020-01-01",
-        name: "Test vuln",
-        synopsis: "s",
-        description: "d",
-        solution: "sol",
-        seeAlso: "",
-        pluginOutput: "out",
-        cve: null,
-        cvssScore: null,
-        protocol: "tcp",
-      },
-    ]);
+    const { parseNessusCsvStream } = await import("@/lib/csv");
+    (parseNessusCsvStream as any).mockImplementation(
+      streamRows([
+        {
+          pluginId: "200",
+          host: "10.0.0.1",
+          port: "443",
+          risk: "High",
+          pluginPublicationDate: "2020-01-01",
+          name: "Test vuln",
+          synopsis: "s",
+          description: "d",
+          solution: "sol",
+          seeAlso: "",
+          pluginOutput: "out",
+          cve: null,
+          cvssScore: null,
+          protocol: "tcp",
+        },
+      ]),
+    );
 
     mockPrisma.vulnerability.findMany.mockResolvedValue([]);
     mockPrisma.vulnerability.updateMany.mockResolvedValue({});
@@ -135,13 +151,15 @@ describe("processNessusUpload", () => {
 
   it("rethrows Prisma P2002 errors from createMany", async () => {
     mockRedis.set.mockResolvedValue("OK");
-    mockStorage.read.mockResolvedValue("csv-data");
+    mockStorage.readStream.mockResolvedValue({} as never);
     mockPrisma.importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 0 });
 
-    const { parseNessusCsv } = await import("@/lib/csv");
-    (parseNessusCsv as any).mockImplementation(() => [
-      { pluginId: "300", host: "8.8.8.8", port: "22", risk: "High", pluginPublicationDate: "2020-01-01" },
-    ]);
+    const { parseNessusCsvStream } = await import("@/lib/csv");
+    (parseNessusCsvStream as any).mockImplementation(
+      streamRows([
+        { pluginId: "300", host: "8.8.8.8", port: "22", risk: "High", pluginPublicationDate: "2020-01-01" },
+      ]),
+    );
 
     mockPrisma.vulnerability.findMany.mockResolvedValue([]);
     mockPrisma.vulnerability.updateMany.mockResolvedValue({});
@@ -163,21 +181,23 @@ describe("processNessusUpload", () => {
 
   it("does not recreate vulnerabilities that are in history as FalsePositive", async () => {
     mockRedis.set.mockResolvedValue("OK");
-    mockStorage.read.mockResolvedValue("csv-data");
+    mockStorage.readStream.mockResolvedValue({} as never);
     mockPrisma.importConfig.findUnique.mockResolvedValue({ pluginGracePeriodDays: 0 });
 
-    const { parseNessusCsv } = await import("@/lib/csv");
-    (parseNessusCsv as any).mockImplementation(() => [
-      {
-        pluginId: "400",
-        host: "10.0.0.2",
-        port: "443",
-        risk: "High",
-        pluginPublicationDate: "2020-01-01",
-        name: "Test vuln in history",
-        cve: "CVE-400",
-      },
-    ]);
+    const { parseNessusCsvStream } = await import("@/lib/csv");
+    (parseNessusCsvStream as any).mockImplementation(
+      streamRows([
+        {
+          pluginId: "400",
+          host: "10.0.0.2",
+          port: "443",
+          risk: "High",
+          pluginPublicationDate: "2020-01-01",
+          name: "Test vuln in history",
+          cve: "CVE-400",
+        },
+      ]),
+    );
 
     // Mock no active vulnerabilities
     mockPrisma.vulnerability.findMany.mockResolvedValue([]);

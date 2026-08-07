@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.14.0] - 2026-08-07
+### Changed
+- **Nessus imports are now streamed end to end, removing the file-size ceiling.** Every stage of the old pipeline held the entire CSV as one JS string (`streamToString` → `storage.save` → `storage.read` → `parseNessusCsv`). Node caps strings at ~512MB, so `prod_triage.csv` (**773MB**) could not be imported at any memory size — it was guaranteed to throw `ERR_STRING_TOO_LONG` and terminate the worker. Peak memory is now a function of batch size, not file size.
+  - [`lib/storage.ts`](lib/storage.ts) — `StorageProvider` gains `saveStream()` / `readStream()`. The Azure blob implementation uses `uploadStream()` with 8MB buffers × 5 concurrency, so transfer costs ~40MB regardless of file size. The Redis fallback still buffers (it is a small-payload provider and Redis caps values at 512MB anyway).
+  - [`lib/csv.ts`](lib/csv.ts) — new `parseNessusCsvStream()` built on `csv-parse`'s async API, yielding one row at a time. Row mapping is shared with `parseNessusCsv()` via an extracted `toNessusRow()`, so both paths stay in step.
+  - [`lib/azure-file-share.ts`](lib/azure-file-share.ts) — `processFile()` pipes the share download directly into blob storage. The `streamToString()` helper that caused the 2.13.7 crash is deleted.
+  - [`lib/ingest.ts`](lib/ingest.ts) — `processNessusUpload()` consumes the CSV as an async iterable, filtering and flushing touches/inserts to Postgres in 500-row batches rather than building full row arrays. Remediated-row archival is now paged for the same reason — loading every remediated row at once would have reintroduced the ceiling.
+  - `AZURE_FILE_SHARE_MAX_IMPORT_MB` default raised **128MB → 4096MB**; it is now a sanity check against a runaway file rather than a functional limit.
+- **Grace-period filtering no longer logs per row.** It emitted a line per skipped finding, which on a multi-million-row export is itself a significant cost. Skips are counted and reported once: `kept N rows (skipped X None-severity, Y within grace period, Z unparsable publication dates)`.
+### Added
+- Streaming parser coverage ([`tests/lib/csv.test.ts`](tests/lib/csv.test.ts)) — asserts parity with the sync parser, correct handling of a BOM split across chunk boundaries, and that a 5,000-row input streams through without accumulating.
+### Note
+- The ACR blob path still uses the string-based reader, guarded by `AZURE_BLOB_MAX_INGEST_MB` (128MB). ACR exports are orders of magnitude smaller; that path can be migrated the same way if it ever needs it.
+- Reconciliation still loads existing findings for the site into memory, which scales with **database** size rather than file size. The `[Ingest] Reconciliation candidates for site …: N active, M archived` log line reports it. If N reaches the millions, reconciliation needs to move into SQL via a staging table.
+
 ## [2.13.8] - 2026-08-07
 ### Fixed
 - **Threat ingestion was pacing 3× faster than NVD's quota**, so nearly every job hit a 403/429 and burned its retry budget (`Rate limited on https://services.nvd.nist.gov/... retrying in ~3000ms` on essentially every CVE). NVD allows **50 requests per rolling 30s** with an API key (~1.6/s); the 2.13.6 limiter was set to 5 jobs/second.

@@ -8,10 +8,11 @@ import { decrypt } from "./crypto";
 import { enqueueUpload } from "./queue";
 import { getStorageProvider } from "./storage";
 
-// Imports are read fully into memory as a UTF-8 string, so this bounds both the
-// heap cost and Node's ~512MB hard limit on string length.
+// Streamed end to end (share -> blob -> parser), so file size is bounded by
+// storage rather than by Node's ~512MB string limit. This stays as a sanity
+// check against a runaway file, not as a functional ceiling.
 const MAX_IMPORT_BYTES =
-  (Number(process.env.AZURE_FILE_SHARE_MAX_IMPORT_MB) || 128) * 1024 * 1024;
+  (Number(process.env.AZURE_FILE_SHARE_MAX_IMPORT_MB) || 4096) * 1024 * 1024;
 
 export class AzureFileShareService {
   private static normalize(str: string): string {
@@ -124,10 +125,6 @@ export class AzureFileShareService {
   ) {
     const fileClient = directoryClient.getFileClient(filename);
 
-    // The whole file is materialised as a UTF-8 string below, so check the size
-    // first. Oversized files previously exhausted the heap and then threw
-    // ERR_STRING_TOO_LONG from inside a stream 'end' listener, which escapes the
-    // enclosing promise and takes the worker process down.
     const properties = await fileClient.getProperties();
     const sizeBytes = properties.contentLength ?? 0;
     if (sizeBytes > MAX_IMPORT_BYTES) {
@@ -148,10 +145,6 @@ export class AzureFileShareService {
       return;
     }
 
-    const downloadResponse = await fileClient.download();
-    const content = await this.streamToString(downloadResponse.readableStreamBody!);
-
-    // Create upload history record
     const uploadId = crypto.randomUUID();
     await prisma.uploadHistory.create({
       data: {
@@ -163,12 +156,16 @@ export class AzureFileShareService {
       },
     });
 
-    // Save to intermediate storage (Redis/Blob) for worker to pick up
+    // Piped straight through to blob storage: the file is never held in memory
+    // as a Buffer or string, so a 773MB export costs the same as a 1MB one.
+    const downloadResponse = await fileClient.download();
     const storage = await getStorageProvider();
     const storageKey = `nessus-${uploadId}.csv`;
-    await storage.save(storageKey, content);
+    await storage.saveStream(storageKey, downloadResponse.readableStreamBody!);
+    console.log(
+      `[AzureFileShare] Streamed ${filename} (${Math.round(sizeBytes / 1048576)}MB) to ${storageKey}`,
+    );
 
-    // Enqueue for processing
     await enqueueUpload(uploadId, storageKey);
 
     if (deleteAfter) {
@@ -238,33 +235,6 @@ export class AzureFileShareService {
     }
 
     return serviceClient.getShareClient(String(cfg?.shareName || "security-scans"));
-  }
-
-  private static async streamToString(readableStream: NodeJS.ReadableStream): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      let total = 0;
-      readableStream.on("data", (data: Buffer | Uint8Array | string) => {
-        const chunk = data instanceof Buffer ? data : Buffer.from(data);
-        total += chunk.length;
-        if (total > MAX_IMPORT_BYTES) {
-          reject(new Error(`Download exceeded ${MAX_IMPORT_BYTES / 1048576}MB import limit`));
-          readableStream.removeAllListeners();
-          (readableStream as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
-          return;
-        }
-        chunks.push(chunk);
-      });
-      readableStream.on("end", () => {
-        // A throw here would escape the promise and become an uncaught exception.
-        try {
-          resolve(Buffer.concat(chunks).toString("utf8"));
-        } catch (err) {
-          reject(err);
-        }
-      });
-      readableStream.on("error", reject);
-    });
   }
 
   private static isShareNotFoundError(error: unknown): boolean {

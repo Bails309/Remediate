@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { parseNessusCsv, parseAcrCsv, type NessusRow, type AcrRow } from "@/lib/csv";
+import { parseNessusCsvStream, parseAcrCsv, type NessusRow, type AcrRow } from "@/lib/csv";
 import { setProgress } from "@/lib/progress";
 import { Risk, ScannerType, UploadStatus, VulnerabilityStatus, Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
@@ -188,7 +188,6 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
 
   try {
     const storage = await getStorageProvider();
-    const text = await timed("Ingest", "storage read", () => storage.read(storageKey));
 
     await setProgress(uploadId, { step: "Extracting data", progress: 10 });
 
@@ -198,33 +197,26 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
     const gracePeriodDays = config?.pluginGracePeriodDays ?? 0;
     console.log(`[Ingest] Grace period configured: ${gracePeriodDays} days`);
 
-    const rows = parseNessusCsv(text);
     const now = new Date();
+    let skippedNone = 0;
+    let skippedGrace = 0;
+    let unparsableDates = 0;
 
-    const filteredRows = rows.filter((row: NessusRow) => {
-      if (normalizeRisk(row.risk) === Risk.None) return false;
-
-      if (gracePeriodDays > 0) {
-        const pubDateStr = row.pluginPublicationDate;
-        const pubDate = pubDateStr ? parseValidDate(pubDateStr) : null;
-
-        if (pubDate) {
-          const diffTime = Math.abs(now.getTime() - pubDate.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          const isWithinGrace = diffDays <= gracePeriodDays;
-          
-          if (isWithinGrace) {
-            console.log(`[Ingest] Filtering out ${row.pluginId} (Published: ${pubDateStr}, Age: ${diffDays} days)`);
-            return false;
-          }
-        } else if (pubDateStr) {
-          console.warn(`[Ingest] Failed to parse publication date: "${pubDateStr}" for plugin ${row.pluginId}`);
-        }
+    // Counted rather than logged per row: a multi-million-row export would
+    // otherwise emit a log line per skipped finding.
+    const isWithinGracePeriod = (row: NessusRow) => {
+      if (gracePeriodDays <= 0) return false;
+      const pubDateStr = row.pluginPublicationDate;
+      const pubDate = pubDateStr ? parseValidDate(pubDateStr) : null;
+      if (!pubDate) {
+        if (pubDateStr) unparsableDates += 1;
+        return false;
       }
+      const diffDays = Math.ceil(Math.abs(now.getTime() - pubDate.getTime()) / 86_400_000);
+      return diffDays <= gracePeriodDays;
+    };
 
-      return true;
-    });
-    await setProgress(uploadId, { step: "Comparing diffs", progress: 40, total: filteredRows.length });
+    await setProgress(uploadId, { step: "Comparing diffs", progress: 40 });
 
     const batchTime = new Date();
     const chunkSize = 500;
@@ -272,152 +264,189 @@ export async function processNessusUpload({ uploadId, siteId, storageKey }: Para
       data: { isCurrent: false },
     });
 
-    const touchIds: string[] = [];
-    const touchHistoryIds: string[] = [];
-    const createData = [];
+    // Rows are consumed from the CSV stream and flushed in fixed-size batches,
+    // so peak memory tracks chunkSize rather than file size. Exports beyond
+    // Node's ~512MB string limit are only importable this way.
+    let touchIds: string[] = [];
+    let touchHistoryIds: string[] = [];
+    let createData: Prisma.VulnerabilityCreateManyInput[] = [];
+    let kept = 0;
 
-    let processed = 0;
-    for (const row of filteredRows) {
-      const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
-      const active = activeMap.get(key);
-      const history = historyMap.get(key);
-
-      if (active) {
-        touchIds.push(active.id);
-      } else if (history) {
-        touchHistoryIds.push(history.id);
-      } else {
-        const normalizedRiskValue = normalizeRisk(row.risk);
-        createData.push({
-          siteId,
-          assigneeId: null,
-          status: VulnerabilityStatus.Open,
-          isCurrent: true,
-          lastSeenAt: batchTime,
-          pluginId: row.pluginId,
-          cve: row.cve,
-          cvssScore: row.cvssScore,
-          risk: normalizedRiskValue,
-          host: row.host,
-          protocol: row.protocol,
-          port: row.port,
-          name: row.name,
-          synopsis: row.synopsis,
-          description: row.description,
-          solution: row.solution,
-          seeAlso: row.seeAlso,
-          pluginOutput: row.pluginOutput,
-          pluginPublicationDate: parseValidDate(row.pluginPublicationDate),
-          pluginModificationDate: parseValidDate(row.pluginModificationDate),
-        });
-      }
-
-      processed += 1;
-      if (processed % 500 === 0 && filteredRows.length > 0) {
-        await setProgress(uploadId, {
-          step: "Comparing diffs",
-          progress: 40 + Math.floor((processed / filteredRows.length) * 40),
-          total: filteredRows.length,
-        });
-      }
-    }
-
-    for (let i = 0; i < touchIds.length; i += chunkSize) {
-      const chunk = touchIds.slice(i, i + chunkSize);
+    const flushTouches = async () => {
+      if (touchIds.length === 0) return;
+      const batch = touchIds;
+      touchIds = [];
       await prisma.vulnerability.updateMany({
-        where: { id: { in: chunk } },
+        where: { id: { in: batch } },
         data: { lastSeenAt: batchTime, isCurrent: true },
       });
-    }
+    };
 
-    for (let i = 0; i < touchHistoryIds.length; i += chunkSize) {
-      const chunk = touchHistoryIds.slice(i, i + chunkSize);
+    const flushHistoryTouches = async () => {
+      if (touchHistoryIds.length === 0) return;
+      const batch = touchHistoryIds;
+      touchHistoryIds = [];
       await prisma.vulnerabilityHistory.updateMany({
-        where: { id: { in: chunk } },
+        where: { id: { in: batch } },
         data: { lastSeenAt: batchTime },
       });
-    }
+    };
 
-    if (createData.length > 0) {
-      for (let i = 0; i < createData.length; i += chunkSize) {
-        const chunk = createData.slice(i, i + chunkSize);
-        // sanitize date fields to avoid passing invalid Date objects to Prisma
-        const safeChunk = chunk.map((item) => {
-          let pub = item.pluginPublicationDate;
-          let mod = item.pluginModificationDate;
-          if (pub instanceof Date && isNaN(pub.getTime())) pub = null;
-          if (mod instanceof Date && isNaN(mod.getTime())) mod = null;
-          return {
-            ...item,
-            pluginPublicationDate: pub,
-            pluginModificationDate: mod,
-          };
-        });
-        try {
-          await prisma.vulnerability.createMany({ data: safeChunk as Prisma.VulnerabilityCreateManyInput[] });
-        } catch (err) {
-          if (err instanceof Prisma.PrismaClientKnownRequestError) {
-            if (err.code === "P2002") throw err;
-          }
-          console.error("createMany failed, retrying with nulled dates", err instanceof Error ? err.message : String(err));
-          const nulled = (safeChunk as Prisma.VulnerabilityCreateManyInput[]).map((it) => ({
-            ...it,
-            pluginPublicationDate: null,
-            pluginModificationDate: null,
-          }));
-          await prisma.vulnerability.createMany({ data: nulled });
+    const flushCreates = async () => {
+      if (createData.length === 0) return;
+      const batch = createData;
+      createData = [];
+      // sanitize date fields to avoid passing invalid Date objects to Prisma
+      const safeChunk = batch.map((item) => {
+        let pub = item.pluginPublicationDate;
+        let mod = item.pluginModificationDate;
+        if (pub instanceof Date && isNaN(pub.getTime())) pub = null;
+        if (mod instanceof Date && isNaN(mod.getTime())) mod = null;
+        return { ...item, pluginPublicationDate: pub, pluginModificationDate: mod };
+      });
+      try {
+        await prisma.vulnerability.createMany({ data: safeChunk });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError) {
+          if (err.code === "P2002") throw err;
+        }
+        console.error("createMany failed, retrying with nulled dates", err instanceof Error ? err.message : String(err));
+        const nulled = safeChunk.map((it) => ({
+          ...it,
+          pluginPublicationDate: null,
+          pluginModificationDate: null,
+        }));
+        await prisma.vulnerability.createMany({ data: nulled });
+      }
+    };
+
+    const csvStream = await storage.readStream(storageKey);
+    await timed("Ingest", "stream + reconcile CSV", async () => {
+      for await (const row of parseNessusCsvStream(csvStream)) {
+        if (normalizeRisk(row.risk) === Risk.None) {
+          skippedNone += 1;
+          continue;
+        }
+        if (isWithinGracePeriod(row)) {
+          skippedGrace += 1;
+          continue;
+        }
+
+        kept += 1;
+        const key = `${row.pluginId}|${row.host}|${row.port}|${row.cve ?? ""}`;
+        const active = activeMap.get(key);
+        const history = historyMap.get(key);
+
+        if (active) {
+          touchIds.push(active.id);
+          if (touchIds.length >= chunkSize) await flushTouches();
+        } else if (history) {
+          touchHistoryIds.push(history.id);
+          if (touchHistoryIds.length >= chunkSize) await flushHistoryTouches();
+        } else {
+          createData.push({
+            siteId,
+            assigneeId: null,
+            status: VulnerabilityStatus.Open,
+            isCurrent: true,
+            lastSeenAt: batchTime,
+            pluginId: row.pluginId,
+            cve: row.cve,
+            cvssScore: row.cvssScore,
+            risk: normalizeRisk(row.risk),
+            host: row.host,
+            protocol: row.protocol,
+            port: row.port,
+            name: row.name,
+            synopsis: row.synopsis,
+            description: row.description,
+            solution: row.solution,
+            seeAlso: row.seeAlso,
+            pluginOutput: row.pluginOutput,
+            pluginPublicationDate: parseValidDate(row.pluginPublicationDate),
+            pluginModificationDate: parseValidDate(row.pluginModificationDate),
+          });
+          if (createData.length >= chunkSize) await flushCreates();
+        }
+
+        if (kept % 5_000 === 0) {
+          await setProgress(uploadId, { step: "Comparing diffs", progress: 60, total: kept });
         }
       }
-    }
 
-    const remediated = await prisma.vulnerability.findMany({
-      where: {
-        siteId,
-        scannerType: ScannerType.NESSUS,
-        lastSeenAt: { lt: batchTime },
-      },
+      await flushTouches();
+      await flushHistoryTouches();
+      await flushCreates();
     });
 
-    if (remediated.length > 0) {
-      const historyData = remediated.map((v) => ({
-        id: v.id as string,
-        siteId: v.siteId as string,
-        assigneeId: v.assigneeId as string | null,
-        status: VulnerabilityStatus.Remediated,
-        lastSeenAt: v.lastSeenAt as Date,
-        createdAt: v.createdAt as Date,
-        pluginId: v.pluginId as string,
-        cve: v.cve as string | null,
-        cvssScore: v.cvssScore as number | null,
-        risk: v.risk as Risk,
-        host: v.host as string,
-        protocol: v.protocol as string,
-        port: v.port as string,
-        name: v.name as string,
-        synopsis: v.synopsis as string | null,
-        description: v.description as string | null,
-        solution: v.solution as string | null,
-        seeAlso: v.seeAlso as string | null,
-        pluginOutput: v.pluginOutput as string | null,
-        pluginPublicationDate: v.pluginPublicationDate as Date | null,
-        pluginModificationDate: v.pluginModificationDate as Date | null,
-      }));
+    console.log(
+      `[Ingest] Site ${siteId}: kept ${kept} rows (skipped ${skippedNone} None-severity, ` +
+        `${skippedGrace} within grace period, ${unparsableDates} unparsable publication dates)`,
+    );
 
-      await prisma.$transaction([
-        prisma.vulnerabilityHistory.createMany({ data: historyData }),
-        prisma.vulnerability.deleteMany({
-          where: { id: { in: remediated.map((v) => v.id) } },
-        }),
-      ]);
-      console.log(`✓ Archived ${remediated.length} vulnerabilities to history`);
+    // Paged: loading every remediated row at once would reintroduce the memory
+    // ceiling the streaming above exists to remove. Each page is deleted, so a
+    // plain repeated take() converges without a cursor.
+    const archived = await timed("Ingest", "archive remediated", async () => {
+      let total = 0;
+      for (;;) {
+        const remediated = await prisma.vulnerability.findMany({
+          where: {
+            siteId,
+            scannerType: ScannerType.NESSUS,
+            lastSeenAt: { lt: batchTime },
+          },
+          take: chunkSize,
+        });
+
+        if (remediated.length === 0) break;
+
+        const historyData = remediated.map((v) => ({
+          id: v.id as string,
+          siteId: v.siteId as string,
+          assigneeId: v.assigneeId as string | null,
+          status: VulnerabilityStatus.Remediated,
+          lastSeenAt: v.lastSeenAt as Date,
+          createdAt: v.createdAt as Date,
+          pluginId: v.pluginId as string,
+          cve: v.cve as string | null,
+          cvssScore: v.cvssScore as number | null,
+          risk: v.risk as Risk,
+          host: v.host as string,
+          protocol: v.protocol as string,
+          port: v.port as string,
+          name: v.name as string,
+          synopsis: v.synopsis as string | null,
+          description: v.description as string | null,
+          solution: v.solution as string | null,
+          seeAlso: v.seeAlso as string | null,
+          pluginOutput: v.pluginOutput as string | null,
+          pluginPublicationDate: v.pluginPublicationDate as Date | null,
+          pluginModificationDate: v.pluginModificationDate as Date | null,
+        }));
+
+        await prisma.$transaction([
+          prisma.vulnerabilityHistory.createMany({ data: historyData }),
+          prisma.vulnerability.deleteMany({
+            where: { id: { in: remediated.map((v) => v.id) } },
+          }),
+        ]);
+
+        total += remediated.length;
+      }
+      return total;
+    });
+
+    if (archived > 0) {
+      console.log(`✓ Archived ${archived} vulnerabilities to history`);
     }
 
     await prisma.uploadHistory.update({
       where: { id: uploadId },
-      data: { status: UploadStatus.Completed, rowCount: filteredRows.length },
+      data: { status: UploadStatus.Completed, rowCount: kept },
     });
 
-    await setProgress(uploadId, { step: "Completed", progress: 100, total: filteredRows.length });
+    await setProgress(uploadId, { step: "Completed", progress: 100, total: kept });
 
     // Cleanup storage after successful processing
     await storage.delete(storageKey);

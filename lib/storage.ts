@@ -1,4 +1,5 @@
 import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from "@azure/storage-blob";
+import { Readable } from "node:stream";
 import { prisma } from "./prisma";
 import { decrypt } from "./crypto";
 
@@ -6,6 +7,13 @@ export interface StorageProvider {
     save(key: string, content: string): Promise<void>;
     read(key: string): Promise<string>;
     delete(key: string): Promise<void>;
+    /**
+     * Streaming variants. `save`/`read` materialise the whole payload as a JS
+     * string, which Node caps at ~512MB — a 773MB scan export cannot use them
+     * at any memory size. Large imports must use these end to end.
+     */
+    saveStream(key: string, stream: NodeJS.ReadableStream): Promise<void>;
+    readStream(key: string): Promise<NodeJS.ReadableStream>;
 }
 
 async function streamToText(stream: NodeJS.ReadableStream): Promise<string> {
@@ -33,6 +41,23 @@ class AzureBlobProvider implements StorageProvider {
         await this.client.createIfNotExists();
         const blockBlobClient = this.client.getBlockBlobClient(key);
         await blockBlobClient.upload(content, Buffer.byteLength(content, "utf8"));
+    }
+
+    async saveStream(key: string, stream: NodeJS.ReadableStream): Promise<void> {
+        await this.client.createIfNotExists();
+        const blockBlobClient = this.client.getBlockBlobClient(key);
+        // 8MB buffers x 5 concurrent: peak memory is bounded at ~40MB no matter
+        // how large the source file is.
+        await blockBlobClient.uploadStream(stream as Readable, 8 * 1024 * 1024, 5);
+    }
+
+    async readStream(key: string): Promise<NodeJS.ReadableStream> {
+        const blockBlobClient = this.client.getBlockBlobClient(key);
+        const downloadResponse = await blockBlobClient.download(0);
+        if (!downloadResponse.readableStreamBody) {
+            throw new Error(`Azure blob ${key} has no readable stream body`);
+        }
+        return downloadResponse.readableStreamBody;
     }
 
     async read(key: string): Promise<string> {
@@ -68,6 +93,20 @@ class RedisStorageProvider implements StorageProvider {
     async save(key: string, content: string): Promise<void> {
         const { redis } = await import("./redis");
         await redis.set(key, content, "EX", RedisStorageProvider.TTL_SECONDS);
+    }
+
+    // Redis values top out at 512MB and this provider is only a small-payload
+    // fallback, so buffering here is acceptable where it would not be on blob.
+    async saveStream(key: string, stream: NodeJS.ReadableStream): Promise<void> {
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+            chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "utf8") : Buffer.from(chunk));
+        }
+        await this.save(key, Buffer.concat(chunks).toString("utf8"));
+    }
+
+    async readStream(key: string): Promise<NodeJS.ReadableStream> {
+        return Readable.from([await this.read(key)]);
     }
 
     async read(key: string): Promise<string> {

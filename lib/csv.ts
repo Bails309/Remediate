@@ -1,4 +1,5 @@
 import { parse } from "csv-parse/sync";
+import { parse as parseAsync } from "csv-parse";
 
 export type NessusRow = {
   pluginId: string;
@@ -65,6 +66,37 @@ export function validateNessusCsv(input: string) {
   return { ok: true };
 }
 
+function toNessusRow(record: Record<string, string>): NessusRow | null {
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(record)) {
+    const norm = normalizeHeader(key);
+    const mapped = headers.get(norm) ?? norm;
+    normalized[mapped] = value;
+  }
+
+  if (!normalized.pluginId || !normalized.host || !normalized.port) {
+    return null;
+  }
+
+  return {
+    pluginId: normalized.pluginId,
+    cve: normalized.cve || undefined,
+    cvssScore: normalized.cvssScore ? Number(normalized.cvssScore) : undefined,
+    risk: normalized.risk || "None",
+    host: normalized.host,
+    protocol: normalized.protocol || "",
+    port: normalized.port,
+    name: normalized.name || normalized.pluginId,
+    synopsis: normalized.synopsis || undefined,
+    description: normalized.description || undefined,
+    solution: normalized.solution || undefined,
+    seeAlso: normalized.seeAlso || undefined,
+    pluginOutput: normalized.pluginOutput || undefined,
+    pluginPublicationDate: normalized.pluginPublicationDate || undefined,
+    pluginModificationDate: normalized.pluginModificationDate || undefined,
+  };
+}
+
 export function parseNessusCsv(input: string) {
   const records = parse(input, {
     columns: true,
@@ -75,42 +107,42 @@ export function parseNessusCsv(input: string) {
 
   const results: NessusRow[] = [];
   for (const record of records) {
-    const normalized: Record<string, string> = {};
-    const rawKeys = Object.keys(record);
     if (results.length === 0) {
-      console.log(`[CSV] Row 1 raw headers: ${JSON.stringify(rawKeys)}`);
+      console.log(`[CSV] Row 1 raw headers: ${JSON.stringify(Object.keys(record))}`);
     }
-    
-    for (const [key, value] of Object.entries(record)) {
-      const norm = normalizeHeader(key);
-      const mapped = headers.get(norm) ?? norm;
-      normalized[mapped] = value;
-    }
-
-    if (!normalized.pluginId || !normalized.host || !normalized.port) {
-      continue;
-    }
-
-    results.push({
-      pluginId: normalized.pluginId,
-      cve: normalized.cve || undefined,
-      cvssScore: normalized.cvssScore ? Number(normalized.cvssScore) : undefined,
-      risk: normalized.risk || "None",
-      host: normalized.host,
-      protocol: normalized.protocol || "",
-      port: normalized.port,
-      name: normalized.name || normalized.pluginId,
-      synopsis: normalized.synopsis || undefined,
-      description: normalized.description || undefined,
-      solution: normalized.solution || undefined,
-      seeAlso: normalized.seeAlso || undefined,
-      pluginOutput: normalized.pluginOutput || undefined,
-      pluginPublicationDate: normalized.pluginPublicationDate || undefined,
-      pluginModificationDate: normalized.pluginModificationDate || undefined,
-    });
+    const row = toNessusRow(record);
+    if (row) results.push(row);
   }
 
   return results;
+}
+
+/**
+ * Streaming counterpart to `parseNessusCsv`. Yields one row at a time so the
+ * caller never holds the file — or the full row set — in memory. Required for
+ * exports beyond Node's ~512MB string limit.
+ */
+export async function* parseNessusCsvStream(
+  input: NodeJS.ReadableStream,
+): AsyncGenerator<NessusRow> {
+  const parser = parseAsync({
+    columns: true,
+    skip_empty_lines: true,
+    relax_column_count: true,
+    trim: true,
+    bom: true,
+  });
+
+  let logged = false;
+  for await (const record of input.pipe(parser)) {
+    const typed = record as Record<string, string>;
+    if (!logged) {
+      console.log(`[CSV] Row 1 raw headers: ${JSON.stringify(Object.keys(typed))}`);
+      logged = true;
+    }
+    const row = toNessusRow(typed);
+    if (row) yield row;
+  }
 }
 
 // ---------------------------------------------------------------------------
