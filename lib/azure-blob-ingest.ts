@@ -10,6 +10,12 @@ import { getStorageProvider } from "./storage";
 import { validateAcrCsv } from "./csv";
 import { AzureAuthMethod, ScannerType, UploadStatus, UploadType } from "@prisma/client";
 
+// Blobs are materialised as a UTF-8 string below, so this bounds both the heap
+// cost and Node's ~512MB hard limit on string length. Same guard as the file
+// share path; exceeding the string limit throws ERR_STRING_TOO_LONG.
+const MAX_INGEST_BYTES =
+  (Number(process.env.AZURE_BLOB_MAX_INGEST_MB) || 128) * 1024 * 1024;
+
 /**
  * Polls a configured Azure Blob container for ACR vulnerability CSV exports,
  * ingests any it finds, and (optionally) deletes them after successful queueing.
@@ -101,6 +107,18 @@ export class AzureBlobIngestService {
     deleteAfter: boolean,
   ) {
     const blobClient = containerClient.getBlobClient(blobName);
+
+    const properties = await blobClient.getProperties();
+    const sizeBytes = properties.contentLength ?? 0;
+    if (sizeBytes > MAX_INGEST_BYTES) {
+      console.error(
+        `[AzureBlobIngest] Skipping ${blobName}: ${Math.round(sizeBytes / 1048576)}MB exceeds the ` +
+          `${MAX_INGEST_BYTES / 1048576}MB ingest limit (raise AZURE_BLOB_MAX_INGEST_MB if the worker has headroom). ` +
+          `Blob left in place.`,
+      );
+      return;
+    }
+
     const buffer = await blobClient.downloadToBuffer();
     const content = buffer.toString("utf8");
 

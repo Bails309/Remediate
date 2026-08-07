@@ -9,6 +9,7 @@ const H = vi.hoisted(() => {
   };
   const mocks = {
     downloadToBuffer: vi.fn(),
+    getProperties: vi.fn().mockResolvedValue({ contentLength: 1024 }),
     blobDelete: vi.fn(),
     storageSave: vi.fn().mockResolvedValue(undefined),
   };
@@ -22,6 +23,7 @@ const H = vi.hoisted(() => {
   });
   const getBlobClient = vi.fn(() => ({
     downloadToBuffer: mocks.downloadToBuffer,
+    getProperties: mocks.getProperties,
     delete: mocks.blobDelete,
   }));
   const getContainerClient = vi.fn((name: string) => ({
@@ -94,11 +96,32 @@ beforeEach(() => {
   H.state.containerExists = true;
   H.state.blobList = [];
   H.mocks.downloadToBuffer.mockResolvedValue(Buffer.from("plugin_id,host,port,severity\n1,h,80,High"));
+  H.mocks.getProperties.mockResolvedValue({ contentLength: 1024 });
   H.mocks.storageSave.mockResolvedValue(undefined);
   (validateAcrCsv as any).mockReturnValue({ ok: true });
 });
 
 describe("AzureBlobIngestService.pollAndIngest", () => {
+  it("skips oversized blobs without downloading or deleting them", async () => {
+    // Converting a blob larger than Node's ~512MB string limit throws
+    // ERR_STRING_TOO_LONG from `toString()`, which previously killed the worker.
+    (prisma.azureBlobIngestConfig.findUnique as any).mockResolvedValue({
+      enabled: true,
+      defaultSiteId: "site-1",
+      containerName: "acr",
+      deleteAfterImport: true,
+      authMethod: "CONNECTION_STRING",
+      connectionStringEnc: "enc",
+    });
+    H.state.blobList = [{ name: "huge.csv" }];
+    H.mocks.getProperties.mockResolvedValue({ contentLength: 600 * 1024 * 1024 });
+
+    await AzureBlobIngestService.pollAndIngest();
+
+    expect(H.mocks.downloadToBuffer).not.toHaveBeenCalled();
+    expect(H.mocks.blobDelete).not.toHaveBeenCalled();
+  });
+
   it("returns silently when no config exists", async () => {
     (prisma.azureBlobIngestConfig.findUnique as any).mockResolvedValue(null);
     await AzureBlobIngestService.pollAndIngest();
