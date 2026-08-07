@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.8] - 2026-08-07
+### Fixed
+- **Threat ingestion was pacing 3× faster than NVD's quota**, so nearly every job hit a 403/429 and burned its retry budget (`Rate limited on https://services.nvd.nist.gov/... retrying in ~3000ms` on essentially every CVE). NVD allows **50 requests per rolling 30s** with an API key (~1.6/s); the 2.13.6 limiter was set to 5 jobs/second.
+  - [`lib/threat-intelligence/worker.ts`](lib/threat-intelligence/worker.ts) — limiter changed to **40 requests / 30s**, tunable via `THREAT_SYNC_MAX_PER_WINDOW`.
+### Note — 2.13.7 confirmed in production
+- With the oversized files skipped, the worker ran clean: `[QueueDepth]` responding in **2ms** (previously timing out at 28–53s), **zero** event-loop-block warnings (previously 18,639ms), no `ClusterAllFailedError`, and no lost BullMQ locks. This confirms the Redis, cluster and event-loop symptoms chased through 2.13.1–2.13.6 were all downstream of the unbounded file-share buffering, not independent faults.
+- The measured sizes are `prod_triage.csv` at **773MB** and `test_triage.csv` at **458MB**. 773MB is above Node's ~512MB string limit, so that import could never have succeeded on the current string-based pipeline — it was guaranteed to throw `ERR_STRING_TOO_LONG` and terminate the worker on every poll. Both are now skipped and recorded as `Failed` uploads. **Importing them requires a streaming CSV pipeline** (share → blob → parse) that never materialises the file as a single string; raising `AZURE_FILE_SHARE_MAX_IMPORT_MB` cannot help for the 773MB file.
+
 ## [2.13.7] - 2026-08-07
 ### Fixed
 - **Worker container crash-looping: `ERR_STRING_TOO_LONG` from the Azure File Share import.** This is the actual root cause behind the whole "worker goes Stale / imports stuck" sequence, and it supersedes the earlier diagnoses in 2.13.1–2.13.6.
