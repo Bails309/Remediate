@@ -141,18 +141,25 @@ export async function syncAllThreats(lookbackHours = 48) {
         const vulnerabilities = (nvdData.vulnerabilities || []) as unknown[];
         
         console.log(`[Sync] Found ${vulnerabilities.length} vulnerabilities. Queueing ingestion...`);
-        
-        for (const vuln of vulnerabilities) {
-            const cveId = (vuln as { cve?: { id: string } })?.cve?.id;
-            if (cveId) {
-                await threatQueue.add("ingest", { id: cveId }, { 
-                    removeOnComplete: true,
-                    jobId: `sync-${cveId}` // Prevent duplicate sync jobs in the same window
-                });
-            }
+
+        // One round-trip per batch instead of one per CVE. Enqueuing 1,600+ jobs
+        // with sequential `add()` calls saturated the shared cluster client and
+        // starved slot-cache refresh alongside the sync's own CPU work.
+        const jobs = vulnerabilities
+            .map((vuln) => (vuln as { cve?: { id: string } })?.cve?.id)
+            .filter((cveId): cveId is string => Boolean(cveId))
+            .map((cveId) => ({
+                name: "ingest",
+                data: { id: cveId },
+                opts: { removeOnComplete: true, jobId: `sync-${cveId}` },
+            }));
+
+        const ADD_BATCH_SIZE = 200;
+        for (let i = 0; i < jobs.length; i += ADD_BATCH_SIZE) {
+            await threatQueue.addBulk(jobs.slice(i, i + ADD_BATCH_SIZE));
         }
-        
-        console.log("[Sync] Threat intelligence sync completed (Job queue updated).");
+
+        console.log(`[Sync] Threat intelligence sync completed (${jobs.length} jobs queued).`);
     } catch (err) {
         console.error("[Sync] Sync failed:", err);
     }

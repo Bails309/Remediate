@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`. Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.13.5] - 2026-08-07
+### Fixed
+- **Root cause of the recurring "Stale" worker and wedged imports: the startup threat sync was blocking the event loop for ~20s at a time.** The 2.13.4 instrumentation caught it on the first run — `[Heartbeat] Event loop blocked for up to 20519ms` immediately after `[Sync] Found 1604 vulnerabilities. Queueing ingestion...`. Every `ingestThreat()` job called `fetchCisaKev()`, which had **no cache**, so a 1,604-CVE sync downloaded and synchronously `JSON.parse`d the multi-megabyte CISA KEV catalogue **1,604 times**. With the loop blocked, ioredis could not read its sockets: `CLUSTER SLOTS` discovery hit its 15s timeout (`ClusterAllFailedError`), BullMQ's 30s job locks expired (`could not renew lock` → `Missing lock for job … moveToFinished`), and the upload queue stalled as collateral damage. It fired on **every worker boot** via `[Scheduler] Triggering immediate startup threat sync`, which is why it recurred after each deploy.
+  - [`lib/threat-intelligence/fetcher.ts`](lib/threat-intelligence/fetcher.ts) — `fetchCisaKev()` is now cached process-wide for 1h, with concurrent callers collapsed onto a single in-flight fetch. Downloads + parses per sync: **1,604 → 1**.
+  - [`lib/threat-intelligence/worker.ts`](lib/threat-intelligence/worker.ts) — `syncAllThreats()` enqueues via `addBulk()` in batches of 200 instead of 1,604 sequential `await queue.add()` round-trips, which had been saturating the shared cluster client while the sync's own CPU work starved slot-cache refresh.
+- **Worker heartbeat could report a 28s write on a client configured to fail at 5s** (`[Heartbeat] Redis SET took 28845ms (loop lag 0ms)` — note the loop was *not* blocked). ioredis's `commandTimeout` only bounds per-node commands; in cluster mode a write issued while the slot map is refreshing waits in the cluster-level queue unbounded, so the dedicated fail-fast heartbeat client added in 2.12.3 was ineffective under clustering.
+  - [`scripts/worker.ts`](scripts/worker.ts) — the heartbeat write is now explicitly time-capped at 5s.
+### Note
+- The 2.13.3 connection pooling and 2.13.1 ingest indexes remain correct and worth keeping, but neither was the trigger for this incident — they reduced load around a stall whose actual source was CPU-bound JSON parsing in the threat sync.
+
 ## [2.13.4] - 2026-08-07
 ### Added
 - **Diagnostics to tell a blocked event loop apart from a Redis stall.** Both present identically from outside — the heartbeat stops advancing and the worker shows "Stale" — but they need opposite fixes, and the 2.13.3 incident had no `[Heartbeat]` error lines *and* a missing `[QueueDepth]` tick, which fits either. The logs now say which.

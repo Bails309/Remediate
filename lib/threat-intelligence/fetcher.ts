@@ -44,12 +44,33 @@ export async function fetchOsvById(osvId: string): Promise<Record<string, unknow
 
 /**
  * Fetcher for CISA KEV JSON Feed.
+ *
+ * Cached process-wide: this is called once per ingest job, and the catalogue is
+ * a multi-megabyte JSON document whose `res.json()` parse is synchronous. A
+ * 1,604-CVE sync previously downloaded and parsed it 1,604 times, blocking the
+ * event loop for ~20s at a stretch — which stalled ioredis, timed out cluster
+ * slot discovery, and cost BullMQ its job locks.
  */
+const KEV_CACHE_TTL_MS = 60 * 60 * 1000;
+let kevCache: { data: Record<string, unknown>; expiresAt: number } | null = null;
+let kevInflight: Promise<Record<string, unknown>> | null = null;
+
 export async function fetchCisaKev(): Promise<Record<string, unknown>> {
-    const url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
-    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
-    if (!res.ok) throw new Error(`CISA KEV fetch failed: ${res.statusText}`);
-    return res.json();
+    if (kevCache && kevCache.expiresAt > Date.now()) return kevCache.data;
+    // Collapse concurrent callers onto a single fetch.
+    kevInflight ??= (async () => {
+        try {
+            const url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+            const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT) });
+            if (!res.ok) throw new Error(`CISA KEV fetch failed: ${res.statusText}`);
+            const data = (await res.json()) as Record<string, unknown>;
+            kevCache = { data, expiresAt: Date.now() + KEV_CACHE_TTL_MS };
+            return data;
+        } finally {
+            kevInflight = null;
+        }
+    })();
+    return kevInflight;
 }
 
 /**

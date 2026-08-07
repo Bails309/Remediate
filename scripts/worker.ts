@@ -94,6 +94,7 @@ async function run() {
 
   const HEARTBEAT_KEY = "worker:heartbeat";
   const HEARTBEAT_INTERVAL_MS = 10_000;
+  const HEARTBEAT_WRITE_TIMEOUT_MS = 5_000;
   // Dedicated, fail-fast connection for the heartbeat. Previously this wrote
   // through the shared `redis` proxy, which is created with
   // `maxRetriesPerRequest: null` (required for BullMQ). When the managed-Redis
@@ -130,7 +131,14 @@ async function run() {
 
     const started = Date.now();
     try {
-      await heartbeatRedis.set(HEARTBEAT_KEY, Date.now().toString());
+      // `commandTimeout` only bounds per-node commands; in cluster mode a write
+      // issued while the slot map is refreshing waits in the cluster-level queue
+      // unbounded (observed: a 28s SET on a client configured to fail at 5s).
+      await withTimeout(
+        heartbeatRedis.set(HEARTBEAT_KEY, Date.now().toString()),
+        HEARTBEAT_WRITE_TIMEOUT_MS,
+        "heartbeat write",
+      );
       const elapsed = Date.now() - started;
       if (elapsed > 1_000) {
         console.warn(`[Heartbeat] Redis SET took ${elapsed}ms (loop lag ${Math.round(maxLagMs)}ms)`);
