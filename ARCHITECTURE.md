@@ -64,11 +64,17 @@ A high-level view of Remediate components and interactions.
 - **Encryption**: OIDC, SMTP, and Azure storage credentials are stored encrypted in Postgres using AES-256-GCM via `AUTH_SECRET`.
 - **CSP**: Middleware generates a cryptographic nonce (`crypto.randomUUID`) per request for script and style sources.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
+- **Privileged reversals**: Un-archiving a finding (`POST /api/vulnerabilities/{id}/restore`) is restricted to admins even though assignees and group leaders may archive, so the archive remains trustworthy as an audit surface. Both directions are audited (`vulnerability.archived` / `vulnerability.restored`).
 - **AI RBAC scoping**: The AI assistant reads finding data through a `search_vulnerabilities` tool whose results are always `AND`-combined with the same group-visibility wall used by `GET /api/vulnerabilities` (`visibilityWhere(isAdmin, memberOf)`), so the model can never surface rows the caller could not already see. The `get_latest_version` tool only reaches a fixed allow-list of public package registries (hard-coded hosts, validated package names) and cannot be steered to arbitrary URLs. Provider endpoint + API key are AES-256-GCM encrypted.
 
 ## Vulnerability Lifecycle
 - **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
 - **Active Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, and `Sunset` remain in the triage queue.
+- **Two-table split**: active findings live in `Vulnerability`; the three terminal statuses (`Remediated`, `FalsePositive`, `NoFixAvailable`) live in `VulnerabilityHistory`. Setting a terminal status is therefore a **move between tables**, not an in-place update — `PATCH /api/vulnerabilities/{id}` and `POST /api/vulnerabilities/bulk` copy the row into history (stamping `archivedAt`) and delete the active row inside one transaction. Keeping the archive in its own table is what lets the hot triage queries stay small as the 12-month history grows.
+- **Scope discriminator**: `GET /api/vulnerabilities?scope=active|archived` selects the table, and every row is tagged `recordScope` so the client never has to infer its origin. Archived rows carry `archivedAt`, support `archivedFrom`/`archivedTo` range filters, and expose no comments or collaborators.
+- **Restore (v2.15.0)**: `POST /api/vulnerabilities/{id}/restore` reverses an archive — admin-only, transactional, and audited as `vulnerability.restored`. It recreates the row in `Vulnerability` with status `Open` and the **original id**, preserving assignee, group, CR number, timestamps, `scannerType` and the ACR fidelity columns, then deletes the history row. Two invariants make it safe:
+  - It refuses (`409`) when an active row already exists for the same `(siteId, scannerType, pluginId, host, port)`, because a scan run after the archive may already have re-created the finding under a new id — restoring anyway would put two divergent rows for one finding into triage and double-count it in analytics.
+  - It **deletes** the history row rather than keeping it. `lib/ingest.ts` treats a surviving `FalsePositive`/`NoFixAvailable` history row as a standing user determination (`ARCHIVED_DETERMINATION_STATUSES`) and re-archives the finding on the next scan; leaving it behind would make the restore silently self-reverting.
 - **AwaitingVendor**: For findings escalated to an upstream vendor/supplier where the fix is out of the team's hands. Counted alongside `InProgress*` in the active queue (analytics/dashboard/leader digest) so the workload stays visible, but visually distinguished (teal dot) so triage can filter or prioritise it.
 - **Sunset**: Keeps items visible for tracking but excludes them from analytics metrics. A dedicated analytics section tracks sunset items separately.
 - **Comments**: Vulnerabilities support threaded comments. Admins, assignees, and collaborators can add, edit, and delete comments. Comment counts are surfaced as badges on table rows.
@@ -213,6 +219,7 @@ The `idpGroupId` column is reserved for future OIDC / Microsoft Entra ID group s
 - **`GET /api/vulnerabilities`** — intersects any `groupIds=` query token with the requester's `memberOf` set **before** issuing the SQL, then `OR`s in `groupId IS NULL` for the open queue.
 - **`GET /api/vulnerabilities/{id}`** — short-circuits with `403` when `canViewVulnerability` returns `false`.
 - **`PATCH /api/vulnerabilities/{id}` & `POST /api/vulnerabilities/bulk`** — evaluate `canEditVulnerability` / `canSelfAssign` / `canReassign` per item; bulk updates abort on the first blocked item.
+- **`POST /api/vulnerabilities/{id}/restore`** — admin-only (`WEB_APP_ADMIN_ROLES`); the role check runs *before* the history lookup so the route cannot be used to probe which ids exist in the archive.
 - **`/api/vulnerabilities/{id}/comments`** — re-checks the visibility wall before exposing collaborator content or accepting an `askForHelp` toggle.
 - **`/api/groups/**`** — every membership-mutating route runs through `authoriseMembershipChange()` which calls `canManageGroupMembership`. The last-leader guard (PATCH demote + DELETE remove) protects non-admin leaders from accidentally dissolving their own group; only an admin can.
 
@@ -227,7 +234,7 @@ The weekly assignment dispatcher (`lib/assignment-notifications.ts`) executes tw
 2. **Leader digest** (new) — each group leader receives a per-group summary of every active item the group owns (open / in-progress / in-progress-with-CR), grouped by assignee with an "Unassigned" bucket. Each digest links to `/vulnerabilities?groupIds={groupId}` for one-click triage.
 
 ## Testing
-- **Unit Tests (Vitest)**: 94 test files, 380+ tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
+- **Unit Tests (Vitest)**: 95 test files, 385+ tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
 - **E2E Tests (Playwright)**: 45 tests across 14 files using a multi-project setup:
   - `setup` — Authenticates via local credentials and saves session state.
   - `unauthenticated` — Tests login flow, RBAC redirects, health API, and 404 handling.
@@ -235,6 +242,7 @@ The weekly assignment dispatcher (`lib/assignment-notifications.ts`) executes tw
 - **CI/CD (GitHub Actions)**: Lint, unit tests (Postgres + Redis services), integration tests, E2E (Playwright with DB schema push + seed data), Docker build, and CodeQL security scanning.
 
 ## Key File Locations
+- **Vulnerability lifecycle**: `app/api/vulnerabilities/[id]/route.ts` (status change + archive), `app/api/vulnerabilities/bulk/route.ts` (bulk archive), `app/api/vulnerabilities/[id]/restore/route.ts` (un-archive), `app/api/vulnerabilities/route.ts` (`scope=active|archived` listing)
 - **Multi-scanner ingest**: `lib/ingest.ts` (`processNessusUpload`, `processAcrUpload`), `lib/csv.ts` (`validateNessusCsv`, `parseNessusCsv`, `validateAcrCsv`, `parseAcrCsv`), `lib/queue.ts`, `scripts/worker.ts`
 - **ACR blob automation**: `lib/azure-blob-ingest.ts`, `lib/azure-blob-ingest-scheduler.ts`, `app/api/admin/azure-blob-ingest/`, `app/(app)/admin/azure-blob-ingest/`
 - **Group RBAC**: `lib/group-rbac.ts`, `app/api/groups/`, `app/(app)/admin/groups/`, `prisma/migrations/20260610120000_add_groups/`

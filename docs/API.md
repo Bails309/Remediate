@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.8.0` (2026-07-15). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.15.0` (2026-08-11). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -45,6 +45,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | `GET` | `/api/vulnerabilities` | 🔒 | Paginated search. Query: `q`, `status`, `risk`, `bucketId`, `assigneeId`, `groupIds`, `id`/`ids`, `page` (≤10000), `limit`. ILIKE wildcards are escaped server-side. **Group visibility wall**: non-admins always see ungrouped items plus items in groups they belong to; any `groupIds` token outside the requester's `memberOf` set is silently dropped before the SQL is built. Pass the keyword `unassigned` inside `groupIds` to include items with no group when also filtering by specific groups. |
 | `GET` | `/api/vulnerabilities/{id}` | 🔒 | Returns a single vulnerability with assignee, collaborators, comment count, and history snippet. Returns `403` if the requester cannot see the item under the group visibility wall. |
 | `PATCH` | `/api/vulnerabilities/{id}` | 🔒 | Update status, assignee, collaborators, CR number, sunset flag, or `groupId`. RBAC enforced via `lib/group-rbac.ts`: standard users may only self-assign or unassign; group leaders may edit any item their group owns and may reassign within their group; only admins may change `groupId`; CR number is required for `InProgressWithCR`. |
+| `POST` | `/api/vulnerabilities/{id}/restore` | �️ | **Admin only** (`site_admin` / `web_app_admin`). Un-archives a finding: moves it out of `VulnerabilityHistory` and back into the active queue with status `Open`. No request body. See [Archiving & restoring](#archiving--restoring-v2150) below. |
 | `POST` | `/api/vulnerabilities/bulk` | 🔒 | Bulk update across selected ids. Body: `{ "ids": string[], "patch": { ... }, "crNumber"?: string }`. The same per-item permission matrix as single update is applied; the request aborts with `403` on the first item the caller cannot mutate (no partial application). |
 | `GET` | `/api/vulnerabilities/{id}/comments` | 🔒 | Lists comments visible to the requester (admins, assignees, collaborators when "Ask for Help" is enabled). Re-checks the group visibility wall. |
 | `POST` | `/api/vulnerabilities/{id}/comments` | 🔒 | Adds a comment. Body: `{ "content": string }` (1–10,000 chars, Zod validated). |
@@ -54,6 +55,46 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 ### Vulnerability statuses
 
 `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`. Validated server-side as a `z.enum`.
+
+**Active** statuses (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`) live in the `Vulnerability` table. **Terminal** statuses (`Remediated`, `FalsePositive`, `NoFixAvailable`) live in `VulnerabilityHistory`. Setting a terminal status via `PATCH /api/vulnerabilities/{id}` or `POST /api/vulnerabilities/bulk` *moves the row between tables*; it is not an in-place update.
+
+### Archiving & restoring (v2.15.0)
+
+List responses tag every row with a `recordScope` discriminator so clients never have to infer which table a row came from:
+
+| `recordScope` | Source table | Reached via |
+| :--- | :--- | :--- |
+| `"active"` | `Vulnerability` | `GET /api/vulnerabilities?scope=active` (default) |
+| `"archived"` | `VulnerabilityHistory` | `GET /api/vulnerabilities?scope=archived` |
+
+Archived rows additionally carry `archivedAt` and may be narrowed with `archivedFrom` / `archivedTo` (`YYYY-MM-DD`, inclusive; `archivedTo` is widened to end-of-day server-side). They expose no comment thread and no collaborators — the API returns `askForHelp: false` and `collaborators: []` for them.
+
+**`POST /api/vulnerabilities/{id}/restore`** reverses an archive. It is deliberately *not* delegated to assignees or group leaders: archiving is the audit-visible terminal state of a finding, so only `site_admin` / `web_app_admin` may reopen one.
+
+```
+POST /api/vulnerabilities/{id}/restore
+Cookie: <session cookie>
+```
+
+Behaviour:
+
+1. Reads the `VulnerabilityHistory` row for `{id}`. `404 { "error": "Archived finding not found" }` if absent.
+2. Rejects the restore with `409 { "error": "This finding is already in the active queue", "activeId": string }` when a live row already exists for the same `(siteId, scannerType, pluginId, host, port)` — a later scan may have re-created the finding under a new id, and restoring would duplicate it in triage.
+3. In a single transaction, recreates the row in `Vulnerability` with **status `Open`** and **the original id**, preserving `assigneeId`, `groupId`, `crNumber`, `createdAt`, `lastSeenAt`, `scannerType`, and the ACR fidelity columns (`registryName`, `repository`, `imageDigest`, `imageTag`, `packageName`, `installedVersion`, `remediation`, `timeGenerated`); then deletes the history row.
+4. Writes a `vulnerability.restored` audit entry with `oldValue` = the archived status and `newValue` = `"Open"`.
+
+The history row is **deleted rather than retained** on purpose: `lib/ingest.ts` treats a surviving `FalsePositive` / `NoFixAvailable` history row as a standing user determination and will re-archive the same finding on the next scan, silently undoing the restore.
+
+Response `200` is the recreated vulnerability with `recordScope: "active"` and `commentCount: 0`.
+
+| Status | Meaning |
+| :--- | :--- |
+| `200` | Restored. Body is the new active row. |
+| `401` | Not authenticated. |
+| `403` | Authenticated but not an admin. |
+| `404` | No archived record with that id. |
+| `409` | An equivalent finding is already active (`activeId` names it). |
+| `429` | Rate limited. |
 
 ---
 

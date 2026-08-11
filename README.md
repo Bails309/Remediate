@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.9.3 (2026-08-03)</p>
+  <p><strong>Version:</strong> 2.15.0 (2026-08-11)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -24,6 +24,26 @@ The platform features **Organizational Buckets** (formerly Sites), providing a f
 Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports, AI Insights) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
 
 Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
+
+## Vulnerability Lifecycle & Archive Restore (v2.15.0)
+
+Findings live in one of two tables, and the status you pick decides which:
+
+| Tier | Statuses | Table | Where it shows up |
+| :--- | :--- | :--- | :--- |
+| **Active** | `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset` | `Vulnerability` | Triage queue, dashboard, digests, analytics |
+| **Terminal** | `Remediated`, `FalsePositive`, `NoFixAvailable` | `VulnerabilityHistory` | **Archived Findings** view only |
+
+Setting a terminal status **moves** the row between tables rather than updating it in place, which is what keeps the triage queries fast as the 12-month archive grows. Switch the scope dropdown on the Vulnerabilities page from **Active Findings** to **Archived Findings** to browse the archive, optionally narrowed by an archived-date range (Last 7 Days / Last 30 Days / This Quarter, or a custom `from`/`to`).
+
+**Restoring an archived finding.** Archiving used to be a one-way door — a mis-clicked "Remediated", a false-positive call that later turned out to be real, or a vendor fix that regressed all needed manual database surgery. As of v2.15.0, an administrator can open any archived finding and click **Restore to active queue** in the detail sheet:
+
+- The finding returns to the queue with status **`Open`**, keeping its original id, assignee, group, CR number, creation/last-seen timestamps, scanner type and ACR image details — so it lands back with its previous owner rather than as an orphan.
+- Restore is **admin-only** (`site_admin` / `web_app_admin`) even though assignees and group leaders can archive. The archive is the record that someone accepted a risk or signed off a fix, so reversing it is a privileged action; the API returns `403` for everyone else regardless of the UI.
+- If a scan run *after* the archive already re-created the same finding as a live row, the restore is refused with a clear message instead of creating a duplicate that would diverge and double-count in analytics.
+- Both directions are written to the audit log — `vulnerability.archived` on the way in, `vulnerability.restored` on the way out — so `/admin/audit-log` shows who reopened what and which determination they overrode.
+
+See [`docs/API.md` → Archiving & restoring](docs/API.md#archiving--restoring-v2150) for the full endpoint contract and [`SECURITY.md`](SECURITY.md#archive-restoration-v2150) for the control rationale.
 
 ## Prerequisites
 - Docker Desktop (for local development)
@@ -351,6 +371,40 @@ Cookie: <session cookie>
 Supports filtering by `action` and `entityType`. Returns paginated results with total count.
 
 ## Release notes
+
+> [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.15.0] - 2026-08-11
+- **Archived findings can be restored to the active queue.** New admin-only `POST /api/vulnerabilities/{id}/restore` and a **Restore to active queue** button in the detail sheet for records in the Archived Findings view. The finding returns as `Open` with its original id, assignee, group, CR number, timestamps, scanner type and ACR image columns intact.
+- **Safeguards**: the restore is refused with `409` when a later scan has already re-created the same `(siteId, scannerType, pluginId, host, port)` finding as a live row (prevents a duplicate that would diverge and double-count in analytics); the `VulnerabilityHistory` row is deleted rather than retained, because `lib/ingest.ts` treats a surviving `FalsePositive`/`NoFixAvailable` history row as a standing determination and would silently re-archive the finding on the next import.
+- **Audit**: restores are logged as `vulnerability.restored` (old status → `Open`), completing the round trip with the existing `vulnerability.archived` entry.
+- **Docs**: `docs/API.md` gains an *Archiving & restoring* deep-dive; `ARCHITECTURE.md` and `SECURITY.md` document the two-table lifecycle and the privilege boundary.
+
+### [2.14.0] - 2026-08-07
+- **Nessus imports are streamed end to end, removing the file-size ceiling.** Every stage previously held the whole CSV as one JS string, so files above Node's ~512MB string limit (e.g. a 773MB production export) could never import. `StorageProvider` gains `saveStream()`/`readStream()`, `parseNessusCsvStream()` yields row-at-a-time, and ingest flushes to Postgres in 500-row batches. Peak memory is now a function of batch size, not file size. `AZURE_FILE_SHARE_MAX_IMPORT_MB` default raised 128MB → 4096MB.
+
+### [2.13.x] - 2026-08-05 → 2026-08-07
+- **Ingest & worker stability series.** Root-caused and fixed a long-running "worker goes Stale / uploads stuck in Processing" incident: an `ERR_STRING_TOO_LONG` crash loop in the Azure File Share import (2.13.7), an uncached CISA KEV download parsed 1,604× per threat sync (2.13.5), unthrottled threat-ingest jobs starving the upload queue (2.13.6), 11 independent Redis Cluster clients per worker tripping Azure Managed Redis connection rate limits (2.13.3), and missing `(siteId, scannerType, status)` indexes that turned reconciliation into full sequential scans of the archive (2.13.1). Added event-loop-lag/heap diagnostics and per-phase ingest timings (2.13.4).
+- **Negated search** on the vulnerabilities list — prefix a term with `!` or `-` to exclude matches (2.13.0).
+
+### [2.12.x] - 2026-08-04 → 2026-08-05
+- **Futuristic "command centre" UI pass** (2.12.0) — animated count-up stat numbers, HUD corner brackets, cursor-following spotlight, ambient backdrop and scanline sweep, all disabled under `prefers-reduced-motion`.
+- **Ask AI panel refresh** (2.12.1, 2.12.2) — now a compact, non-modal floating chat window with `Escape` to close.
+- **Reliability**: dedicated fail-fast heartbeat Redis connection so a healthy worker stops reporting "Stale" (2.12.3); ingest per-site lock acquire/release made fail-fast so a stalled Redis can no longer wedge the queue (2.12.5); clustered Redis slots-refresh timeout and TLS SNI pinning (2.12.6).
+
+### [2.11.0] - 2026-08-04
+- **Ask AI about a single finding** — a per-issue chat launched from the Vulnerability Details sheet. The client sends only the finding id; the server re-fetches it under the same group-visibility wall, so the assistant can never be pinned to a finding the caller cannot see. `focusId` is recorded in the `ai_insight_chat` audit entry.
+
+### [2.10.0] - 2026-08-04
+- **"Ask AI" becomes a multi-turn, tool-using assistant.** Replaces the v2.9.0 query planner. The model reads findings through an RBAC-scoped `search_vulnerabilities` tool and checks a hard-coded allow-list of public package registries (npm, PyPI, NuGet, Maven, RubyGems, crates.io, Packagist, Go) via `get_latest_version`. New `GET|POST /api/vulnerabilities/chat` with a bounded 6-iteration tool loop; rate-limited and audited as `ai_insight_chat`. Removed the superseded `POST /api/vulnerabilities/insights`.
+- **Privacy posture change (intentional)**: enabling the assistant now shares the finding rows a caller can already see with the configured model. Point `AI_PROVIDER=openai-compatible` at a self-hosted/air-gapped model where that data must not leave the network.
+
+### [2.9.0] - 2026-08-03
+- **AI-powered natural-language insights** on the Vulnerabilities page, provider-abstracted across Azure OpenAI, Azure AI Foundry, and any OpenAI-compatible `/v1` endpoint. New `AiConfig` table with AES-256-GCM encrypted endpoint + API key, and an **AI Insights** tab under Admin → Settings. Superseded by the v2.10.0 assistant.
+- Follow-up patches added Azure AI Foundry project-endpoint normalisation and `gpt-5`/o-series reasoning-model support (2.9.1), and cleared five `undici` advisories (2.9.3).
+
+### [2.8.16] - 2026-07-23
+- **New `AwaitingVendor` status** for findings escalated to an upstream vendor where the fix is out of the team's hands. Treated as **active**, so the item stays in the triage queue, digests and analytics, but renders with a distinct teal dot. Added across the DB enum, API validation, ingest reconciliation, analytics/dashboard aggregates, and notification filters.
 
 ### [2.8.0] - 2026-07-15
 - **Azure Container Registry (ACR) Vulnerability Ingest**: Manual **"ACR CSV"** upload option on the Uploads page and a new **Azure Blob container** automation that polls a blob container, ingests every matching CSV, and (by default) deletes each blob after it's queued so rescans on the same repository land as updates rather than duplicates. Independent from the existing Azure File Share pipeline — its own account, container, and credentials.

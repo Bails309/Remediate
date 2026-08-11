@@ -3,42 +3,42 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, MessageSquareText, ShieldCheck, Plug, SlidersHorizontal } from "lucide-react";
+import { Sparkles, ArchiveRestore, UserCheck, ShieldCheck, Layers } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2100";
+const TOUR_ID = "whats-new-aug-2026-v2150";
 
 const features = [
   {
-    icon: MessageSquareText,
+    icon: ArchiveRestore,
     accent: "text-purple-500 dark:text-purple-400",
     bg: "bg-purple-100 dark:bg-purple-500/15",
-    title: "Chat With Your Vulnerabilities",
+    title: "Archiving Is No Longer A One-Way Door",
     description:
-      "The ‘Ask AI’ bar on the Vulnerabilities page is now a full multi-turn assistant. Ask it to ‘summarise my open issues and tell me what to fix first’, then follow up — it reads your actual findings and answers in plain English so you can prioritise hundreds of items without scrolling through them.",
+      "Marked something Remediated by mistake? Called a false positive that turned out to be real? Switch the Vulnerabilities page to ‘Archived Findings’, open the record, and hit ‘Restore to active queue’. It comes straight back as Open, ready to be worked again — no database surgery required.",
+  },
+  {
+    icon: UserCheck,
+    accent: "text-cyan-500 dark:text-cyan-400",
+    bg: "bg-cyan-100 dark:bg-cyan-500/15",
+    title: "It Comes Back With Its History Intact",
+    description:
+      "A restored finding keeps its original ID, assignee, group, CR number and scan details — including container registry, repository and image digest for ACR findings. It lands back with the person who owned it rather than dropping into the unassigned pile, so nobody has to reconstruct the context.",
   },
   {
     icon: ShieldCheck,
     accent: "text-emerald-500 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Only What You're Allowed To See",
+    title: "Admin-Only, And Fully Audited",
     description:
-      "The assistant reads findings through an RBAC-scoped search tool: it can only ever see the rows you could already see under the same group-visibility rules as the normal list. Searches are schema-validated with no raw SQL, so a manipulated prompt can’t widen your access.",
+      "Assignees and group leaders can archive a finding, but only administrators can reverse one — the archive is the record that someone accepted a risk or signed off a fix. Every restore is written to the audit log as ‘vulnerability.restored’, showing who reopened what and which decision they overrode.",
   },
   {
-    icon: Plug,
-    accent: "text-cyan-500 dark:text-cyan-400",
-    bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "Live ‘Is There A Newer Version?’ Checks",
-    description:
-      "Ask about upgrades and the assistant queries public package registries — npm, PyPI, NuGet, Maven, RubyGems, crates.io, Packagist and Go — to tell you whether a fixed release exists and how far behind you are.",
-  },
-  {
-    icon: SlidersHorizontal,
+    icon: Layers,
     accent: "text-amber-500 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "Admin-Gated & Auditable",
+    title: "No Accidental Duplicates",
     description:
-      "Still optional and off by default. Admins configure a tool-calling provider (Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible endpoint — including self-hosted) under Settings > AI Insights. Every turn is rate-limited and written to the audit log. Note: enabling it shares the findings you can see with your chosen model.",
+      "If a scan has already re-detected the finding since it was archived, Remediate blocks the restore and tells you the live record already exists — so you can’t end up with two copies of the same issue drifting apart in triage and double-counting in your analytics.",
   },
 ];
 
@@ -82,9 +82,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.10.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.15.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            The AI Assistant: chat about your findings, get a prioritised plan, and check for newer package versions. RBAC-scoped and admin-gated.
+            Bring an archived finding back into the active queue as Open — with its owner, group and scan details intact. Admin-only and fully audited.
           </p>
         </div>
 

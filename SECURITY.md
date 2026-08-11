@@ -41,6 +41,16 @@ The natural-language insights feature is designed so that adding an LLM does **n
 - **Auditability.** Every user turn is written to the audit log as `ai_insight_chat` with the question text and the names/outcomes of the tools the model invoked, so AI-assisted activity is fully reviewable.
 - **Bounded egress, timeouts & loop limits.** Provider calls use an `AbortController` timeout (`lib/ai/provider.ts`), the tool loop is capped at six iterations, and non-2xx responses surface as `AiProviderError`/`AiChatError` rather than leaking provider internals to the client.
 
+## Archive Restoration (v2.15.0)
+`POST /api/vulnerabilities/{id}/restore` moves a finding out of `VulnerabilityHistory` and back into the active queue as `Open`. It is a privileged reversal and is treated as one.
+
+- **Admin-only, deliberately narrower than archiving.** Assignees and group leaders may archive a finding (set `Remediated` / `FalsePositive` / `NoFixAvailable`), but only `site_admin` / `web_app_admin` may reverse it. The archive is the record that someone accepted a risk, called a false positive, or signed off a fix; if the same person could silently un-set it, the archive would stop being usable as an audit surface. The UI button is hidden for non-admins and the route independently returns `403`, so hiding the control is presentation only, not the control itself.
+- **No existence oracle.** The role check runs **before** the `VulnerabilityHistory` lookup, so a non-admin gets an identical `403` whether or not the id exists. The endpoint cannot be used to enumerate archived finding ids.
+- **Fully audited round trip.** Archiving writes `vulnerability.archived`; restoring writes `vulnerability.restored` with `oldValue` = the archived status and `newValue` = `Open`. `/admin/audit-log` therefore shows who reopened which finding and precisely which determination they overrode.
+- **Duplicate guard is an integrity control, not a convenience.** A scan run after the archive may already have re-created the same finding as a live row under a new id. The route pre-checks for an active row matching `(siteId, scannerType, pluginId, host, port)` and refuses with `409`. Without it, one real-world finding could exist twice in triage with divergent statuses and owners, double-counting in every analytics and digest surface.
+- **History row is deleted, not retained.** `lib/ingest.ts` treats a surviving `FalsePositive` / `NoFixAvailable` history row as a standing user determination and re-archives the matching finding on the next scan. Keeping the row would make a restore silently self-revert at the next import — an availability/correctness failure that leaves no trace in the logs. Deletion is intentional and is why the audit entry (not the history row) is the durable record of the archive.
+- **Rate-limited and transactional.** The route runs through `enforceRateLimit` like every other mutation, and the recreate + history-delete happen in a single Prisma transaction, so a failure cannot leave the finding in both tables or neither.
+
 ## Authentication
 - Local credential comparison uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
 - Auth provisioning never overwrites manually assigned database roles on subsequent logins.

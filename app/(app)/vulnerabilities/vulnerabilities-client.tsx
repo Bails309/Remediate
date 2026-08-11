@@ -242,6 +242,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
   const [editingBatchContent, setEditingBatchContent] = useState("");
   const [busyBatchId, setBusyBatchId] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
@@ -858,6 +859,24 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
       toast.success("Updated successfully");
     }
     void fetchData();
+  };
+
+  const restoreToActiveQueue = async () => {
+    if (!detail) return;
+    setIsRestoring(true);
+    try {
+      const res = await fetch(`/api/vulnerabilities/${detail.id}/restore`, { method: "POST" });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.error || "Failed to restore finding");
+        return;
+      }
+      setDetail(null);
+      toast.success("Finding restored to the active queue as Open");
+      void fetchData();
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const handleStatusChange = (nextStatus: string) => {
@@ -1605,8 +1624,23 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             </div>
           )}
           {detailIsArchived && (
-            <div className="rounded-2xl border border-amber-300/50 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
-              This record is archived history. It remains searchable for audit and reference, but it is not part of the active remediation queue.
+            <div className="space-y-3 rounded-2xl border border-amber-300/50 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
+              <p>
+                This record is archived history. It remains searchable for audit and reference, but it is not part of the active remediation queue.
+              </p>
+              {isWebAdmin && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="outline"
+                    disabled={isRestoring}
+                    onClick={() => void restoreToActiveQueue()}
+                    title="Move this finding back into the active queue with status Open"
+                  >
+                    {isRestoring ? "Restoring…" : "Restore to active queue"}
+                  </Button>
+                  <span className="text-xs opacity-80">Reopens the finding as Open, keeping its assignee and group.</span>
+                </div>
+              )}
             </div>
           )}
           <div>
