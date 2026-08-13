@@ -27,7 +27,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Build App Image (Runner)
         run: docker build --target app-runner -t remediate-app:test .
       - name: Build Worker Image (Runner)
@@ -37,7 +37,12 @@ jobs:
       # carries an OS layer (base image, apt/apk packages, the bundled Node
       # binary) that nothing else in CI inspects.
       - name: Scan app image for OS and library CVEs
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master (node24)
+        env:
+          # ghcr.io anonymous pulls are rate-limited on shared runners, which
+          # fails the DB download and leaves no SARIF behind. Use the mirror.
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
         with:
           image-ref: remediate-app:test
           format: sarif
@@ -46,7 +51,10 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan worker image for OS and library CVEs
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master (node24)
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
         with:
           image-ref: remediate-worker:test
           format: sarif
@@ -54,11 +62,21 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
 
-      - name: Upload image scan results
-        if: always()
-        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+      # Uploaded separately with distinct categories: a single submission of
+      # two files would have each overwrite the other's results.
+      - name: Upload app image scan results
+        if: always() && hashFiles('trivy-app.sarif') != ''
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4
         with:
-          sarif_file: .
+          sarif_file: trivy-app.sarif
+          category: trivy-app-image
+
+      - name: Upload worker image scan results
+        if: always() && hashFiles('trivy-worker.sarif') != ''
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4
+        with:
+          sarif_file: trivy-worker.sarif
+          category: trivy-worker-image
 
   # Guards against a schema.prisma edit that was never turned into a migration.
   # Without this the drift only surfaces at deploy time, when `migrate deploy`
@@ -76,10 +94,10 @@ jobs:
         options: >-
           --health-cmd="pg_isready -h localhost -p 5432" --health-interval=5s --health-timeout=5s --health-retries=10
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci
       - name: Fail if schema.prisma has drifted from prisma/migrations
@@ -102,11 +120,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Use Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci
       - name: Run npm audit (allowlist-aware)
@@ -143,11 +161,11 @@ jobs:
       REDIS_URL: redis://localhost:6379
       AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'test-secret' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Use Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci --omit=dev
       - name: Install dev dependencies (for tests)
@@ -181,7 +199,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coverage
           path: coverage
@@ -259,11 +277,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
       REDIS_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Use Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci
       - name: Wait for services
@@ -305,11 +323,11 @@ jobs:
       LOCAL_AUTH_EMAIL: admin@example.com
       LOCAL_AUTH_NAME: Test Admin
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Use Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install dependencies
         run: npm ci
       - name: Install Playwright Browsers
@@ -324,7 +342,7 @@ jobs:
         run: npm run build
       - name: Run Playwright tests
         run: npx playwright test
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: playwright-report

@@ -35,10 +35,10 @@ jobs:
         language: [ javascript-typescript, actions ]
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4
         with:
           languages: ${{ matrix.language }}
           # security-extended adds the lower-precision queries; worth the noise
@@ -46,9 +46,9 @@ jobs:
           queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        uses: github/codeql-action/autobuild@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4
         with:
           category: /language:${{ matrix.language }}
