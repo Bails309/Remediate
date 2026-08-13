@@ -1,0 +1,11 @@
+# Shell scripts must keep LF endings regardless of the checkout platform.
+# They are COPYed into Linux images and used as container entrypoints; CRLF
+# makes /bin/sh fail with "bad interpreter" or append \r to every command.
+# Without this, a clone on a machine with core.autocrlf=true produces images
+# that build fine and then die on startup.
+*.sh text eol=lf
+
+# Same reasoning for the files the images are built from.
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
