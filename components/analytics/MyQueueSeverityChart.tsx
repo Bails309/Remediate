@@ -246,7 +246,7 @@ export function MyQueueSeverityChart({ scope, assigneeId, refreshKey = 0 }: Prop
                   fontSize: 12,
                 }}
                 itemStyle={{ color: "var(--color-foreground, #e2e8f0)" }}
-                formatter={(value: number, name: string) => [`${value}`, name]}
+                formatter={(value, name) => [String(value ?? ""), String(name ?? "")]}
               />
             </PieChart>
           </ResponsiveContainer>

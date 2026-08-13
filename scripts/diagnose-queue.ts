@@ -36,9 +36,11 @@ async function summarize(name: string) {
       "delayed",
       "failed",
       "completed",
-      "paused",
     );
+    // BullMQ 6 removed "paused" as a job state; pausing is queue-wide, so
+    // report it from the queue rather than the per-state counts.
     console.log(`\n--- Queue: ${name} ---`);
+    console.log("  paused:", await q.isPaused());
     console.log("  counts:", counts);
 
     const waiting = await q.getJobs(["waiting"], 0, 19, true);

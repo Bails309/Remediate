@@ -2,7 +2,7 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.16.1` (2026-08-13). The runtime is **Node.js 24 LTS** (the `Dockerfile` builds `FROM node:lts-slim`, which currently resolves to 24.x), Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.16.1` (2026-08-13). The runtime is **Node.js 24 LTS** (the `Dockerfile` builds `FROM node:lts-slim`, which currently resolves to 24.x), Next.js `^16.2.11`, BullMQ `^6.0.10`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
 >
 > ⚠️ **`node:lts-slim` is a floating tag.** A new Node LTS moves your runtime a whole major version on the next image build with no change to this repository — that is how the images went from Node 20 to Node 24. CI now pins `node-version: '24'` to match, but the two can silently diverge again. Consider pinning the Dockerfile to `node:24-slim`; Dependabot is configured for Docker and will raise the upgrade as a reviewable PR.
 >
@@ -13,6 +13,7 @@ This document summarizes recommended deployment patterns for Remediate.
 > - **No configuration change required.** Optionally set `AI_ASSISTANT_NAME` (max 40 characters) if you provision the AI feature declaratively; the database value set under **Settings → AI Insights** takes precedence, as with every other `AI_*` variable.
 > - **Read this if you chose your AI provider on a data-residency basis.** Prior to this release the AI Insights admin page claimed vulnerability data was never sent to the provider. That was accurate for the v2.9.0 query planner but has been false since v2.12.0, when a tool-using assistant replaced it. The assistant sends findings the asking user can already see to whichever provider you configured. If that conflicts with your data policy, disable the feature or point `AI_PROVIDER=openai-compatible` at a self-hosted endpoint. The UI copy has been corrected.
 > - **New CI gates**, if you build from this repository's workflows: Trivy image scanning, CodeQL, and a Prisma schema-drift check that fails the build when `schema.prisma` has no matching migration. The `unit` job no longer masks migration failures with `|| true`.
+> - **Two dependency majors landed via Dependabot in this release**: **BullMQ 5 → 6** and **recharts 2 → 3**. Neither needs a configuration change, but note that BullMQ 6 removes `paused` as a job *state* — pausing is queue-wide, so anything reading a per-state `paused` count must call `queue.isPaused()` instead. `scripts/diagnose-queue.ts` was updated accordingly; no runtime queue code depended on it.
 >
 > **v2.16.0 upgrade notes**:
 > - **Migrations** (three, all additive — no existing table is altered destructively). Runtime fallback via `scripts/migrate.js` applies them on first boot under an advisory lock; the CI job in `.github/workflows/migrations.yml` remains the recommended path for production.

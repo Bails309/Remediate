@@ -52,7 +52,9 @@ export function TrendChart({ data }: { data: TrendData[] }) {
                             color: "var(--color-foreground)"
                         }}
                         labelFormatter={(val) => {
-                            if (!val) return "";
+                            // recharts 3 widens this to ReactNode; only a date-like
+                            // primitive is meaningful here.
+                            if (typeof val !== "string" && typeof val !== "number") return "";
                             return new Date(val).toLocaleDateString(undefined, {
                                 weekday: 'short',
                                 month: "short",
