@@ -33,6 +33,10 @@ jobs:
 
       - name: Run Semgrep
         # --error makes the job fail on any finding at the configured severity.
+        # --timeout 120 (default 5s) + --timeout-threshold 0 (default 3): the
+        # large client components exceeded the per-rule budget, and after three
+        # timeouts Semgrep abandons the *whole file* — so the biggest components
+        # were silently going unscanned for regex-DoS, SSRF and XSS.
         # Rulesets chosen for this stack:
         #   p/owasp-top-ten   — generic web-app vulns (injection, SSRF, auth, etc.)
         #   p/typescript      — TS-specific bug patterns
@@ -50,6 +54,8 @@ jobs:
             --severity ERROR \
             --severity WARNING \
             --metrics=off \
+            --timeout 120 \
+            --timeout-threshold 0 \
             --exclude coverage \
             --exclude playwright-report \
             --exclude test-results \

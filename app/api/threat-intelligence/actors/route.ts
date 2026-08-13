@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const sector = searchParams.get("sector") || undefined;
     const region = searchParams.get("region") || undefined;
     const actorType = searchParams.get("type") || undefined;
-    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") || "100", 10)));
+    // parseInt yields NaN for junk, which would reach Prisma as `take: NaN`.
+    const requestedLimit = Number.parseInt(searchParams.get("limit") || "", 10);
+    const limit = Number.isNaN(requestedLimit) ? 100 : Math.min(200, Math.max(1, requestedLimit));
 
     const where = {
       ...(query

@@ -1,0 +1,54 @@
+name: CodeQL
+
+# Semgrep (semgrep.yml) catches pattern-level issues quickly on every push.
+# CodeQL is the complementary dataflow engine — it follows taint from source to
+# sink across files, which is what finds the injection and SSRF classes that a
+# regex-style rule cannot see.
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    # Weekly so newly published queries are applied to unchanged code.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ javascript-typescript, actions ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        with:
+          languages: ${{ matrix.language }}
+          # security-extended adds the lower-precision queries; worth the noise
+          # for an application that ingests third-party scan output and feeds.
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        with:
+          category: /language:${{ matrix.language }}

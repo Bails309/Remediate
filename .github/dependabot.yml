@@ -1,0 +1,75 @@
+version: 2
+
+updates:
+  # Application dependencies. Grouped so a routine patch sweep is one PR to
+  # review rather than twenty, while anything major stays on its own so the
+  # breaking-change review is not buried.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 10
+    labels: [dependencies]
+    groups:
+      production-patches:
+        dependency-type: production
+        update-types: [patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Next/React/Prisma majors move the whole stack and are upgraded
+      # deliberately, not by bot. Security advisories still raise alerts.
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/client"
+        update-types: [version-update:semver-major]
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+
+  # The pentest toolkit backend ships as its own image with its own lockfile.
+  - package-ecosystem: npm
+    directory: /pentest-backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: [dependencies, pentest-backend]
+    groups:
+      all:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Base images in the multi-stage Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: /pentest-backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    labels: [dependencies, docker, pentest-backend]
+
+  # Actions are already SHA-pinned; this keeps the pins moving rather than
+  # letting them rot on an unmaintained release.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    labels: [dependencies, github-actions]

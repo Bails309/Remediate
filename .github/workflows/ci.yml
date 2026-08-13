@@ -23,12 +23,77 @@ concurrency:
 jobs:
   docker-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Build App Image (Runner)
         run: docker build --target app-runner -t remediate-app:test .
       - name: Build Worker Image (Runner)
         run: docker build --target worker-runner -t remediate-worker:test .
+
+      # npm audit only sees the JS dependency tree. The runtime image also
+      # carries an OS layer (base image, apt/apk packages, the bundled Node
+      # binary) that nothing else in CI inspects.
+      - name: Scan app image for OS and library CVEs
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        with:
+          image-ref: remediate-app:test
+          format: sarif
+          output: trivy-app.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Scan worker image for OS and library CVEs
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        with:
+          image-ref: remediate-worker:test
+          format: sarif
+          output: trivy-worker.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload image scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.29.4
+        with:
+          sarif_file: .
+
+  # Guards against a schema.prisma edit that was never turned into a migration.
+  # Without this the drift only surfaces at deploy time, when `migrate deploy`
+  # applies an incomplete set and the app starts against the wrong shape.
+  schema-drift:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shadow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -h localhost -p 5432" --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Fail if schema.prisma has drifted from prisma/migrations
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url postgresql://postgres:postgres@localhost:5432/shadow \
+            --exit-code \
+          || {
+            echo "::error::schema.prisma differs from the committed migrations."
+            echo "Run: npx prisma migrate dev --name <describe-your-change>"
+            exit 1
+          }
 
   security:
     runs-on: ubuntu-latest
@@ -104,7 +169,7 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply migrations
-        run: npx prisma migrate deploy || true
+        run: npx prisma migrate deploy
       - name: Lint
         run: npm run lint
       - name: Type check
