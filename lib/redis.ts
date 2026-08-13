@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import Redis, { RedisOptions } from "ioredis";
 
 const globalForRedis = globalThis as unknown as {
@@ -49,7 +50,7 @@ function createRedisInstance(url: string, options?: RedisOptions) {
         // new connection creation, so a tight fixed retry across several clients
         // produces a thundering herd that keeps topology discovery timing out.
         clusterRetryStrategy: (times) =>
-          Math.min(times * 200, 10_000) + Math.floor(Math.random() * 250),
+          Math.min(times * 200, 10_000) + randomInt(250),
         // The ioredis default `slotsRefreshTimeout` is 1s, which is too tight
         // for a TLS managed-Redis cluster: `CLUSTER SLOTS` topology discovery
         // routinely exceeds it and throws
