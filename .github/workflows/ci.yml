@@ -37,7 +37,7 @@ jobs:
       # carries an OS layer (base image, apt/apk packages, the bundled Node
       # binary) that nothing else in CI inspects.
       - name: Scan app image for OS and library CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master (node24)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         env:
           # ghcr.io anonymous pulls are rate-limited on shared runners, which
           # fails the DB download and leaves no SARIF behind. Use the mirror.
@@ -51,7 +51,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan worker image for OS and library CVEs
-        uses: aquasecurity/trivy-action@2736533278103862a861f4a35ebac3e97854d956 # master (node24)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         env:
           TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
           TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
