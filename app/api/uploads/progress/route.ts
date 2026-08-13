@@ -3,6 +3,7 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { canAccessUpload } from "@/lib/upload-access";
+import { forLog } from "@/lib/log-safe";
 import { UploadStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 
@@ -50,7 +51,9 @@ export async function GET(request: NextRequest) {
   try {
     payload = await withTimeout(redis.get(getProgressKey(uploadId)), PROGRESS_READ_TIMEOUT_MS);
   } catch (error) {
-    console.warn(`[Progress] Redis read failed for ${uploadId}, falling back to DB:`, error);
+    // uploadId is caller-supplied and admins skip the existence check, so it
+    // must not land in the format-string position.
+    console.warn("[Progress] Redis read failed, falling back to DB. uploadId=%s", forLog(uploadId), error);
   }
 
   if (payload) {

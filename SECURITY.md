@@ -64,6 +64,8 @@ Until v2.16.0 `requireAdmin()` accepted both `site_admin` and `web_app_admin`, a
 | **Workspace Auditor** | `web_app_auditor` | Read-only; write-granting roles are stripped when auditor is assigned. |
 | **Toolkit** | `toolkit_user`, `toolkit_admin` | The isolated pentest toolkit only. |
 
+> **`toolkit_admin` is a command-execution role — treat it as equivalent to shell access on the pentest backend.** `PUT /api/tools/config` lets that role define the `command` and `args` of a tool, and `POST /api/tools/execute` then runs it. `validateToolsConfig()` enforces *structure* (required fields, unique ids, array shapes) but deliberately does **not** allowlist binaries, because curating the tool catalogue is the feature. This is not an escalation — the role can already run offensive tooling with attacker-chosen inputs by design — but it does mean `toolkit_admin` must be granted with the same care as a shell account on that host, and it is why the toolkit runs as a separate service rather than inside the main app. CodeQL flags the config write as *"network data written to file"*; that finding is accurate and accepted, with the RBAC gate as the control.
+
 Enforcement is layered, so a gap in one does not expose the surface:
 1. **Edge** — [`proxy.ts`](proxy.ts) redirects non-`site_admin` sessions away from `/admin/*`, and non-workspace-admins away from `/uploads`, `/buckets` and `/automation`.
 2. **Page** — every site-administration page calls `requireSiteAdmin()` server-side. `/admin/users`, `/admin/groups` and `/admin/health` previously had **no** server guard and relied solely on the middleware prefix match; they are now guarded directly.

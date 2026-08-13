@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { forLog } from "@/lib/log-safe";
 import { BlobServiceClient, StorageSharedKeyCredential } from "@azure/storage-blob";
 import type { NextRequest } from "next/server";
 
@@ -22,14 +23,14 @@ export async function POST(request: NextRequest) {
             if (!accountName || !accountKey || accountKey === "********") {
                 return NextResponse.json({ error: "Invalid account name or key" }, { status: 400 });
             }
-            console.info("[Storage Test] Testing Azure account key for account:", accountName);
+            console.info("[Storage Test] Testing Azure account key for account: %s", forLog(accountName));
             const credential = new StorageSharedKeyCredential(accountName, accountKey);
             blobServiceClient = new BlobServiceClient(`https://${accountName}.blob.core.windows.net`, credential);
         } else if (azureAuthMethod === "SAS_TOKEN") {
             if (!accountName || !sasToken || sasToken === "********") {
                 return NextResponse.json({ error: "Invalid account name or SAS token" }, { status: 400 });
             }
-            console.info("[Storage Test] Testing Azure SAS for account:", accountName);
+            console.info("[Storage Test] Testing Azure SAS for account: %s", forLog(accountName));
             const token = sasToken.startsWith("?") ? sasToken.substring(1) : sasToken;
             const url = `https://${accountName}.blob.core.windows.net?${token}`;
             blobServiceClient = new BlobServiceClient(url);
