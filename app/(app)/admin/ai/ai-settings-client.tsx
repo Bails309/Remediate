@@ -15,6 +15,7 @@ type FormState = {
   apiKey: string;
   model: string;
   apiVersion: string;
+  assistantName: string;
 };
 
 const DEFAULTS: FormState = {
@@ -24,7 +25,12 @@ const DEFAULTS: FormState = {
   apiKey: "",
   model: "",
   apiVersion: "",
+  assistantName: "",
 };
+
+/** Shown as the placeholder and used by the app when the field is left blank. */
+const DEFAULT_ASSISTANT_NAME = "Ask AI";
+const MAX_ASSISTANT_NAME_LENGTH = 40;
 
 const PROVIDER_OPTIONS = [
   { label: "Azure OpenAI", value: "azure-openai" },
@@ -73,6 +79,12 @@ export function AiSettingsClient() {
             apiKey: data.apiKeyMasked ?? "********",
             model: data.model ?? "",
             apiVersion: data.apiVersion ?? "",
+            // The API always resolves a name; show the box empty when it is
+            // still the default so saving does not pin the default in the DB.
+            assistantName:
+              data.assistantName && data.assistantName !== DEFAULT_ASSISTANT_NAME
+                ? data.assistantName
+                : "",
           });
         }
       }
@@ -91,7 +103,11 @@ export function AiSettingsClient() {
       const res = await fetch("/api/admin/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, apiVersion: form.apiVersion || null }),
+        body: JSON.stringify({
+          ...form,
+          apiVersion: form.apiVersion || null,
+          assistantName: form.assistantName.trim() || null,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -140,8 +156,9 @@ export function AiSettingsClient() {
       <div>
         <h2 className="text-2xl font-semibold">AI Insights</h2>
         <p className="text-sm opacity-70">
-          Power the natural-language search on the Vulnerabilities page. The model only translates a
-          question into a database filter — your vulnerability data is never sent to the provider.
+          Powers the AI assistant on the Vulnerabilities page and the widget planner on custom
+          dashboards. The assistant reads findings the asking user is already permitted to see and
+          sends them to the provider you configure below, so choose one your data policy allows.
         </p>
         {source === "env" && (
           <p className="mt-2 text-xs rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 px-3 py-2 w-fit">
@@ -160,6 +177,22 @@ export function AiSettingsClient() {
           />
           Enable AI-powered insights
         </label>
+
+        <div>
+          <label className="block text-xs font-bold text-foreground/70 uppercase tracking-widest mb-2">
+            Assistant Name
+          </label>
+          <Input
+            value={form.assistantName}
+            onChange={(e) => update("assistantName", e.target.value)}
+            placeholder={DEFAULT_ASSISTANT_NAME}
+            maxLength={MAX_ASSISTANT_NAME_LENGTH}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            What the assistant is called on the launcher button, in the chat header, and when it
+            introduces itself. Leave blank to use &ldquo;{DEFAULT_ASSISTANT_NAME}&rdquo;.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
           <div>

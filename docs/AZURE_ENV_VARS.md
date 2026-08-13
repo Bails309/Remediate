@@ -47,6 +47,7 @@ Powers the natural-language search on the Vulnerabilities page. Preferred config
 - `AI_API_KEY`: provider API key.
 - `AI_MODEL`: model name — the **deployment name** for `azure-openai`.
 - `AI_API_VERSION`: *(Azure only)* e.g. `2024-10-21`.
+- `AI_ASSISTANT_NAME`: display name for the assistant on the launcher, in the chat header, and in the system prompt it introduces itself with. Max 40 characters; whitespace is collapsed to a single line. Defaults to `Ask AI`.
 - `AI_INSIGHTS_ENABLED`: set to `false` to keep the feature switched off even when the other vars are present.
 
 > The AI assistant reads finding data the caller is already permitted to see (RBAC-scoped) and can query public package registries to check for newer releases. Configuring this is optional; the "Ask AI" launcher stays hidden until it is enabled. For deployments where finding data must not leave the network, point `AI_PROVIDER=openai-compatible` at a self-hosted/air-gapped model.

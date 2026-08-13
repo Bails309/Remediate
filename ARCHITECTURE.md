@@ -140,7 +140,7 @@ A multi-turn, tool-using assistant over the active `Vulnerability` table. It rep
 
 ### Request flow
 ```
-Ask AI panel  ──POST /api/vulnerabilities/chat { messages[] }──▶  route handler
+Chat panel   ──POST /api/vulnerabilities/chat { messages[] }──▶  route handler
         │                                                              │
         │                                  getAiConfig()  (DB row or AI_* env)
         │                                                              │
@@ -161,9 +161,9 @@ Ask AI panel  ──POST /api/vulnerabilities/chat { messages[] }──▶  rout
 ### Modules (`lib/ai/`)
 | File | Responsibility |
 | :--- | :--- |
-| `config.ts` | Resolve effective config: encrypted `AiConfig` DB row first, else `AI_*` env vars. Encrypt/decrypt endpoint + key via `lib/crypto.ts`. |
+| `config.ts` | Resolve effective config: encrypted `AiConfig` DB row first, else `AI_*` env vars. Encrypt/decrypt endpoint + key via `lib/crypto.ts`. Also owns `normaliseAssistantName()` and the `DEFAULT_ASSISTANT_NAME` / `MAX_ASSISTANT_NAME_LENGTH` constants. |
 | `provider.ts` | `buildChatRequest()` constructs the URL + auth header per provider type; `chatCompletion()` (single-shot) and `chatWithTools()` (tool-calling round-trip) perform the fetch with an `AbortController` timeout and normalise errors to `AiProviderError`. Pure `buildChatRequest` is unit-tested per provider. |
-| `chat.ts` | `runChat()` — the orchestrator. Seeds the system prompt, drives the bounded tool loop, executes each requested tool under the caller's `ToolContext`, and returns the final reply plus the list of tools invoked. |
+| `chat.ts` | `runChat()` — the orchestrator. Seeds the system prompt (parameterised on the configured assistant name), drives the bounded tool loop, executes each requested tool under the caller's `ToolContext`, and returns the final reply plus the list of tools invoked. |
 | `tools.ts` | Tool declarations + executors. `search_vulnerabilities` reuses `query-spec` + `buildWhereFromSpec`/`buildOrderBy` and always `AND`s the group-visibility wall; `get_latest_version` delegates to the registry module. Results are trimmed and row-capped for token safety. |
 | `registry.ts` | `getLatestVersion(ecosystem, package)` against a hard-coded allow-list of public registries (npm, PyPI, NuGet, Maven, RubyGems, crates.io, Packagist, Go). SSRF-safe (fixed hosts, validated names), timed out, and cached in-process. |
 | `query-spec.ts` | The `querySpecSchema` Zod contract (enum whitelists for risk/status/scanner, capped `limit`, bounded strings) that constrains the `search_vulnerabilities` arguments. |
@@ -184,9 +184,19 @@ AiConfig (singleton)
   │ baseUrlEnc        String    — AES-256-GCM (endpoint)
   │ apiKeyEnc         String    — AES-256-GCM (API key)
   │ model             String    — deployment/model name (non-secret)
-  └ apiVersion        String?   — Azure/Foundry api-version (non-secret)
+  │ apiVersion        String?   — Azure/Foundry api-version (non-secret)
+  └ assistantName     String?   — display name; NULL ⇒ AI_ASSISTANT_NAME ⇒ "Ask AI"
 ```
-Migration `20260803120000_add_ai_config` creates the table. No changes to the `Vulnerability` schema are required — the feature reads the existing columns (`risk`, `status`, `cvssScore`, `cve`, `host`, `packageName`, `solution`, `remediation`, `pluginId`, `scannerType`).
+Migration `20260803120000_add_ai_config` creates the table; `20260813210000_ai_assistant_name` adds the nullable name column. No changes to the `Vulnerability` schema are required — the feature reads the existing columns (`risk`, `status`, `cvssScore`, `cve`, `host`, `packageName`, `solution`, `remediation`, `pluginId`, `scannerType`).
+
+### Assistant naming (v2.16.1)
+The name is resolved once, in `getAiConfig()`, and travels on the `AiConfig` object rather than being fetched separately — so the chat orchestrator, the settings API and the availability probe all agree by construction. It is used in three places:
+
+1. **`runChat()`** interpolates it into the system prompt, so the model introduces itself correctly rather than defaulting to a generic identity.
+2. **`GET /api/vulnerabilities/chat`** returns it alongside `available`, so the page labels its launcher from the probe it was already issuing.
+3. **`AiChatPanel`** takes it as an optional `name` prop.
+
+The panel does **not** import `DEFAULT_ASSISTANT_NAME` from `lib/ai/config`: that module imports `lib/prisma`, and a client component importing it would pull the Prisma client into the browser bundle. The fallback is duplicated as a local constant that names its source of truth — a deliberate, commented duplication rather than an accident. `normaliseAssistantName()` runs on both write and read, so a value persisted by an older client is still sanitised before it reaches a prompt.
 
 ### Domain mappings baked into the search tool
 - *"already have fixes / patches available"* → `hasFix: true` → `status != NoFixAvailable` **and** (`solution` or `remediation` present).

@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.16.0 (2026-08-13)</p>
+  <p><strong>Version:</strong> 2.16.1 (2026-08-13)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -241,7 +241,9 @@ timeGenerated, registryName, repository, imageDigest, severity, cveId, packageNa
 **Storage credentials** are stored encrypted (AES-256-GCM via `lib/crypto.ts`) and never echoed back — the GET endpoint returns a `"****"` sentinel that means "keep the existing value" on save.
 
 ## AI Assistant (v2.10.0)
-Chat with an AI assistant about your active findings instead of manually combining the risk / status / scanner / package filters. An **"Ask AI"** launcher sits above the filter grid on the Vulnerabilities page and opens a multi-turn chat panel that reads your findings and can check for newer package releases.
+Chat with an AI assistant about your active findings instead of manually combining the risk / status / scanner / package filters. A floating launcher sits in the bottom-right corner of the Vulnerabilities page and opens a multi-turn chat panel that reads your findings and can check for newer package releases. A second, per-finding launcher inside the **Vulnerability Details** sheet opens a chat scoped to that one issue.
+
+**Naming the assistant (v2.16.1).** Site admins can give it a name under **Settings → AI Insights** (max 40 characters). The name is used on the launcher, in the chat header and in the assistant's own system prompt, so it introduces itself correctly. Leave the field blank for the default of *Ask AI*, or set `AI_ASSISTANT_NAME` if you provision declaratively. Because the value reaches the model's system message, whitespace is collapsed to a single line and the length is capped — see [SECURITY.md](SECURITY.md#ai-assistant).
 
 **Example questions**
 - *"Show me the most critical vulnerabilities that already have fixes available."*
@@ -433,6 +435,14 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 ## Release notes
 
 > [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.16.1] - 2026-08-13
+- **The AI assistant can be given a name.** Set it under **Settings → AI Insights** (or `AI_ASSISTANT_NAME`); it appears on the launcher, in the chat header and in the assistant's own system prompt so it introduces itself correctly. Blank uses the default of *Ask AI*. The value reaches the model's system message, so whitespace is collapsed and the length capped at 40 characters.
+- **The AI launcher moved to a floating bottom-right button**, the corner the chat window opens into, replacing the full-width banner above the filter grid and returning ~90px of vertical space to the findings list.
+- **Security — corrected a false privacy claim.** The AI Insights admin page still stated that vulnerability data is never sent to the provider. That described the v2.9.0 query planner, replaced in v2.12.0 by a tool-using assistant that genuinely does send findings. The copy now says so plainly.
+- **Security — CI gained the scanners it was missing**: Trivy on both runner images (`npm audit` only ever saw the JS tree), CodeQL for `javascript-typescript` and `actions`, and a Semgrep timeout fix — at the 5s default it was abandoning `vulnerabilities-client.tsx` entirely after three rule timeouts, leaving the largest component unscanned.
+- **+103 unit tests** covering the three highest-risk untested surfaces from 2.16.0: `proxy.ts` (the edge RBAC layer), all eight dashboard routes, and `report-scheduler.ts`. Adds a Prisma schema-drift CI gate and a Dependabot configuration.
+- **Fixed**: `?limit=abc` on the threat-actors API reached Prisma as `take: NaN` and returned `500`; CI ran `prisma migrate deploy || true`, so a broken migration passed and only failed on deploy.
 
 ### [2.16.0] - 2026-08-13
 - **Personal dashboards with a spec-driven widget engine.** New `Dashboard` / `DashboardWidget` models, a drag/resize grid, five visualisations, and a builder with a live preview. A widget persists its **query**, never its results, so published boards stay current and every viewer sees them through their own permissions (Redis cache is keyed on spec **and** viewer scope).

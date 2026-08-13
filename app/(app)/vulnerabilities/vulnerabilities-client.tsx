@@ -210,6 +210,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   // (RBAC-scoped) and look up newer package releases. `aiAvailable` gates the
   // launcher button on whether an admin has configured/enabled a provider.
   const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiName, setAiName] = useState("Ask AI");
   const [chatOpen, setChatOpen] = useState(false);
   // When set, an AI chat scoped to a single finding (opened from its detail view).
   const [chatFocus, setChatFocus] = useState<{ id: string; title: string; subtitle?: string } | null>(null);
@@ -337,7 +338,11 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
     let active = true;
     fetch("/api/vulnerabilities/chat")
       .then((r) => (r.ok ? r.json() : { available: false }))
-      .then((d) => { if (active) setAiAvailable(Boolean(d.available)); })
+      .then((d) => {
+        if (!active) return;
+        setAiAvailable(Boolean(d.available));
+        if (d.assistantName) setAiName(d.assistantName);
+      })
       .catch(() => {});
     return () => { active = false; };
   }, []);
@@ -974,24 +979,31 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         </div>
       </div>
 
-      {aiAvailable && !isArchivedView && (
-        <div className="glass glass-edge flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-accent" />
-            <span className="text-sm font-semibold">Ask AI</span>
-            <span className="text-xs opacity-60">
-              Chat about your findings — it reads the issues you can see and checks for newer package versions.
-            </span>
-          </div>
-          <Button onClick={() => { setChatFocus(null); setChatOpen(true); }} title="Open the AI assistant">
-            <Sparkles size={15} className="mr-1.5" />
-            Ask AI
-          </Button>
-        </div>
+      {aiAvailable && !isArchivedView && !chatOpen && !chatFocus && (
+        <button
+          onClick={() => { setChatFocus(null); setChatOpen(true); }}
+          title={`Chat about your findings — ${aiName} reads the issues you can see and checks for newer package versions.`}
+          aria-label={`Open ${aiName}`}
+          className={cn(
+            "group fixed bottom-4 right-4 z-[90] flex items-center gap-2 rounded-full py-3 pl-4 pr-5",
+            "bg-gradient-to-br from-accent to-accent-2 text-white",
+            "shadow-[0_12px_40px_-8px_rgba(2,6,23,0.55)] shadow-accent/30",
+            "transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
+            "animate-in fade-in slide-in-from-bottom-2 duration-300",
+          )}
+        >
+          <Sparkles size={18} className="transition-transform group-hover:rotate-12" />
+          <span className="text-sm font-semibold">{aiName}</span>
+        </button>
       )}
 
-      <AiChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-      <AiChatPanel open={Boolean(chatFocus)} onClose={() => setChatFocus(null)} focus={chatFocus ?? undefined} />
+      <AiChatPanel open={chatOpen} onClose={() => setChatOpen(false)} name={aiName} />
+      <AiChatPanel
+        open={Boolean(chatFocus)}
+        onClose={() => setChatFocus(null)}
+        focus={chatFocus ?? undefined}
+        name={aiName}
+      />
 
       <div id="tour-vuln-filters" className={cn("grid gap-4 md:grid-cols-2 xl:grid-cols-6")}>
         <Select
@@ -1610,7 +1622,7 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             >
               <Sparkles size={16} className="shrink-0" />
               <span className="min-w-0">
-                Ask AI about this finding
+                {`${aiName} about this finding`}
                 <span className="block text-[11px] font-normal opacity-70">
                   Explain the risk, get remediation steps, or check for a newer package version.
                 </span>

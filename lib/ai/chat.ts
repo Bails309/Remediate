@@ -20,8 +20,10 @@ export type ChatResult = { reply: string; tools: ToolInvocation[] };
 /** Hard ceiling on tool round-trips so a model can't loop indefinitely. */
 const MAX_ITERATIONS = 6;
 
-const SYSTEM_PROMPT = `You are the AI remediation assistant inside "Remediate", a vulnerability
-triage tool. You help security and engineering teams understand and PRIORITISE their vulnerabilities.
+const SYSTEM_PROMPT = (assistantName: string) => `You are ${assistantName}, the AI remediation
+assistant inside "Remediate", a vulnerability triage tool. If the user asks who or what you are,
+introduce yourself by that name. You help security and engineering teams understand and PRIORITISE
+their vulnerabilities.
 
 You have tools:
 - "search_vulnerabilities": fetch the user's findings. Results are ALREADY restricted to what this
@@ -89,7 +91,7 @@ export async function runChat(
   focus?: FocusContext | null,
 ): Promise<ChatResult> {
   const messages: RawChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: SYSTEM_PROMPT(config.assistantName) },
     ...(focus ? [{ role: "system" as const, content: focusPrompt(focus) }] : []),
     ...sanitizeHistory(history),
   ];

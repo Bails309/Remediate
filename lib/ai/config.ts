@@ -17,6 +17,23 @@ export function isAiProviderType(value: string): value is AiProviderType {
   return (AI_PROVIDER_TYPES as readonly string[]).includes(value);
 }
 
+/** Used wherever the assistant is referred to and no custom name is set. */
+export const DEFAULT_ASSISTANT_NAME = "Ask AI";
+export const MAX_ASSISTANT_NAME_LENGTH = 40;
+
+/**
+ * The name is rendered in the UI and embedded in the model's system prompt, so
+ * newlines are collapsed to stop a multi-line value restructuring that prompt.
+ */
+export function normaliseAssistantName(value: string | null | undefined): string | null {
+  const cleaned = (value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_ASSISTANT_NAME_LENGTH)
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export type AiConfig = {
   providerType: AiProviderType;
   /** Base endpoint. For azure-openai this is the resource root (https://x.openai.azure.com). */
@@ -26,6 +43,8 @@ export type AiConfig = {
   model: string;
   /** Required for azure-openai / foundry; ignored otherwise. */
   apiVersion?: string;
+  /** What the assistant is called in the UI and to itself. */
+  assistantName: string;
   enabled: boolean;
   /** Where the effective config was resolved from. */
   source: "db" | "env";
@@ -37,6 +56,7 @@ export type AiConfigInput = {
   apiKey: string;
   model: string;
   apiVersion?: string;
+  assistantName?: string | null;
   enabled: boolean;
 };
 
@@ -57,6 +77,7 @@ export async function getAiConfig(): Promise<AiConfig | null> {
       apiKey: decrypt(row.apiKeyEnc),
       model: row.model,
       apiVersion: row.apiVersion ?? undefined,
+      assistantName: normaliseAssistantName(row.assistantName) ?? DEFAULT_ASSISTANT_NAME,
       enabled: row.enabled,
       source: "db",
     };
@@ -74,6 +95,7 @@ export async function getAiConfig(): Promise<AiConfig | null> {
       apiKey,
       model,
       apiVersion: process.env.AI_API_VERSION || undefined,
+      assistantName: normaliseAssistantName(process.env.AI_ASSISTANT_NAME) ?? DEFAULT_ASSISTANT_NAME,
       enabled: process.env.AI_INSIGHTS_ENABLED !== "false",
       source: "env",
     };
@@ -96,6 +118,7 @@ export async function upsertAiConfig(input: AiConfigInput) {
     apiKeyEnc: encrypt(input.apiKey),
     model: input.model,
     apiVersion: input.apiVersion ?? null,
+    assistantName: normaliseAssistantName(input.assistantName),
   };
 
   const existing = await prisma.aiConfig.findFirst();

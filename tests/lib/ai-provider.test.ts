@@ -7,6 +7,7 @@ const BASE_CONFIG: AiConfig = {
   baseUrl: "https://api.openai.com/v1",
   apiKey: "secret",
   model: "gpt-4o-mini",
+  assistantName: "Ask AI",
   enabled: true,
   source: "db",
 };

@@ -5,7 +5,7 @@ import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { getGroupContext } from "@/lib/group-rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
-import { getAiConfig } from "@/lib/ai/config";
+import { getAiConfig, DEFAULT_ASSISTANT_NAME } from "@/lib/ai/config";
 import { runChat, AiChatError, type ChatTurn } from "@/lib/ai/chat";
 import { getFocusContext } from "@/lib/ai/tools";
 import { AiProviderError } from "@/lib/ai/provider";
@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
   }
   await requireUser();
   const config = await getAiConfig();
-  return NextResponse.json({ available: Boolean(config?.enabled) });
+  return NextResponse.json({
+    available: Boolean(config?.enabled),
+    assistantName: config?.assistantName ?? DEFAULT_ASSISTANT_NAME,
+  });
 }
 
 export async function POST(request: NextRequest) {

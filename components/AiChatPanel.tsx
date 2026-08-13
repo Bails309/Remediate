@@ -32,6 +32,10 @@ const FOCUS_SUGGESTIONS = [
 
 type Focus = { id: string; title: string; subtitle?: string };
 
+// Mirrors DEFAULT_ASSISTANT_NAME in lib/ai/config; not imported because that
+// module pulls in Prisma and must stay out of the client bundle.
+const FALLBACK_NAME = "Ask AI";
+
 function toolLabel(name: string): string {
   if (name === "search_vulnerabilities") return "Searched vulnerabilities";
   if (name === "get_latest_version") return "Checked package registry";
@@ -75,9 +79,11 @@ type Props = {
   onClose: () => void;
   /** When set, the conversation is scoped to a single finding. */
   focus?: Focus;
+  /** Configured display name; falls back to the product default. */
+  name?: string;
 };
 
-export function AiChatPanel({ open, onClose, focus }: Props) {
+export function AiChatPanel({ open, onClose, focus, name = FALLBACK_NAME }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -157,7 +163,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
         "shadow-[0_20px_70px_-15px_rgba(2,6,23,0.55)] animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out",
       )}
       role="dialog"
-      aria-label={focus ? `Ask AI about ${focus.title}` : "Ask AI"}
+      aria-label={focus ? `${name} about ${focus.title}` : name}
     >
         {/* Accent top edge + ambient glow */}
         <div
@@ -177,7 +183,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
             </span>
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold tracking-tight">
-                {focus ? `Ask AI — ${focus.title}` : "Ask AI"}
+                {focus ? `${name} — ${focus.title}` : name}
               </h3>
               <p className="truncate text-xs opacity-60">
                 {focus
@@ -189,7 +195,7 @@ export function AiChatPanel({ open, onClose, focus }: Props) {
           <button
             className="rounded-full p-1.5 opacity-60 transition-all hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
             onClick={onClose}
-            aria-label="Close AI chat"
+            aria-label={`Close ${name}`}
           >
             <X size={18} />
           </button>

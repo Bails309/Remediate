@@ -207,6 +207,8 @@ model AiConfig {
   apiKeyEnc    String
   model        String
   apiVersion   String?
+  /// Display name for the assistant across the UI. Null falls back to "Ask AI".
+  assistantName String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

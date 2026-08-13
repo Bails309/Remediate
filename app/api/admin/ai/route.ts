@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { getAiConfig, upsertAiConfig, AI_PROVIDER_TYPES } from "@/lib/ai/config";
+import { getAiConfig, upsertAiConfig, AI_PROVIDER_TYPES, MAX_ASSISTANT_NAME_LENGTH } from "@/lib/ai/config";
 
 const MASK = "********";
 
@@ -13,6 +13,7 @@ const configSchema = z.object({
   apiKey: z.string().min(1),
   model: z.string().min(1),
   apiVersion: z.string().optional().nullable(),
+  assistantName: z.string().max(MAX_ASSISTANT_NAME_LENGTH).optional().nullable(),
   enabled: z.boolean(),
 });
 
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
     baseUrl: config.baseUrl,
     model: config.model,
     apiVersion: config.apiVersion ?? "",
+    assistantName: config.assistantName,
     apiKeyMasked: MASK,
   });
 }
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
     apiKey: parsed.data.apiKey,
     model: parsed.data.model,
     apiVersion: parsed.data.apiVersion || undefined,
+    assistantName: parsed.data.assistantName,
     enabled: parsed.data.enabled,
   });
 

@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.16.0` (2026-08-13). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.16.1` (2026-08-13). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -125,11 +125,22 @@ A multi-turn AI assistant over the caller's vulnerabilities. Unlike the earlier 
 
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/vulnerabilities/chat` | 🔒 | Reports whether the AI chat should be shown: `{ available: boolean }`. |
-| `POST` | `/api/vulnerabilities/chat` | 🔒 | Body: `{ messages: { role: "user"\|"assistant", content: string }[] }` (1–24 turns, last must be `user`). Runs a tool-using chat under the caller's visibility wall and returns `{ reply, tools }`. Rate-limited; audited as `ai_insight_chat`. `400` when AI is unconfigured/disabled or the payload is invalid, `502` on provider/chat error. |
-| `GET` | `/api/admin/ai` | 👑 | Returns the current provider configuration with the API key masked. |
+| `GET` | `/api/vulnerabilities/chat` | 🔒 | Reports whether the AI chat should be shown, and what it is called: `{ available: boolean, assistantName: string }`. `assistantName` is always resolved (never null) so the client can label the launcher without a second request. |
+| `POST` | `/api/vulnerabilities/chat` | 🔒 | Body: `{ messages: { role: "user"\|"assistant", content: string }[] }` (1–24 turns, last must be `user`), plus an optional `focusId` to scope the conversation to a single finding. Runs a tool-using chat under the caller's visibility wall and returns `{ reply, tools }`. Rate-limited; audited as `ai_insight_chat`. `400` when AI is unconfigured/disabled or the payload is invalid, `502` on provider/chat error. |
+| `GET` | `/api/admin/ai` | � | Returns the current provider configuration with the API key masked, including the resolved `assistantName`. |
 | `POST` | `/api/admin/ai` | 👑 | Upserts the provider configuration (endpoint + key encrypted at rest). Submitting `********` as the key preserves the stored secret. |
 | `POST` | `/api/admin/ai/test` | 👑 | Sends a minimal prompt to verify connectivity and credentials (accepts unsaved form overrides). |
+
+### Assistant name (v2.16.1)
+
+`POST /api/admin/ai` accepts an optional `assistantName` (string, max 40, nullable). It controls what the assistant is called on the launcher, in the chat header and in its own system prompt.
+
+| Stored value | Effective name |
+| :--- | :--- |
+| A non-empty string | That string, whitespace-collapsed and trimmed |
+| `null`, `""`, or whitespace only | `AI_ASSISTANT_NAME` if set, else `Ask AI` |
+
+Normalisation happens server-side in `normaliseAssistantName()` before persistence **and** on read, so a row written by an older client is still sanitised. Whitespace runs collapse to a single space because the value is interpolated into the model's system message — see [SECURITY.md](../SECURITY.md#ai-assistant) for why that matters.
 
 ### `scannerType` (v2.8.0)
 Every ingest job carries a `scannerType`:

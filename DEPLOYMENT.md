@@ -2,7 +2,13 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.16.0` (2026-08-13). The runtime expects Node.js 20 LTS, Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.16.1` (2026-08-13). The runtime expects Node.js 20 LTS, Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+>
+> **v2.16.1 upgrade notes**:
+> - **Migration**: `20260813210000_ai_assistant_name` adds one nullable `AiConfig.assistantName` column. Additive, no backfill, and `NULL` preserves the existing behaviour, so this release is a straight rolling upgrade from 2.16.0.
+> - **No configuration change required.** Optionally set `AI_ASSISTANT_NAME` (max 40 characters) if you provision the AI feature declaratively; the database value set under **Settings → AI Insights** takes precedence, as with every other `AI_*` variable.
+> - **Read this if you chose your AI provider on a data-residency basis.** Prior to this release the AI Insights admin page claimed vulnerability data was never sent to the provider. That was accurate for the v2.9.0 query planner but has been false since v2.12.0, when a tool-using assistant replaced it. The assistant sends findings the asking user can already see to whichever provider you configured. If that conflicts with your data policy, disable the feature or point `AI_PROVIDER=openai-compatible` at a self-hosted endpoint. The UI copy has been corrected.
+> - **New CI gates**, if you build from this repository's workflows: Trivy image scanning, CodeQL, and a Prisma schema-drift check that fails the build when `schema.prisma` has no matching migration. The `unit` job no longer masks migration failures with `|| true`.
 >
 > **v2.16.0 upgrade notes**:
 > - **Migrations** (three, all additive — no existing table is altered destructively). Runtime fallback via `scripts/migrate.js` applies them on first boot under an advisory lock; the CI job in `.github/workflows/migrations.yml` remains the recommended path for production.

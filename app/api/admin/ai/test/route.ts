@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { getAiConfig, AI_PROVIDER_TYPES, type AiConfig } from "@/lib/ai/config";
+import { getAiConfig, AI_PROVIDER_TYPES, DEFAULT_ASSISTANT_NAME, type AiConfig } from "@/lib/ai/config";
 import { chatCompletion, AiProviderError } from "@/lib/ai/provider";
 
 const MASK = "********";
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
           apiKey,
           model: o.model,
           apiVersion: o.apiVersion || stored?.apiVersion,
+          assistantName: stored?.assistantName ?? DEFAULT_ASSISTANT_NAME,
           enabled: true,
           source: "db",
         }

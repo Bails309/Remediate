@@ -5,7 +5,7 @@ import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
 import { Sparkles, LayoutDashboard, Users, Compass, ShieldCheck } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2160";
+const TOUR_ID = "whats-new-aug-2026-v2161";
 
 const features = [
   {
@@ -39,6 +39,14 @@ const features = [
     title: "A Faster Menu, And Tighter Roles",
     description:
       "The sidebar is now a slim rail with hover-out menus you can pin open, grouped into Insights, Intelligence, Inventory, Automation and Settings. Workspace Admins now own their workspace — dashboards, findings, inventory and automation — while site configuration, users and audit logs stay with Site Admins.",
+  },
+  {
+    icon: Sparkles,
+    accent: "text-sky-500 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-500/15",
+    title: "Name Your Assistant",
+    description:
+      "Give the AI assistant a name of your own under Settings → AI Insights and it will use it on its button, in the chat header, and when it introduces itself. The launcher has also moved to a floating button in the bottom-right corner, freeing up the space above your findings list.",
   },
 ];
 
@@ -82,7 +90,7 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.1</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Bring an archived finding back into the active queue as Open — with its owner, group and scan details intact. Admin-only and fully audited.
           </p>
