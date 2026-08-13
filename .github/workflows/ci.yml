@@ -27,7 +27,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build App Image (Runner)
         run: docker build --target app-runner -t remediate-app:test .
       - name: Build Worker Image (Runner)
@@ -94,7 +94,7 @@ jobs:
         options: >-
           --health-cmd="pg_isready -h localhost -p 5432" --health-interval=5s --health-timeout=5s --health-retries=10
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
@@ -120,7 +120,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -161,7 +161,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'test-secret' }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -277,7 +277,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/remediate
       REDIS_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -323,7 +323,7 @@ jobs:
       LOCAL_AUTH_EMAIL: admin@example.com
       LOCAL_AUTH_NAME: Test Admin
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
