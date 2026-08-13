@@ -5,8 +5,9 @@ set -e
 node /app/scripts/migrate.js
 
 # Run database optimizations (Views, Maintenance)
-# Note: we use tsx as it is available in the runner's node_modules
-npx tsx /app/scripts/optimize-db.ts
+# tsx is a production dependency, so its binary is present in the runtime tree.
+/app/node_modules/.bin/tsx /app/scripts/optimize-db.ts
 
-# Start the background worker
-exec npm run worker
+# Start the background worker. Invoked directly rather than via `npm run
+# worker` so npm is not required at runtime and SIGTERM reaches the worker.
+exec /app/node_modules/.bin/tsx /app/scripts/worker.ts

@@ -51,27 +51,28 @@ ARG APP_VERSION=1.8.1
 ENV APP_VERSION=${APP_VERSION}
 WORKDIR /app
 # Apply the latest Debian security patches (openssl, libc6, zlib, glibc, etc.)
-# on top of the base image and upgrade the globally-installed npm to a
-# release whose bundled deps (sigstore/@sigstore/*, tar, brace-expansion,
-# ip-address, js-yaml, undici, minimatch) are patched. This clears the
-# batch of npm-CLI-bundled CVEs surfaced by ACR scans on the app and
-# worker images.
+# on top of the base image, then delete the globally-installed npm CLI.
 #
-# NPM_VERSION is pinned (rather than @latest) so:
-#   1) Docker layer caching cannot silently regress the bundled-dep set
-#      across rebuilds, and
-#   2) the exact CVE-clearing release is auditable in git history.
-# Bump on new npm-bundled-dep advisories. npm@12.0.1 ships
-# tar@^7.5.19, minimatch@^10.2.5, @sigstore/tuf@^5.0.0 (sigstore 4.x),
-# which clears CVE-2026-23745/23950/24842/26960/26996/27903/27904/29786/
-# 31802/48815 (and their siblings) reported against the previous npm 11.x.
-ARG NPM_VERSION=12.0.1
+# npm is not needed at runtime: both entrypoints invoke node and the
+# node_modules/.bin binaries directly, and dependencies are installed in the
+# separate prod-deps stage. Its bundled dependencies (tar, brace-expansion,
+# ip-address, undici, sigstore, minimatch, ...) were previously the largest
+# source of CVEs reported against these images, and were being chased by
+# pinning NPM_VERSION to whichever release happened to have patched them.
+# That was a treadmill: new advisories land against npm's vendored tree
+# regardless of this application's own dependencies, and the fix depended on
+# npm shipping a release. Removing the CLI eliminates the class outright.
+#
+# If a future change genuinely needs npm at runtime, restore it here rather
+# than reintroducing `npm`/`npx` into an entrypoint.
 RUN apt-get update -y \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g npm@${NPM_VERSION} \
-  && npm cache clean --force
+  && rm -rf /usr/local/lib/node_modules/npm \
+       /usr/local/bin/npm \
+       /usr/local/bin/npx \
+       /root/.npm
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Prefer the production-only tree from prod-deps over the full (dev-included)

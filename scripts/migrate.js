@@ -1,5 +1,13 @@
 ; (async () => {
   const { execSync } = require("child_process");
+  const path = require("path");
+  const fs = require("fs");
+
+  // Resolve the prisma CLI from node_modules rather than shelling out to npx:
+  // npm is not installed in the runtime image. Falls back to `npx prisma` for
+  // local development, where this script may run outside the container.
+  const localPrisma = path.join(__dirname, "..", "node_modules", ".bin", "prisma");
+  const PRISMA = fs.existsSync(localPrisma) ? JSON.stringify(localPrisma) : "npx prisma";
 
   let PrismaClient;
   try {
@@ -102,10 +110,10 @@
         await checkAndFixMigrations(prisma);
 
         console.log("[Migrate] Triggering Prisma Migrate Deploy...");
-        execSync("npx prisma migrate deploy", { stdio: "inherit" });
+        execSync(`${PRISMA} migrate deploy`, { stdio: "inherit" });
 
         console.log("[Migrate] Regenerating Prisma Client...");
-        execSync("npx prisma generate", { stdio: "inherit" });
+        execSync(`${PRISMA} generate`, { stdio: "inherit" });
 
         console.log("[Migrate] Database and Prisma Client are now up to date.");
       } finally {
