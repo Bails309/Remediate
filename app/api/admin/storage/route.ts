@@ -52,6 +52,16 @@ export async function POST(request: NextRequest) {
         const data = await request.json();
         const { provider, azureConnectionString, azureContainerName, azureAuthMethod, azureAccountName, azureAccountKey, azureSasToken } = data;
 
+        // The stored name is interpolated into the endpoint URL by
+        // lib/storage.ts on every subsequent operation, so an unconstrained
+        // value would persistently redirect uploads to an attacker's host.
+        if (azureAccountName && !/^[a-z0-9]{3,24}$/.test(azureAccountName)) {
+            return NextResponse.json(
+                { error: "Azure account name must be 3-24 lowercase letters or digits." },
+                { status: 400 }
+            );
+        }
+
         const existing = await prisma.storageConfig.findUnique({
             where: { id: "singleton" },
         });

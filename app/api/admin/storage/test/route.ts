@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { forLog } from "@/lib/log-safe";
 import { BlobServiceClient, StorageSharedKeyCredential } from "@azure/storage-blob";
 import type { NextRequest } from "next/server";
+
+// Azure storage account names are 3-24 lowercase alphanumerics. Enforcing it
+// matters beyond validation: the value is interpolated into the endpoint URL,
+// so an unconstrained string (e.g. "evil.com#") would redirect the connection
+// test at an attacker-chosen host.
+const ACCOUNT_NAME_RE = /^[a-z0-9]{3,24}$/;
 
 export async function POST(request: NextRequest) {
     const rate = await enforceRateLimit(request);
@@ -20,17 +25,17 @@ export async function POST(request: NextRequest) {
         let blobServiceClient: BlobServiceClient;
 
         if (azureAuthMethod === "ACCOUNT_KEY") {
-            if (!accountName || !accountKey || accountKey === "********") {
+            if (!accountName || !ACCOUNT_NAME_RE.test(accountName) || !accountKey || accountKey === "********") {
                 return NextResponse.json({ error: "Invalid account name or key" }, { status: 400 });
             }
-            console.info("[Storage Test] Testing Azure account key for account: %s", forLog(accountName));
+            console.info("[Storage Test] Testing Azure account key for account: %s", accountName);
             const credential = new StorageSharedKeyCredential(accountName, accountKey);
             blobServiceClient = new BlobServiceClient(`https://${accountName}.blob.core.windows.net`, credential);
         } else if (azureAuthMethod === "SAS_TOKEN") {
-            if (!accountName || !sasToken || sasToken === "********") {
+            if (!accountName || !ACCOUNT_NAME_RE.test(accountName) || !sasToken || sasToken === "********") {
                 return NextResponse.json({ error: "Invalid account name or SAS token" }, { status: 400 });
             }
-            console.info("[Storage Test] Testing Azure SAS for account: %s", forLog(accountName));
+            console.info("[Storage Test] Testing Azure SAS for account: %s", accountName);
             const token = sasToken.startsWith("?") ? sasToken.substring(1) : sasToken;
             const url = `https://${accountName}.blob.core.windows.net?${token}`;
             blobServiceClient = new BlobServiceClient(url);

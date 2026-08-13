@@ -85,5 +85,44 @@ describe("/api/admin/storage", () => {
       );
       expect(res.status).toBe(200);
     });
+
+    it.each([
+      "evil.com#",
+      "acct.evil.com",
+      "acct/../x",
+      "UPPERCASE",
+      "ab",
+      "a".repeat(25),
+    ])("rejects an account name that is not Azure-shaped (%j)", async (bad) => {
+      mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+
+      const { POST } = await import("../../app/api/admin/storage/route");
+      const res = await POST(
+        new Request("http://localhost/api/admin/storage", {
+          method: "POST",
+          body: JSON.stringify({ provider: "AZURE", azureAccountName: bad }),
+        }) as any
+      );
+
+      // lib/storage.ts builds `https://${azureAccountName}.blob.core.windows.net`
+      // on every operation, so an unconstrained value would persistently point
+      // uploads at an attacker-chosen host.
+      expect(res.status).toBe(400);
+      expect(mockPrisma.storageConfig.upsert).not.toHaveBeenCalled();
+    });
+
+    it("accepts a valid Azure account name", async () => {
+      mockPrisma.storageConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.storageConfig.upsert.mockResolvedValue({ provider: "AZURE" });
+
+      const { POST } = await import("../../app/api/admin/storage/route");
+      const res = await POST(
+        new Request("http://localhost/api/admin/storage", {
+          method: "POST",
+          body: JSON.stringify({ provider: "AZURE", azureAccountName: "mystorageacct1" }),
+        }) as any
+      );
+      expect(res.status).toBe(200);
+    });
   });
 });

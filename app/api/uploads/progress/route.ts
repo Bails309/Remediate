@@ -3,7 +3,6 @@ import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { canAccessUpload } from "@/lib/upload-access";
-import { forLog } from "@/lib/log-safe";
 import { UploadStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 
@@ -11,6 +10,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PROGRESS_READ_TIMEOUT_MS = 2_000;
+
+// UploadHistory.id is @db.Uuid, so anything else is not just unknown but
+// unqueryable: Postgres rejects it and the lookup throws rather than
+// returning null.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getProgressKey(uploadId: string) {
   return `upload:progress:${uploadId}`;
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const uploadId = searchParams.get("uploadId");
 
-  if (!uploadId) {
+  if (!uploadId || !UUID_RE.test(uploadId)) {
     return NextResponse.json({ progress: null }, { status: 400 });
   }
 
@@ -51,9 +55,7 @@ export async function GET(request: NextRequest) {
   try {
     payload = await withTimeout(redis.get(getProgressKey(uploadId)), PROGRESS_READ_TIMEOUT_MS);
   } catch (error) {
-    // uploadId is caller-supplied and admins skip the existence check, so it
-    // must not land in the format-string position.
-    console.warn("[Progress] Redis read failed, falling back to DB. uploadId=%s", forLog(uploadId), error);
+    console.warn("[Progress] Redis read failed, falling back to DB. uploadId=%s", uploadId, error);
   }
 
   if (payload) {
