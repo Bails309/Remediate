@@ -18,12 +18,12 @@ type User = {
 };
 
 const roleOptions = [
-    { value: "site_admin", label: "Site Admin" },
-    { value: "web_app_admin", label: "Workspace Admin" },
-    { value: "toolkit_admin", label: "Toolkit Admin" },
-    { value: "web_app_user", label: "Workspace User" },
-    { value: "toolkit_user", label: "Toolkit User" },
-    { value: "web_app_auditor", label: "Workspace Auditor (read-only)" },
+    { value: "site_admin", label: "Site Admin", description: "Full control of the installation, including configuration, users, groups, logs and platform monitoring." },
+    { value: "web_app_admin", label: "Workspace Admin", description: "Admin over dashboards, vulnerabilities, analytics, inventory and automation. No access to site settings, users, groups or logs." },
+    { value: "toolkit_admin", label: "Toolkit Admin", description: "Manages the security toolkit and its registry." },
+    { value: "web_app_user", label: "Workspace User", description: "Works with dashboards, vulnerabilities and analytics." },
+    { value: "toolkit_user", label: "Toolkit User", description: "Runs security toolkit scans." },
+    { value: "web_app_auditor", label: "Workspace Auditor (read-only)", description: "Read-only access to workspace data; cannot make changes." },
 ];
 
 const WORKSPACE_WRITER_ROLES = ["site_admin", "web_app_admin", "web_app_user"];
@@ -59,11 +59,12 @@ function toggleRoleWithConflictResolution(current: string[], role: string): stri
     return normaliseRoles(next);
 }
 
-function RoleTogglePill({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+function RoleTogglePill({ label, description, checked, onToggle }: { label: string; description?: string; checked: boolean; onToggle: () => void }) {
     return (
         <button
             type="button"
             onClick={onToggle}
+            title={description}
             className={cn(
                 "cursor-pointer inline-flex items-center justify-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors border select-none",
                 checked
@@ -298,6 +299,7 @@ export function UsersClient() {
                                     <RoleTogglePill
                                         key={role.value}
                                         label={role.label}
+                                        description={role.description}
                                         checked={newItemRoles.includes(role.value)}
                                         onToggle={() => {
                                             setNewItemRoles((prev: string[]) => toggleRoleWithConflictResolution(prev, role.value));
@@ -412,6 +414,7 @@ export function UsersClient() {
                                                     <RoleTogglePill
                                                         key={role.value}
                                                         label={role.label}
+                                                        description={role.description}
                                                         checked={(draftRoles[user.id] || []).includes(role.value)}
                                                         onToggle={() => toggleDraftRole(user.id, role.value)}
                                                     />

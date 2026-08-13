@@ -1,6 +1,6 @@
 {
   "name": "app",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -28,6 +28,7 @@
     "@azure/storage-file-share": "^12.26.0",
     "@prisma/client": "^6.19.2",
     "bullmq": "^5.76.8",
+    "country-flag-icons": "^1.6.20",
     "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
@@ -43,10 +44,12 @@
     "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-grid-layout": "^2.2.4",
     "react-hook-form": "^7.71.2",
     "recharts": "^2.15.1",
     "sharp": "^0.35.3",
     "shepherd.js": "^15.2.2",
+    "simple-icons": "^16.28.0",
     "tailwind-merge": "^1.14.0",
     "tsx": "^4.22.4",
     "zod": "^4.3.6"

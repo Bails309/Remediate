@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAiConfig, upsertAiConfig, AI_PROVIDER_TYPES } from "@/lib/ai/config";
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireAdmin();
+  await requireSiteAdmin();
   const config = await getAiConfig();
   if (!config) {
     return NextResponse.json({ configured: false });
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireAdmin();
+  await requireSiteAdmin();
   const body = await request.json().catch(() => ({}));
 
   // Preserve the stored secret when the client submits the masked placeholder.

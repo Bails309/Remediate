@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 
 
 export const WEB_APP_ADMIN_ROLES = ["site_admin", "web_app_admin"] as const;
+// Site-wide configuration, identity and platform monitoring. Workspace admins are
+// deliberately excluded: they administer workspace data, not the installation.
+export const SITE_ADMIN_ROLES = ["site_admin"] as const;
 export const TOOLKIT_ROLES = ["site_admin", "toolkit_admin", "toolkit_user"] as const;
 export const TOOLKIT_ADMIN_ROLES = ["site_admin", "toolkit_admin"] as const;
 
@@ -56,6 +59,14 @@ export async function requireAdmin() {
   return session;
 }
 
+export async function requireSiteAdmin() {
+  const session = await requireUser();
+  if (!hasAnyRole(session.user, SITE_ADMIN_ROLES)) {
+    throw new Error("Forbidden");
+  }
+  return session;
+}
+
 export async function requireToolkitUser() {
   const session = await requireUser();
   if (!hasAnyRole(session.user, TOOLKIT_ROLES)) {
@@ -79,6 +90,10 @@ export function hasAnyRole(user: { roles?: string[] | null } | null | undefined,
 
 export function checkAdmin(user: { roles?: string[] | null } | null | undefined) {
   return hasAnyRole(user, WEB_APP_ADMIN_ROLES);
+}
+
+export function checkSiteAdmin(user: { roles?: string[] | null } | null | undefined) {
+  return hasAnyRole(user, SITE_ADMIN_ROLES);
 }
 
 /**

@@ -73,6 +73,27 @@ describe("admin and pentest guards", () => {
     await expect(import("@/lib/rbac").then((m) => m.requireToolkitUser())).rejects.toThrow("Forbidden");
   });
 
+  it("requireSiteAdmin rejects workspace admins", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "ws@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u-ws", email: "ws@example.com", roles: ["web_app_admin"] } as any);
+    await expect(import("@/lib/rbac").then((m) => m.requireSiteAdmin())).rejects.toThrow("Forbidden");
+  });
+
+  it("requireSiteAdmin returns session for site admins", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { email: "site@example.com" } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u-site", email: "site@example.com", roles: ["site_admin"] } as any);
+    const session = await import("@/lib/rbac").then((m) => m.requireSiteAdmin());
+    expect(session.user.id).toBe("u-site");
+  });
+
+  it("checkSiteAdmin only accepts site_admin", async () => {
+    const { checkSiteAdmin } = await import("@/lib/rbac");
+    expect(checkSiteAdmin({ roles: ["site_admin"] })).toBe(true);
+    expect(checkSiteAdmin({ roles: ["web_app_admin"] })).toBe(false);
+    expect(checkSiteAdmin({ roles: ["web_app_admin", "site_admin"] })).toBe(true);
+    expect(checkSiteAdmin(null)).toBe(false);
+  });
+
   it("requireToolkitAdmin requires toolkit toolkit roles", async () => {
     vi.mocked(auth).mockResolvedValue({ user: { email: "padmin@example.com" } } as any);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "u2", email: "padmin@example.com", roles: ["toolkit_admin"] } as any);

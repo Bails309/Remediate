@@ -50,7 +50,7 @@ export function ThreatSummaryCard() {
   }
 
   return (
-    <div id="tour-live-intelligence" className="glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
+    <div id="tour-live-intelligence" className="glass glass-edge card-glow spotlight rounded-[28px] p-6 lg:p-8 flex flex-col h-full group hover:bg-black/[0.01] dark:hover:bg-white/[0.02] transition-colors relative overflow-hidden text-[color:var(--color-foreground)]">
       <span aria-hidden className="scanline-sweep" />
       <div className="relative z-10 flex flex-col h-full">
       <div className="flex items-center justify-between mb-8">

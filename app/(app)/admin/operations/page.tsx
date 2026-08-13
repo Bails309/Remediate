@@ -1,9 +1,9 @@
-import { OperationsHubClient } from "./operations-hub-client";
-import { requireAdmin } from "@/lib/rbac";
+import { HealthClient } from "@/app/(app)/admin/health/health-client";
+import { requireSiteAdmin } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 export default async function OperationsPage() {
-  await requireAdmin();
-  return <OperationsHubClient />;
+  await requireSiteAdmin();
+  return <HealthClient />;
 }

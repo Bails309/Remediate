@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { EmptyState } from "@/components/EmptyState";
@@ -42,15 +43,69 @@ export type Upload = {
   site: Site;
 };
 
+export type UploadVariant = "CSV" | "PDF" | "ACR";
+
 export type Props = {
   initialSites: Site[];
   initialUploads: Upload[];
-  initialAzureConfig: AzureConfig | null;
+  initialAzureConfig?: AzureConfig | null;
+  variant?: UploadVariant;
+  automation?: ReactNode;
+  mode?: "both" | "manual" | "automation";
 };
 
-export function UploadsClient({ initialSites, initialUploads, initialAzureConfig }: Props) {
+const VARIANTS: Record<UploadVariant, {
+  title: string;
+  description: string;
+  automationTitle: string;
+  automationDescription: string;
+  endpoint: string;
+  accept: string;
+  extension: string;
+  dropLabel: string;
+  fileHint: string;
+}> = {
+  CSV: {
+    title: "Nessus CSV",
+    description: "Upload Nessus scan exports for processing.",
+    automationTitle: "Nessus File Share",
+    automationDescription: "Poll an Azure file share for Nessus CSV scans and map incoming files to buckets.",
+    endpoint: "/api/uploads/nessus",
+    accept: ".csv",
+    extension: ".csv",
+    dropLabel: "Drop or select CSV file",
+    fileHint: "Accepts Nessus CSV files (.csv). Large files may be rejected by server limits.",
+  },
+  PDF: {
+    title: "Pentest PDF",
+    description: "Upload penetration test reports for parsing by the PDF Processing API.",
+    automationTitle: "Pentest PDF",
+    automationDescription: "",
+    endpoint: "/api/uploads/pentest",
+    accept: ".pdf,application/pdf",
+    extension: ".pdf",
+    dropLabel: "Drop or select PDF file",
+    fileHint: "Accepts pentest report PDFs (.pdf). The file is forwarded to the configured PDF Processing API.",
+  },
+  ACR: {
+    title: "ACR CSV",
+    description: "Upload Azure Container Registry vulnerability exports for processing.",
+    automationTitle: "ACR Blob Ingest",
+    automationDescription: "Pull Azure Container Registry vulnerability CSV exports from a blob container. Files are ingested into the configured default bucket and deleted after successful queueing.",
+    endpoint: "/api/uploads/acr",
+    accept: ".csv",
+    extension: ".csv",
+    dropLabel: "Drop or select ACR CSV file",
+    fileHint: "Accepts Azure Container Registry vulnerability CSV exports (.csv). Findings are keyed by (cveId, registry/repo, packageName).",
+  },
+};
+
+export function UploadsClient({ initialSites, initialUploads, initialAzureConfig, variant = "CSV", automation, mode = "both" }: Props) {
+  const config = VARIANTS[variant];
+  const hasAutomation = variant !== "PDF" && mode !== "manual";
+  const showToggle = mode === "both" && hasAutomation;
   const [sites, setSites] = useState(initialSites);
-  const [activeTab, setActiveTab] = useState<"manual" | "automation">("manual");
+  const [activeTab, setActiveTab] = useState<"manual" | "automation">(mode === "automation" ? "automation" : "manual");
   const [uploads, setUploads] = useState(initialUploads);
   
   // Azure Config Form
@@ -79,7 +134,6 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
   const [siteImportAliases, setSiteImportAliases] = useState<string[]>([]);
   const [newAlias, setNewAlias] = useState("");
   const [siteId, setSiteId] = useState("");
-  const [uploadType, setUploadType] = useState<"CSV" | "PDF" | "ACR">("CSV");
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<{ step: string; progress: number; error?: string } | null>(null);
   const [nextPollCountdown, setNextPollCountdown] = useState<string>("");
@@ -255,13 +309,8 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
 
     // Validate extension matches the chosen pipeline up-front so users get an immediate error
     // instead of a 400 from the API.
-    const lowerName = file.name.toLowerCase();
-    if ((uploadType === "CSV" || uploadType === "ACR") && !lowerName.endsWith(".csv")) {
-      toast.error("Selected file is not a .csv");
-      return;
-    }
-    if (uploadType === "PDF" && !lowerName.endsWith(".pdf")) {
-      toast.error("Selected file is not a .pdf");
+    if (!file.name.toLowerCase().endsWith(config.extension)) {
+      toast.error(`Selected file is not a ${config.extension}`);
       return;
     }
 
@@ -271,13 +320,7 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     formData.append("siteId", siteId);
     formData.append("file", file);
 
-    const endpoint =
-      uploadType === "PDF"
-        ? "/api/uploads/pentest"
-        : uploadType === "ACR"
-          ? "/api/uploads/acr"
-          : "/api/uploads/nessus";
-    const response = await fetch(endpoint, {
+    const response = await fetch(config.endpoint, {
       method: "POST",
       body: formData,
     });
@@ -396,34 +439,36 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
     <div className="space-y-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Uploads</h2>
-          <p className="text-sm opacity-70">Manage Nessus CSV scans, pentest PDF reports, and ACR image vulnerability exports.</p>
+          <h2 className="text-2xl font-semibold">{mode === "automation" ? config.automationTitle : config.title}</h2>
+          <p className="text-sm opacity-70">{mode === "automation" ? config.automationDescription : config.description}</p>
         </div>
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
-          <button
-            onClick={() => setActiveTab("manual")}
-            className={cn(
-              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
-              activeTab === "manual" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            )}
-          >
-            <Upload className="h-4 w-4" />
-            Manual
-          </button>
-          <button
-            onClick={() => setActiveTab("automation")}
-            className={cn(
-              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
-              activeTab === "automation" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            )}
-          >
-            <Settings className="h-4 w-4" />
-            Automation
-          </button>
-        </div>
+        {showToggle && (
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+            <button
+              onClick={() => setActiveTab("manual")}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+                activeTab === "manual" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              )}
+            >
+              <Upload className="h-4 w-4" />
+              Manual
+            </button>
+            <button
+              onClick={() => setActiveTab("automation")}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+                activeTab === "automation" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              Automation
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeTab === "manual" ? (
+      {mode !== "automation" && (!hasAutomation || activeTab === "manual") ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr] animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-6">
             <div className="space-y-4">
@@ -436,62 +481,17 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                 ]}
               />
 
-              <div className="flex gap-2 rounded-2xl bg-slate-100 dark:bg-slate-800/60 p-1" role="tablist" aria-label="Upload type">
-                <button
-                  type="button"
-                  onClick={() => { setUploadType("CSV"); setFile(null); }}
-                  className={cn(
-                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
-                    uploadType === "CSV" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                  )}
-                >
-                  Nessus CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setUploadType("PDF"); setFile(null); }}
-                  className={cn(
-                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
-                    uploadType === "PDF" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                  )}
-                >
-                  Pentest PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setUploadType("ACR"); setFile(null); }}
-                  className={cn(
-                    "flex-1 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all",
-                    uploadType === "ACR" ? "bg-white dark:bg-slate-700 shadow-md text-slate-900 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                  )}
-                >
-                  ACR CSV
-                </button>
-              </div>
-
               <label
                 className="flex h-32 cursor-pointer items-center justify-center rounded-[24px] border border-dashed border-[color:var(--color-border)] text-sm"
-                title={
-                  uploadType === "PDF"
-                    ? "Accepts pentest report PDFs (.pdf). The file is forwarded to the configured PDF Processing API."
-                    : uploadType === "ACR"
-                      ? "Accepts Azure Container Registry vulnerability CSV exports (.csv). Findings are keyed by (cveId, registry/repo, packageName)."
-                      : "Accepts Nessus CSV files (.csv). Large files may be rejected by server limits."
-                }
+                title={config.fileHint}
               >
                 <input
                   type="file"
-                  accept={uploadType === "PDF" ? ".pdf,application/pdf" : ".csv"}
+                  accept={config.accept}
                   className="hidden"
                   onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
-                {file
-                  ? file.name
-                  : uploadType === "PDF"
-                    ? "Drop or select PDF file"
-                    : uploadType === "ACR"
-                      ? "Drop or select ACR CSV file"
-                      : "Drop or select CSV file"}
+                {file ? file.name : config.dropLabel}
               </label>
 
               <Button onClick={startUpload} title="Begin upload and processing of the selected file for the chosen bucket">Start Upload</Button>
@@ -513,6 +513,8 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
             )}
           </div>
         </div>
+      ) : automation ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">{automation}</div>
       ) : (
         <div className="grid gap-8 lg:grid-cols-[1fr_1.5fr] animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="glass rounded-[28px] border border-[color:var(--color-border)] p-8 space-y-8">
@@ -636,29 +638,6 @@ export function UploadsClient({ initialSites, initialUploads, initialAzureConfig
                   <Save size={16} className="mr-2" />
                   Save Changes
                 </Button>
-              </div>
-            </div>
-
-            {/* Peer automation source: ACR blob container. Configured on its own
-                admin page so this card stays a lightweight entry point rather
-                than duplicating the whole credentials form here. */}
-            <div className="mt-6 pt-6 border-t border-[color:var(--color-border)]">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <Database className="h-5 w-5 text-purple-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold">Azure Container Registry (Blob)</p>
-                    <p className="mt-1 text-xs opacity-60">
-                      Pull ACR vulnerability CSV exports from a separate blob container. Uses its own credentials.
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href="/admin/azure-blob-ingest"
-                  className="shrink-0 rounded-xl border border-[color:var(--color-border)] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Configure
-                </a>
               </div>
             </div>
           </div>

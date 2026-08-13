@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { BlobServiceClient, StorageSharedKeyCredential } from "@azure/storage-blob";
 import type { NextRequest } from "next/server";
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    await requireAdmin();
+    await requireSiteAdmin();
 
     try {
         const body = await request.json();

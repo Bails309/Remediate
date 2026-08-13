@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { checkAdmin } from "@/lib/rbac";
+import { checkSiteAdmin } from "@/lib/rbac";
 import { getGroupContext, canManageGroupMembership } from "@/lib/group-rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -26,7 +26,7 @@ async function authoriseMembershipChange(groupId: string) {
   if (!session?.user?.id) {
     return { error: "Unauthorized", status: 401 as const };
   }
-  const isAdmin = checkAdmin(session.user);
+  const isAdmin = checkSiteAdmin(session.user);
   const ctx = await getGroupContext(session.user.id);
   if (!canManageGroupMembership(isAdmin, ctx, groupId)) {
     return { error: "Forbidden", status: 403 as const };

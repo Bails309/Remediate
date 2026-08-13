@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "shepherd.js/dist/css/shepherd.css";
+@import "react-grid-layout/css/styles.css";
 
 :root {
   --background: #f1f5f9;
@@ -403,6 +404,16 @@ body::before {
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent) transparent;
+}
+
+/* Scrollable, but without a visible scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .app-toaster {

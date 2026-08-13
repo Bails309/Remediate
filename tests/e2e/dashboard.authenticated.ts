@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Dashboard', () => {
     test('loads the dashboard page', async ({ page }) => {
         await page.goto('/dashboard');
-        await expect(page).toHaveTitle(/Dashboard/);
+        await expect(page).toHaveTitle(/Command Centre/);
     });
 
     test('displays stat cards', async ({ page }) => {

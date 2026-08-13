@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { checkAdmin } from "@/lib/rbac";
+import { checkAdmin, checkSiteAdmin } from "@/lib/rbac";
 import { getGroupContext, canManageGroupMembership } from "@/lib/group-rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -77,7 +77,7 @@ export async function PATCH(
   }
 
   const session = await auth();
-  if (!session?.user?.id || !checkAdmin(session.user)) {
+  if (!session?.user?.id || !checkSiteAdmin(session.user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -135,7 +135,7 @@ export async function DELETE(
   }
 
   const session = await auth();
-  if (!session?.user?.id || !checkAdmin(session.user)) {
+  if (!session?.user?.id || !checkSiteAdmin(session.user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

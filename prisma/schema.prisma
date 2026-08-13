@@ -77,6 +77,7 @@ model User {
   assignmentNotifications AssignmentNotification[]
   threatSubscription ThreatSubscription?
   groupMemberships GroupMembership[]
+  dashboards    Dashboard[]
   isNewUser     Boolean          @default(true)
   lastLoginAt   DateTime         @default(now())
   completedTours String[]        @default([])
@@ -463,6 +464,75 @@ model ThreatFeedMetadata {
   lastModified  DateTime?
   sha256Hash    String?
   lastSyncedAt  DateTime @default(now())
+}
+
+// Adversary groups from the MITRE ATT&CK Enterprise STIX bundle. Structured
+// fields (tactics, software) come straight from ATT&CK; attribution fields
+// (actorType, origin, sectors, regions) are keyword-derived from the group
+// description because ATT&CK does not model them.
+model ThreatActor {
+  id             String   @id @default(uuid()) @db.Uuid
+  externalId     String   @unique // MITRE group id, e.g. "G0007"
+  stixId         String   @unique
+  name           String
+  aliases        String[]
+  description    String?
+  actorType      String? // "State Sponsored" | "Cybercrime" | "Hacktivist"
+  origin         String?
+  targetSectors  String[]
+  targetRegions  String[]
+  targetTechnologies String[]
+  tactics        String[]
+  software       String[]
+  techniqueCount Int      @default(0)
+  url            String?
+  lastModified   DateTime
+  syncedAt       DateTime @default(now())
+
+  @@index([name])
+  @@index([actorType])
+  @@index([lastModified(sort: Desc)])
+}
+
+enum DashboardVisibility {
+  Private
+  Published
+}
+
+// Personal dashboards. Widgets store a validated query *spec* (never SQL and
+// never cached results) so every viewer's data is re-scoped to their own RBAC.
+model Dashboard {
+  id          String              @id @default(uuid()) @db.Uuid
+  ownerId     String              @db.Uuid
+  name        String
+  description String?
+  visibility  DashboardVisibility @default(Private)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  widgets DashboardWidget[]
+
+  @@index([ownerId])
+  @@index([visibility])
+}
+
+model DashboardWidget {
+  id          String   @id @default(uuid()) @db.Uuid
+  dashboardId String   @db.Uuid
+  title       String
+  viz         String // stat | bar | line | donut | table
+  spec        Json
+  x           Int      @default(0)
+  y           Int      @default(0)
+  w           Int      @default(4)
+  h           Int      @default(4)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
 }
 
 model AuditLog {

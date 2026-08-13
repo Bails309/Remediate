@@ -3,42 +3,42 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, ArchiveRestore, UserCheck, ShieldCheck, Layers } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, Compass, ShieldCheck } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2150";
+const TOUR_ID = "whats-new-aug-2026-v2160";
 
 const features = [
   {
-    icon: ArchiveRestore,
-    accent: "text-purple-500 dark:text-purple-400",
-    bg: "bg-purple-100 dark:bg-purple-500/15",
-    title: "Archiving Is No Longer A One-Way Door",
-    description:
-      "Marked something Remediated by mistake? Called a false positive that turned out to be real? Switch the Vulnerabilities page to ‘Archived Findings’, open the record, and hit ‘Restore to active queue’. It comes straight back as Open, ready to be worked again — no database surgery required.",
-  },
-  {
-    icon: UserCheck,
+    icon: LayoutDashboard,
     accent: "text-cyan-500 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
-    title: "It Comes Back With Its History Intact",
+    title: "Build Your Own Dashboards",
     description:
-      "A restored finding keeps its original ID, assignee, group, CR number and scan details — including container registry, repository and image digest for ACR findings. It lands back with the person who owned it rather than dropping into the unassigned pile, so nobody has to reconstruct the context.",
+      "Insights → My Dashboards. Create a board, drag and resize widgets, and pick what each one shows — findings by severity, by bucket, by assignee, threat actors by tactic, uploads over time. If AI is switched on you can simply describe the widget you want and it will draft it for you.",
+  },
+  {
+    icon: Users,
+    accent: "text-purple-500 dark:text-purple-400",
+    bg: "bg-purple-100 dark:bg-purple-500/15",
+    title: "Publish A Board, Keep Your Numbers Safe",
+    description:
+      "Dashboards start private. Publish one and everybody can open it — but each person sees it through their own permissions, because widgets save the question rather than the answer. Found someone else's board useful? Make a copy and tailor it to you.",
+  },
+  {
+    icon: Compass,
+    accent: "text-emerald-500 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    title: "Know Your Adversaries",
+    description:
+      "Intelligence → Threat Actors adds the full MITRE ATT&CK catalogue: 170+ groups with their tactics, tooling, attributed origin and who they target, refreshed automatically. The command centre also gains a Security Score showing your severity-weighted remediation posture at a glance.",
   },
   {
     icon: ShieldCheck,
-    accent: "text-emerald-500 dark:text-emerald-400",
-    bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Admin-Only, And Fully Audited",
-    description:
-      "Assignees and group leaders can archive a finding, but only administrators can reverse one — the archive is the record that someone accepted a risk or signed off a fix. Every restore is written to the audit log as ‘vulnerability.restored’, showing who reopened what and which decision they overrode.",
-  },
-  {
-    icon: Layers,
     accent: "text-amber-500 dark:text-amber-400",
     bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "No Accidental Duplicates",
+    title: "A Faster Menu, And Tighter Roles",
     description:
-      "If a scan has already re-detected the finding since it was archived, Remediate blocks the restore and tells you the live record already exists — so you can’t end up with two copies of the same issue drifting apart in triage and double-counting in your analytics.",
+      "The sidebar is now a slim rail with hover-out menus you can pin open, grouped into Insights, Intelligence, Inventory, Automation and Settings. Workspace Admins now own their workspace — dashboards, findings, inventory and automation — while site configuration, users and audit logs stay with Site Admins.",
   },
 ];
 
@@ -82,7 +82,7 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.15.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Bring an archived finding back into the active queue as Open — with its owner, group and scan details intact. Admin-only and fully audited.
           </p>

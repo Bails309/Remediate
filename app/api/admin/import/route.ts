@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 export async function GET() {
-    await requireAdmin();
+    await requireSiteAdmin();
 
     let config = await prisma.importConfig.findUnique({
         where: { id: "singleton" }
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    await requireAdmin();
+    await requireSiteAdmin();
 
     try {
         const data = await request.json();

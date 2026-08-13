@@ -19,7 +19,10 @@ const mockPrisma = {
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../auth", () => ({ auth: vi.fn() }));
-vi.mock("../../lib/rbac", () => ({ checkAdmin: vi.fn() }));
+vi.mock("../../lib/rbac", () => {
+    const adminCheck = vi.fn();
+    return { checkAdmin: adminCheck, checkSiteAdmin: adminCheck };
+});
 vi.mock("../../lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 
 import { auth } from "../../auth";

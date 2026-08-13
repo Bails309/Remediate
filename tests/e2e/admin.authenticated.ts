@@ -45,4 +45,14 @@ test.describe('Admin Pages', () => {
         await page.goto('/admin/oidc');
         await expect(page.locator('#tour-sidebar')).toBeVisible({ timeout: 15000 });
     });
+
+    test('admin audit log page loads', async ({ page }) => {
+        await page.goto('/admin/audit-log');
+        await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible({ timeout: 15000 });
+    });
+
+    test('admin ai insights page loads', async ({ page }) => {
+        await page.goto('/admin/ai');
+        await expect(page).toHaveTitle(/AI Insights/);
+    });
 });

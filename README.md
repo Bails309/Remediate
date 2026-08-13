@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.15.0 (2026-08-11)</p>
+  <p><strong>Version:</strong> 2.16.0 (2026-08-13)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -21,7 +21,11 @@ The platform features **Organizational Buckets** (formerly Sites), providing a f
 
 **AI Assistant** (v2.10.0) adds a multi-turn chat to the Vulnerabilities page: operators can ask questions like *"Show me the most critical vulnerabilities that already have fixes available"* or *"Which packages should I prioritise updating first?"* instead of hand-assembling filters. The assistant reads findings through an **RBAC-scoped** `search_vulnerabilities` tool (it can only see rows the caller could already see) and checks a fixed allow-list of public package registries via `get_latest_version` to advise on upgrades. Because finding data is shared with the configured model, point it at a self-hosted/air-gapped endpoint if that data must not leave your network. The feature is **provider-abstracted** (Azure OpenAI, Azure AI Foundry, or any OpenAI-compatible `/v1` endpoint that supports tool calling) and stays hidden until an administrator enables it. See the [AI Assistant](#ai-assistant-v2100) section below.
 
-Administration has been streamlined into two consolidated hubs: **Settings** (Authentication, Storage, Import, Reports, AI Insights) and **Operations** (System Health, Dead Letters), significantly reducing interface clutter.
+Administration is split by privilege tier. **Site Admins** own installation configuration (Authentication, Storage, Scanner Import, Reporting, AI provider), identity (Users, Groups), the audit log and platform health. **Workspace Admins** own the workspace itself — dashboards, findings, Inventory (buckets, manual uploads, dead-letter queue) and upload Automation. Each administration area is its own page rather than a tab inside a hub, so every screen is linkable. See [Navigation & Roles](#navigation--roles-v2160).
+
+**Custom dashboards** (v2.16.0) let any user build their own view — drag and resize widgets over vulnerability, threat-actor and upload data, keep it private, or publish it to the organisation. Widgets store the *query* rather than the *results*, so a published board is always current and every viewer sees it through their own permissions. If an AI provider is configured you can describe a widget in a sentence and have it drafted for you; the model only ever emits a validated JSON spec, never a database query. See [Custom Dashboards](#custom-dashboards-v2160).
+
+**Threat Actors** (v2.16.0) adds the MITRE ATT&CK adversary catalogue to the Threat Intelligence Centre — 170+ groups with their tactics, tooling, attributed origin and targeting, refreshed weekly by the worker.
 
 Additionally, Remediate features an isolated pentest toolkit service. The main app proxies requests to the pentest backend over an internal Docker network and enforces role-based access control for the `/tools` UI.
 
@@ -44,6 +48,58 @@ Setting a terminal status **moves** the row between tables rather than updating 
 - Both directions are written to the audit log — `vulnerability.archived` on the way in, `vulnerability.restored` on the way out — so `/admin/audit-log` shows who reopened what and which determination they overrode.
 
 See [`docs/API.md` → Archiving & restoring](docs/API.md#archiving--restoring-v2150) for the full endpoint contract and [`SECURITY.md`](SECURITY.md#archive-restoration-v2150) for the control rationale.
+
+## Navigation & Roles (v2.16.0)
+
+The interface is an icon rail pinned to the left edge. Sections open on hover and can be **pinned** open by clicking them; a pinned panel stays put while you work and closes only when you dismiss it, press `Escape`, or click its close button.
+
+| Section | Contains | Who sees it |
+| :--- | :--- | :--- |
+| **Insights** | Command Centre, Analytics, My Dashboards | Everyone signed in |
+| **Vulnerabilities** | The triage queue (rail link, no flyout) | Everyone signed in |
+| **Intelligence** | Threat Feed, Threat Actors | Toolkit users, auditors, workspace admins |
+| **Inventory** | Buckets, Nessus CSV, Pentest PDF, ACR CSV, Dead Letter Queue, Tools | Workspace admins (Tools: toolkit roles) |
+| **Automation** | Nessus File Share, ACR Blob Ingest | Workspace admins |
+| **Settings** | Authentication, Storage, Scanner Import, Reporting, AI Insights, Users, Groups, Logs, System Status | **Site admins only** |
+
+### Role model
+
+| Role | Grants |
+| :--- | :--- |
+| **Site Admin** (`site_admin`) | Everything, including installation configuration, users, groups, audit logs and platform health. |
+| **Workspace Admin** (`web_app_admin`) | Dashboards, analytics, vulnerabilities, Inventory and Automation. **No** access to site settings, identity or audit logs. |
+| **Workspace User** (`web_app_user`) | Work findings within the group visibility wall. |
+| **Workspace Auditor** (`web_app_auditor`) | Read-only workspace access; assigning it strips write-granting roles. |
+| **Toolkit Admin / User** (`toolkit_admin`, `toolkit_user`) | The isolated pentest toolkit. |
+
+> **Upgrading from ≤ 2.15.x**: `web_app_admin` previously behaved as a full administrator. After upgrading, users who genuinely need to manage OIDC, storage, users, groups or the audit log must hold `site_admin`. Nothing is silently migrated — review your role assignments in **Settings → Users**, where each role pill now carries a tooltip describing exactly what it grants.
+
+## Custom Dashboards (v2.16.0)
+
+**Insights → My Dashboards.** Create a board, then add widgets over three data sources:
+
+| Source | Group by | Metrics |
+| :--- | :--- | :--- |
+| Vulnerabilities | Severity, Status, Bucket, Assignee, Group, Scanner, Month discovered | Count, Average CVSS |
+| Threat actors | Actor type, Attributed origin, MITRE tactic, Target industry, Target region, Targeted technology | Count |
+| Uploads | Status, Bucket, Month | Count |
+
+Each widget renders as a single number, bar chart, donut, line chart or table, and can be dragged and resized on a 12-column grid (click **Arrange** to unlock the grid). Vulnerability widgets also accept severity and status filters.
+
+**Describe it instead.** When an AI provider is configured (**Settings → AI Insights**), the builder offers a free-text box: *"open critical findings by bucket"* drafts the widget for you. The model is only ever asked for a small JSON object naming a source, a grouping and filters — it never sees your data and never writes a query. Whatever it returns is validated against the same allowlist the manual picker uses before anything runs.
+
+**Publishing.** Boards start private. Publishing makes a board readable by everyone signed in, and **Make a copy** clones someone else's board into your own space so you can tailor it.
+
+> **Why published boards are safe to share**: a widget stores its *query*, not its *results*. Every time a board is opened, each widget re-runs under the **viewer's** permissions and group memberships. Two people can open the same published board and legitimately see different numbers; nobody ever sees data through the author's eyes. Results are cached for 60 seconds, keyed by both the query and the viewer's scope.
+
+Limits: 24 widgets per board, 50 rows per widget. See [`docs/API.md` → Dashboards](docs/API.md#13-dashboards-v2160) for the endpoint contract and the full spec grammar.
+
+## Threat Actors (v2.16.0)
+
+**Intelligence → Threat Actors** mirrors the MITRE ATT&CK Enterprise catalogue: every adversary group with its aliases, MITRE id, tactics, technique count and tooling, plus summary panels for tactic coverage, an industry/region heatmap, targeted technologies and most-used tooling.
+
+- **Refresh** is automatic — the worker syncs on boot and weekly thereafter (ATT&CK publishes only a few releases a year). Site admins can force a refresh with `POST /api/threat-intelligence/actors`.
+- **What is fact and what is inference**: tactics, technique counts, tooling, aliases and links come straight from ATT&CK. Actor type, attributed origin, target industries, target regions and targeted technologies are **keyword-derived from each group's description** because ATT&CK does not publish them as structured data. The UI labels these as derived; treat them as indicative, not authoritative.
 
 ## Prerequisites
 - Docker Desktop (for local development)
@@ -303,10 +359,14 @@ Migration recommendation for ACA:
 CI example: see `.github/workflows/migrations.yml` which runs migrations and DB optimizations on push to `main`.
 
 ## Repo Structure
-- app/: Next.js app router
-- prisma/: Prisma schema
+- app/: Next.js app router (`(app)` authenticated shell, `(auth)` sign-in, `api/` route handlers)
+- components/: Shared UI — including `dashboards/` (widget renderer + builder) and `analytics/` (recharts wrappers)
+- lib/: Server-side domain logic — `ingest`, `dashboards/`, `ai/`, `threat-intelligence/`, `rbac`, `group-rbac`, `security-score`
+- prisma/: Prisma schema and migrations
+- scripts/: Worker entrypoint, migration runner, operational scripts
+- tests/: `unit`/`api`/`lib`/`components`/`integration` (Vitest) and `e2e` (Playwright)
 - Dockerfile: Multi-stage container build
-- docker-compose.yml: Local dev stack (app, Postgres, Redis)
+- docker-compose.yml: Local dev stack (app, worker, Postgres, Redis, pentest backend)
 
 ## Documentation Map
 
@@ -373,6 +433,15 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 ## Release notes
 
 > [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.16.0] - 2026-08-13
+- **Personal dashboards with a spec-driven widget engine.** New `Dashboard` / `DashboardWidget` models, a drag/resize grid, five visualisations, and a builder with a live preview. A widget persists its **query**, never its results, so published boards stay current and every viewer sees them through their own permissions (Redis cache is keyed on spec **and** viewer scope).
+- **AI widget planning.** `POST /api/dashboards/plan` turns a sentence into a widget. The model emits a strict-Zod-validated JSON spec only — no SQL, no database access, no field it could invent — and the server executes it deterministically with Prisma under the caller's RBAC.
+- **Threat Actors.** MITRE ATT&CK Enterprise adversary catalogue (176 groups) with tactics, tooling, attributed origin and targeting, synced on worker boot and weekly. Structured ATT&CK data and keyword-derived attribution are visually distinguished throughout.
+- **Security Score** gauge on the command centre — severity-weighted remediation posture with an 8-week discovery sparkline — plus an **audit log UI** for the previously headless `AuditLog` table, and a **System** option on the theme toggle.
+- **Navigation rebuilt** as an 88px icon rail with pinnable hover flyouts (Insights · Vulnerabilities · Intelligence · Inventory · Automation · Settings), reclaiming ~56px for content. Administration hubs are split into standalone linkable pages, uploads are split per source, and upload automation moved under Automation.
+- **Security — `web_app_admin` no longer implies site administration.** New `requireSiteAdmin()` / `checkSiteAdmin()` restrict installation configuration, users, groups, audit logs and platform health to `site_admin`, enforced at the edge, the page and the route handler. Three admin pages that had no server-side guard at all now have one. **Review your role assignments after upgrading.**
+- **Fixed**: threat-intelligence syncs no longer stop when scheduled reporting is unconfigured; grouped widgets failed on an invalid `_avg: undefined` Prisma argument; failing widgets showed a permanent "Loading…"; three navigation flyout defects (unlayered `.glass-edge` beating Tailwind's `absolute`, hover-then-click cancelling itself, pinned panels closing on outside clicks).
 
 ### [2.15.0] - 2026-08-11
 - **Archived findings can be restored to the active queue.** New admin-only `POST /api/vulnerabilities/{id}/restore` and a **Restore to active queue** button in the detail sheet for records in the Archived Findings view. The finding returns as `Open` with its original id, assignee, group, CR number, timestamps, scanner type and ACR image columns intact.
@@ -458,7 +527,7 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 - **Analytics**: Sunset items excluded from all core analytics; tracked in their own dedicated section.
 
 ### [2.4.1] - 2026-03-23
-- **Testing**: Comprehensive E2E Playwright test suite — 45 tests across 14 files covering all application pages, login flow, RBAC enforcement, sidebar navigation, admin pages, health API, and 404 handling.
+- **Testing**: Comprehensive E2E Playwright test suite — 72 tests across 17 files covering all application pages, login flow, RBAC enforcement, rail navigation and flyout pinning, dashboards and the widget allowlist, threat actors, admin pages, health API, and 404 handling.
 - **CI**: Fixed E2E pipeline — added database schema push, seed data, and local auth environment variables so Playwright tests can authenticate against a real server.
 - **Infra**: Restructured Playwright config with multi-project setup (auth fixture, unauthenticated, authenticated) and stored session state for efficient test execution.
 

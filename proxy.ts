@@ -33,7 +33,12 @@ const proxyHandler = auth((req: AuthRequest) => {
     const roles = req.auth?.user?.roles || [];
     const hasAnyRole = (allowed: string[]) => allowed.some((role) => roles.includes(role));
 
-    if (nextUrl.pathname.startsWith("/admin") && !hasAnyRole(["site_admin", "web_app_admin"])) {
+    if (nextUrl.pathname.startsWith("/admin") && !hasAnyRole(["site_admin"])) {
+        return NextResponse.redirect(new URL("/dashboard", nextUrl));
+    }
+
+    if ((nextUrl.pathname.startsWith("/automation") || nextUrl.pathname.startsWith("/uploads") || nextUrl.pathname.startsWith("/buckets"))
+        && !hasAnyRole(["site_admin", "web_app_admin"])) {
         return NextResponse.redirect(new URL("/dashboard", nextUrl));
     }
 

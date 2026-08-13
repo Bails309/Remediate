@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { getAiConfig, AI_PROVIDER_TYPES, type AiConfig } from "@/lib/ai/config";
 import { chatCompletion, AiProviderError } from "@/lib/ai/provider";
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireAdmin();
+  await requireSiteAdmin();
   const stored = await getAiConfig();
   const overrides = testSchema.safeParse(await request.json().catch(() => ({})));
   const o = overrides.success ? overrides.data : {};

@@ -9,12 +9,14 @@ const NextAuthProvider = dynamic(() => import("./next-auth-provider"), {
 
 export function Providers({
   children,
+  nonce,
 }: {
   children: React.ReactNode;
+  nonce?: string;
 }) {
   return (
     <NextAuthProvider>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem nonce={nonce}>
         {children}
       </ThemeProvider>
     </NextAuthProvider>

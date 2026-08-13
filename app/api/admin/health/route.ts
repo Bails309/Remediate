@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import fs from "fs";
 import path from "path";
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        await requireAdmin();
+        await requireSiteAdmin();
     } catch {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

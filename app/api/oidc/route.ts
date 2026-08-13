@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { getOidcConfigFromDb, upsertOidcConfig } from "@/lib/oidc";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireAdmin();
+  await requireSiteAdmin();
   const config = await getOidcConfigFromDb();
   if (!config) {
     return NextResponse.json({ configured: false });
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  await requireAdmin();
+  await requireSiteAdmin();
   const body = await request.json();
 
   // If the secret is the placeholder, we need to fetch the existing one to pass schema validation and upsert

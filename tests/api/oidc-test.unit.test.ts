@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("../../lib/rbac", () => ({
-  requireAdmin: vi.fn(),
-}));
+vi.mock("../../lib/rbac", () => {
+  const guard = vi.fn();
+  return { requireAdmin: guard, requireSiteAdmin: guard };
+});
 vi.mock("../../lib/rate-limit", () => ({
   enforceRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }));

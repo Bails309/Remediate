@@ -1,13 +1,13 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { checkAdmin } from "@/lib/rbac";
+import { checkSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { writeAuditLog } from "@/lib/audit-log";
 
 export async function GET(req: NextRequest) {
     const session = await auth();
-    if (!session?.user || !checkAdmin(session.user)) {
+    if (!session?.user || !checkSiteAdmin(session.user)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     const session = await auth();
-    if (!session?.user || !checkAdmin(session.user)) {
+    if (!session?.user || !checkSiteAdmin(session.user)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
     const session = await auth();
-    if (!session?.user || !checkAdmin(session.user)) {
+    if (!session?.user || !checkSiteAdmin(session.user)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -205,7 +205,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     const session = await auth();
-    if (!session?.user || !checkAdmin(session.user)) {
+    if (!session?.user || !checkSiteAdmin(session.user)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -1,9 +1,9 @@
 import { OidcClientForm } from "@/app/(app)/admin/oidc/oidc-client-form";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
 export default async function OidcAdminPage() {
-  await requireAdmin();
+  await requireSiteAdmin();
   return <OidcClientForm />;
 }

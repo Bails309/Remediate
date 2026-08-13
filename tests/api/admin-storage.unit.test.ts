@@ -5,7 +5,10 @@ const mockPrisma = {
 };
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("../../lib/rbac", () => ({ requireAdmin: vi.fn() }));
+vi.mock("../../lib/rbac", () => {
+  const guard = vi.fn();
+  return { requireAdmin: guard, requireSiteAdmin: guard };
+});
 vi.mock("../../lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 vi.mock("../../lib/crypto", () => ({
   encrypt: vi.fn((v: string) => `enc:${v}`),

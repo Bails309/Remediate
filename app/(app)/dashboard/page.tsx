@@ -6,11 +6,13 @@ import { BucketFilter } from "@/components/BucketFilter";
 import { Badge } from "@/components/Badge";
 import { ClientDate } from "@/components/ClientDate";
 import { ThreatSummaryCard } from "@/components/ThreatSummaryCard";
+import { SecurityScoreCard } from "@/components/SecurityScoreCard";
+import { computeSecurityScore } from "@/lib/security-score";
 import { Activity, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/components/cn";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Command Centre",
 };
 
 const riskOrder = ["Critical", "High", "Medium", "Low"] as const;
@@ -69,12 +71,14 @@ export default async function DashboardPage({
     `, ...values) as Promise<DashboardCount[]>,
     prisma.vulnerability.findMany({
       where: bucketIds.length > 0 ? { siteId: { in: bucketIds } } : {},
-      select: { risk: true },
+      select: { risk: true, status: true, createdAt: true },
     }),
   ]);
 
   const activeVulnerabilities = activeVulnerabilitiesResult[0]?.count || 0;
   const counts = new Map(riskGroups.map((g: RiskGroupRow) => [g.risk, g.count]));
+
+  const securityScore = computeSecurityScore(vulnerabilities);
 
   const stats = [
     {
@@ -107,43 +111,53 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* Operational Posture Stats */}
-      <div id="tour-dashboard-stats" className="tour-stat-cards grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {riskOrder.map((risk) => (
-          <StatCard
-            key={risk}
-            label={risk}
-            value={(counts.get(risk) as number) ?? 0}
-            tone={risk.toLowerCase() as "critical" | "high" | "medium" | "low" | "neutral"}
-          />
-        ))}
-      </div>
+      {/* Posture Overview: score alongside severity breakdown */}
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <SecurityScoreCard
+          score={securityScore.score}
+          delta={securityScore.delta}
+          openWeighted={securityScore.openWeighted}
+          weeklyDiscovered={securityScore.weeklyDiscovered}
+        />
 
-      {/* Intelligence Correlation Summary */}
-      <div id="tour-dashboard-correlation" className="tour-threat-intel space-y-6">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-40 flex items-center gap-2 px-1">
-          <ShieldAlert className="h-3 w-3" />
-          Environment Intelligence Correlation
-        </h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          {stats.map((stat) => (
-            <StatCard
-              key={stat.label}
-              label={stat.label}
-              value={stat.value}
-              icon={stat.icon}
-              iconColor={stat.color}
-              iconBg={stat.bg}
-              tone="neutral"
-            />
-          ))}
+        <div className="flex flex-col gap-6">
+          <div id="tour-dashboard-stats" className="tour-stat-cards grid gap-4 sm:grid-cols-2">
+            {riskOrder.map((risk) => (
+              <StatCard
+                key={risk}
+                label={risk}
+                value={(counts.get(risk) as number) ?? 0}
+                tone={risk.toLowerCase() as "critical" | "high" | "medium" | "low" | "neutral"}
+              />
+            ))}
+          </div>
+
+          <div id="tour-dashboard-correlation" className="tour-threat-intel space-y-3">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-40 flex items-center gap-2 px-1">
+              <ShieldAlert className="h-3 w-3" />
+              Environment Intelligence Correlation
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {stats.map((stat) => (
+                <StatCard
+                  key={stat.label}
+                  label={stat.label}
+                  value={stat.value}
+                  icon={stat.icon}
+                  iconColor={stat.color}
+                  iconBg={stat.bg}
+                  tone="neutral"
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Secondary Row: Activity & Intelligence */}
       <div className="grid gap-8 lg:grid-cols-[380px_1fr]">
         <div className="flex flex-col gap-6">
-          <div className="group relative overflow-hidden glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8">
+          <div className="group relative overflow-hidden glass glass-edge card-glow spotlight rounded-[28px] p-6 lg:p-8">
             <span aria-hidden className="scanline-sweep" />
             <div className="relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] opacity-40 mb-6 flex items-center gap-2">
@@ -184,7 +198,7 @@ export default async function DashboardPage({
             </div>
           </div>
 
-          <div className="group relative overflow-hidden glass glass-edge hud card-glow spotlight rounded-[28px] p-6 lg:p-8">
+          <div className="group relative overflow-hidden glass glass-edge card-glow spotlight rounded-[28px] p-6 lg:p-8">
             <span aria-hidden className="scanline-sweep" />
             <div className="relative z-10">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] opacity-40 mb-4">Operational Tips</h3>

@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/cn";
-import { Menu, X, LogOut, Briefcase, Wrench, ChevronDown, ChevronRight } from "lucide-react";
-import { baseNav, adminNavItems, toolsNavItems } from "./Sidebar";
+import { Menu, X, LogOut, Briefcase, Wrench, Settings as SettingsIcon, Zap, Package, ChevronDown, ChevronRight } from "lucide-react";
+import { baseNav, adminNavItems, automationNavItems, insightsNavItems, inventoryNavItems, toolsNavItems } from "./Sidebar";
 import type { Session } from "next-auth";
 import { signOut } from "next-auth/react";
 
@@ -13,8 +13,12 @@ export function MobileNav({ session }: { session?: Session | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const roles = session?.user?.roles || [];
-  const isWebAdmin = roles.includes("site_admin") || roles.includes("web_app_admin");
+  const isSiteAdmin = roles.includes("site_admin");
+  const isWebAdmin = isSiteAdmin || roles.includes("web_app_admin");
   const isToolkitUser = roles.includes("site_admin") || roles.includes("toolkit_admin") || roles.includes("toolkit_user");
+  const visibleInventoryNavItems = inventoryNavItems.filter((item) =>
+    item.access === "toolkit" ? isToolkitUser : isWebAdmin
+  );
 
   const [isAdminExpanded, setIsAdminExpanded] = useState(false);
 
@@ -82,7 +86,7 @@ export function MobileNav({ session }: { session?: Session | null }) {
               Workspace
             </p>
             <div className="flex flex-col gap-1">
-              {baseNav.map((item) => {
+              {[...insightsNavItems, ...baseNav].map((item) => {
                 const active = pathname === item.href;
                 const Icon = item.icon;
                 return (
@@ -105,11 +109,11 @@ export function MobileNav({ session }: { session?: Session | null }) {
             </div>
           </div>
 
-          {isToolkitUser && (
+          {(isToolkitUser || isWebAdmin) && (
             <div className="space-y-2">
               <p className="px-4 text-[10px] font-bold uppercase tracking-widest opacity-30 flex items-center gap-2">
                 <Wrench size={10} />
-                Security Tools
+                Threat Intelligence
               </p>
               <div className="flex flex-col gap-1">
                 {toolsNavItems.map((item) => {
@@ -136,16 +140,80 @@ export function MobileNav({ session }: { session?: Session | null }) {
             </div>
           )}
 
-          {/* Administration Group */}
+          {/* Inventory Group */}
+          {visibleInventoryNavItems.length > 0 && (
+            <div className="space-y-2">
+              <p className="px-4 text-[10px] font-bold uppercase tracking-widest opacity-30 flex items-center gap-2">
+                <Package size={10} />
+                Inventory
+              </p>
+              <div className="flex flex-col gap-1">
+                {visibleInventoryNavItems.map((item) => {
+                  const active = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        active
+                          ? "bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)] ring-1 ring-[color:var(--color-accent)]/20 shadow-sm"
+                          : "opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
+                      )}
+                    >
+                      <Icon size={18} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Automation Group */}
           {isWebAdmin && (
+            <div className="space-y-2">
+              <p className="px-4 text-[10px] font-bold uppercase tracking-widest opacity-30 flex items-center gap-2">
+                <Zap size={10} />
+                Automation
+              </p>
+              <div className="flex flex-col gap-1">
+                {automationNavItems.map((item) => {
+                  const active = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        active
+                          ? "bg-[color:var(--color-accent)]/10 text-[color:var(--color-accent)] ring-1 ring-[color:var(--color-accent)]/20 shadow-sm"
+                          : "opacity-80 hover:bg-black/5 dark:hover:bg-white/5 hover:opacity-100"
+                      )}
+                    >
+                      <Icon size={18} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Settings Group */}
+          {isSiteAdmin && (
             <div className="space-y-2">
               <button
                 onClick={() => setIsAdminExpanded(!isAdminExpanded)}
                 className="w-full px-4 text-[10px] font-bold uppercase tracking-widest opacity-30 hover:opacity-100 transition-opacity flex items-center justify-between"
               >
                 <span className="flex items-center gap-2">
-                  <Wrench size={10} />
-                  Administration
+                  <SettingsIcon size={10} />
+                  Settings
                 </span>
                 {isAdminExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>

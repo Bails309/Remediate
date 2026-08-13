@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        await requireAdmin();
+        await requireSiteAdmin();
         const body = await request.json();
         const { issuerUrl } = testSchema.parse(body);
 

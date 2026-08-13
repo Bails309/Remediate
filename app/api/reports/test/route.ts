@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { getReportConfig } from "@/lib/reports";
 import { sendReportEmail, renderEmailLayout } from "@/lib/email";
 
 export async function POST() {
-  await requireAdmin();
+  await requireSiteAdmin();
   const config = await getReportConfig(true);
   if (!config) {
     return NextResponse.json({ error: "Report settings not configured" }, { status: 400 });

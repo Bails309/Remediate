@@ -30,7 +30,7 @@ export function StatCard({ label, value, tone = "neutral", icon: Icon, iconColor
   return (
     <div
       className={cn(
-        "group relative overflow-hidden glass glass-edge hud card-glow spotlight rounded-[28px] p-6 transition-all hover:scale-[1.02]",
+        "group relative overflow-hidden glass glass-edge card-glow spotlight rounded-[28px] p-6 transition-all hover:scale-[1.02]",
         toneClass
       )}
     >

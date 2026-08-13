@@ -28,10 +28,15 @@ const mockPrisma = {
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../auth", () => ({ auth: vi.fn() }));
-vi.mock("../../lib/rbac", () => ({
-    checkAdmin: vi.fn(),
-    WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"],
-}));
+vi.mock("../../lib/rbac", () => {
+    // Group mutations now require site admin; both predicates share one mock.
+    const adminCheck = vi.fn();
+    return {
+        checkAdmin: adminCheck,
+        checkSiteAdmin: adminCheck,
+        WEB_APP_ADMIN_ROLES: ["site_admin", "web_app_admin"],
+    };
+});
 vi.mock("../../lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 vi.mock("../../lib/audit-log", () => ({ writeAuditLog: vi.fn() }));
 

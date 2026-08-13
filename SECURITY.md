@@ -51,6 +51,38 @@ The natural-language insights feature is designed so that adding an LLM does **n
 - **History row is deleted, not retained.** `lib/ingest.ts` treats a surviving `FalsePositive` / `NoFixAvailable` history row as a standing user determination and re-archives the matching finding on the next scan. Keeping the row would make a restore silently self-revert at the next import — an availability/correctness failure that leaves no trace in the logs. Deletion is intentional and is why the audit entry (not the history row) is the durable record of the archive.
 - **Rate-limited and transactional.** The route runs through `enforceRateLimit` like every other mutation, and the recreate + history-delete happen in a single Prisma transaction, so a failure cannot leave the finding in both tables or neither.
 
+## Role Model & Privilege Tiers (v2.16.0)
+Until v2.16.0 `requireAdmin()` accepted both `site_admin` and `web_app_admin`, and every `/admin` page and API sat behind it. A **Workspace Admin** could therefore read and rewrite OIDC and storage credentials, create and delete users and groups, and read the audit log — privileges the role's name does not imply. The tiers are now separated:
+
+| Tier | Roles | Owns |
+| :--- | :--- | :--- |
+| **Site Admin** | `site_admin` | Installation configuration (Authentication/OIDC, Storage, Scanner Import, Reporting, AI provider), identity (Users, Groups), the audit log, and platform health / System Status. |
+| **Workspace Admin** | `site_admin`, `web_app_admin` | Workspace data: dashboards, analytics, vulnerabilities, Inventory (buckets, manual uploads, dead-letter queue) and upload Automation. |
+| **Workspace User** | `+ web_app_user` | Read and work findings within the group visibility wall. |
+| **Workspace Auditor** | `web_app_auditor` | Read-only; write-granting roles are stripped when auditor is assigned. |
+| **Toolkit** | `toolkit_user`, `toolkit_admin` | The isolated pentest toolkit only. |
+
+Enforcement is layered, so a gap in one does not expose the surface:
+1. **Edge** — [`proxy.ts`](proxy.ts) redirects non-`site_admin` sessions away from `/admin/*`, and non-workspace-admins away from `/uploads`, `/buckets` and `/automation`.
+2. **Page** — every site-administration page calls `requireSiteAdmin()` server-side. `/admin/users`, `/admin/groups` and `/admin/health` previously had **no** server guard and relied solely on the middleware prefix match; they are now guarded directly.
+3. **Route handler** — the matching APIs use `requireSiteAdmin()` / `checkSiteAdmin()`. Group *listing* deliberately remains workspace-visible (assignment UIs need it); group *mutation* is site-admin only.
+
+`GET /api/admin/audit-log` was already `site_admin`-only; the new audit-log UI shows an explicit "site administrator access required" state rather than failing silently for workspace admins.
+
+## Dashboard Widget Query Safety (v2.16.0)
+Custom dashboards let users — and optionally an LLM — describe what they want to see. The feature is built so that neither can express anything the schema does not already allow.
+
+- **No text-to-SQL, anywhere.** A widget stores a JSON *spec*, validated by a **strict** Zod allowlist ([`lib/dashboards/spec.ts`](lib/dashboards/spec.ts)): three sources, two metrics, a fixed grouping list per source, and vulnerability filters reused from the existing AI query spec. `.strict()` means an unexpected key (`{ "sql": "…" }`) fails validation rather than being quietly stripped, and `assertSpecIsCoherent()` rejects source/grouping combinations that parse but are meaningless.
+- **The model plans; Prisma executes.** `POST /api/dashboards/plan` asks the provider for `{ title, viz, spec }` and validates the result against the same allowlist before it is used. The model sees no rows, emits no query, and cannot name a table or column. This mirrors the pattern already used by the vulnerability assistant.
+- **Execution is always scoped to the viewer.** [`lib/dashboards/execute.ts`](lib/dashboards/execute.ts) `AND`s every vulnerability query with the caller's group visibility wall — the same fragment `GET /api/vulnerabilities` uses.
+- **Publishing cannot leak data.** Widgets persist only the spec; results are never written to the database. A published dashboard is re-executed per viewer, so two people can open the same board and correctly see different numbers. The Redis cache (60s TTL) is keyed on `sha256(spec + viewer scope)`, so a cached admin result can never be served to a non-member.
+- **Bounded cost.** Rows are capped at `MAX_WIDGET_ROWS` (50), a dashboard holds at most 24 widgets, layout writes are capped at 50 items, and both the preview and plan endpoints are rate-limited per user. Widget planning is audited as `dashboard.widget_planned` with the request text and resulting spec; dashboard creation, deletion and visibility changes are audited too.
+
+## Third-Party Feed Ingest (v2.16.0)
+The MITRE ATT&CK sync ([`lib/threat-intelligence/actors.ts`](lib/threat-intelligence/actors.ts)) fetches a ~40MB STIX bundle from a fixed, hard-coded GitHub raw URL — the endpoint is not operator-configurable, so a compromised settings row cannot redirect it. The response is parsed as JSON and mapped through an explicit field projection; nothing from the bundle is executed, rendered as HTML, or used to build a query. Group descriptions are stored truncated (4,000 chars) and rendered as text. The manual refresh endpoint is workspace-admin gated and rate-limited; the automatic path runs on the worker at most weekly.
+
+Attribution fields (`actorType`, `origin`, `targetSectors`, `targetRegions`, `targetTechnologies`) are keyword-derived from prose, not published facts. They are labelled as derived in the UI so they are not mistaken for authoritative intelligence.
+
 ## Authentication
 - Local credential comparison uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
 - Auth provisioning never overwrites manually assigned database roles on subsequent logins.
@@ -80,9 +112,12 @@ Groups (departments) are enforced server-side as a **visibility wall**, not a UI
 - Tour IDs, analytics site IDs, and comment content are validated with Zod schemas at the API boundary.
 - Page numbers and feed limits are capped to prevent unbounded queries.
 - Bucket import patterns are validated for regex syntax and length.
+- Dashboard widget specs are parsed with a **strict** Zod allowlist — unknown keys are a hard validation failure, not a silent strip — and are additionally coherence-checked before execution (see [Dashboard Widget Query Safety](#dashboard-widget-query-safety-v2160)).
 
 ## Content Security Policy
 - The middleware generates a cryptographic nonce (`crypto.randomUUID`) for each request, applied to `script-src` and `style-src` CSP directives.
+- `script-src` is nonce-only in production. Any third-party component that injects an inline `<script>` must be given the request nonce explicitly — as of v2.16.0 `ThemeProvider` (next-themes) receives it from the App Router layout, otherwise its theme bootstrap is blocked and the page flashes the wrong theme on first paint.
+- Third-party iconography (`country-flag-icons`, `simple-icons`) is bundled as inline SVG rather than loaded from a CDN, so no `img-src`/`connect-src` relaxation is required for it.
 
 ## Runtime Migration Safety
 - `scripts/migrate.js` uses a Postgres advisory lock to ensure only one instance applies migrations. This reduces risk when multiple containers start simultaneously.

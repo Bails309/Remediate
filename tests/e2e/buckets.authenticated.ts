@@ -13,9 +13,9 @@ test.describe('Buckets Page', () => {
         await expect(sidebar).toBeVisible({ timeout: 15000 });
 
         // Expand admin section and click Buckets
-        const adminToggle = sidebar.getByRole('button', { name: /Administration/i });
-        if (await adminToggle.isVisible()) {
-            await adminToggle.click();
+        const inventoryToggle = sidebar.getByRole('button', { name: /Inventory/i });
+        if (await inventoryToggle.isVisible()) {
+            await inventoryToggle.click();
             await sidebar.getByRole('link', { name: 'Buckets' }).click();
             await page.waitForURL('**/buckets', { timeout: 15000 });
         }

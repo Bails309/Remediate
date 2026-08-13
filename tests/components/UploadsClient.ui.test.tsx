@@ -8,7 +8,7 @@ describe("UploadsClient UI", () => {
   it("renders headings and empty states with no uploads", () => {
     render(<UploadsClient initialSites={[]} initialUploads={[]} initialAzureConfig={null} />);
 
-    expect(screen.getByText("Uploads")).toBeDefined();
+    expect(screen.getByText("Nessus CSV")).toBeDefined();
     expect(screen.getByText("Recent Uploads")).toBeDefined();
     // Progress area should show EmptyState text
     expect(screen.getByText("No upload in progress")).toBeDefined();

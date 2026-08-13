@@ -2,7 +2,18 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.9.0` (2026-08-03). The runtime expects Node.js 20 LTS, Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.16.0` (2026-08-13). The runtime expects Node.js 20 LTS, Next.js `^16.2.11`, BullMQ `^5.76.8`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+>
+> **v2.16.0 upgrade notes**:
+> - **Migrations** (three, all additive — no existing table is altered destructively). Runtime fallback via `scripts/migrate.js` applies them on first boot under an advisory lock; the CI job in `.github/workflows/migrations.yml` remains the recommended path for production.
+>   - `20260813150000_threat_actors` — `ThreatActor` table backing the MITRE ATT&CK adversary catalogue.
+>   - `20260813170000_threat_actor_technologies` — adds the derived `technologies` array used by the *Top Targeted Technologies* card.
+>   - `20260813190000_dashboards` — `Dashboard` + `DashboardWidget` tables for personal/published dashboards.
+> - **⚠️ Privilege change — review role assignments before upgrading.** `web_app_admin` no longer implies site administration. Installation configuration (`/admin/configuration`), identity/OIDC, user and group management, audit logs and platform health are now **`site_admin` only**, enforced at the edge (`proxy.ts`), in the page component and in every route handler. `web_app_admin` retains dashboards, vulnerabilities, analytics, automation and inventory. Any operator who relied on `web_app_admin` for installation settings must be promoted to `site_admin` **before** the new image is rolled out, or they will receive 403s.
+> - **Worker egress**: the threat-actor sync runs inside the existing worker container (on boot, then weekly) and fetches the MITRE ATT&CK STIX bundle from `raw.githubusercontent.com`. No new container or env var is required. If egress is blocked the sync fails closed, logs a warning, and every other scheduler continues unaffected — the Threat Actors page simply shows no data.
+> - **Scheduler behaviour change**: threat-intelligence and threat-actor syncs now run **before** the scheduled-reporting configuration guard, so they no longer stop when reporting is unconfigured or disabled. Estates that deliberately left reporting off will start seeing threat-feed traffic from the worker after upgrading.
+> - **AI is still optional.** The dashboard widget planner reuses the existing `AiConfig` provider; if AI is not configured, widgets are built manually and nothing else changes. The planner only ever receives a schema description and returns a JSON widget spec — no SQL and no database access — which the server re-validates and executes under the caller's own permissions.
+> - **No key rotation impact.** No new secrets were introduced in this release.
 >
 > **v2.9.0 upgrade notes**:
 > - **Migration**: `20260803120000_add_ai_config` creates the `AiConfig` table (encrypted provider endpoint + API key, non-secret model / api-version) that backs the new AI-Powered Insights feature. It is additive and touches no existing tables. Runtime fallback via `scripts/migrate.js` applies it on first boot; the CI job in `.github/workflows/migrations.yml` is the recommended path for production.

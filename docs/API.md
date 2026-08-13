@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.15.0` (2026-08-11). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.16.0` (2026-08-13). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -8,9 +8,11 @@ All endpoints are served by the Next.js application under `/api/*`. Unless expli
 | :--- | :--- |
 | 🌐 | Public — no session required. |
 | 🔒 | Authenticated — any signed-in user. |
-| 🛡️ | Admin — requires `admin`, `site_admin`, or `toolkit_admin` per route. |
-| 👑 | Site Admin — `site_admin` only. |
-| 🧪 | Pentest — `pentest_user`, `pentest_admin`, or `site_admin`. |
+| 🛡️ | Workspace Admin — `site_admin` or `web_app_admin`. Workspace data: buckets, uploads, automation, findings. |
+| 👑 | Site Admin — `site_admin` only. Installation configuration, identity, audit and platform health. |
+| 🧪 | Toolkit — `toolkit_user`, `toolkit_admin`, or `site_admin`. |
+
+> **Changed in v2.16.0**: `web_app_admin` no longer implies site administration. Routes under Auth, Storage, Import, Reporting, AI configuration, Users, Groups, Audit and Health are 👑 site-admin only; workspace data routes remain 🛡️. See [SECURITY.md → Role Model & Privilege Tiers](../SECURITY.md#role-model--privilege-tiers-v2160).
 
 All request/response bodies are JSON unless otherwise noted. Errors follow the shape `{ "error": string }` with appropriate HTTP status codes (`400` validation, `401` unauthenticated, `403` forbidden, `404` not found, `429` rate limited, `500` internal).
 
@@ -110,10 +112,10 @@ Response `200` is the recreated vulnerability with `recordScope: "active"` and `
 | `GET` | `/api/uploads/{uploadId}/progress` | 🔒 | Per-upload progress (counts, current phase). |
 | `GET` | `/api/uploads/events` | 🔒 | Server-Sent Events stream for global upload progress. |
 | `GET` | `/api/uploads/{uploadId}/events` | 🔒 | SSE stream for a specific upload. |
-| `GET` | `/api/uploads/dead-letter` | 👑 | Lists failed jobs in the dead-letter queue. |
-| `POST` | `/api/uploads/dead-letter` | 👑 | Requeues a single failed job. Body: `{ "jobId": string }`. |
-| `PUT` | `/api/uploads/dead-letter` | 👑 | Bulk requeue all dead-letter entries. |
-| `DELETE` | `/api/uploads/dead-letter` | 👑 | Permanently removes a dead-letter entry. Query: `jobId`. |
+| `GET` | `/api/uploads/dead-letter` | �️ | Lists failed jobs in the dead-letter queue. Surfaced at `/uploads/dead-letter` (moved from `/admin/dead-letter` in v2.16.0, which now redirects). |
+| `POST` | `/api/uploads/dead-letter` | 🛡️ | Requeues a single failed job. Body: `{ "jobId": string }`. |
+| `PUT` | `/api/uploads/dead-letter` | 🛡️ | Bulk requeue all dead-letter entries. |
+| `DELETE` | `/api/uploads/dead-letter` | 🛡️ | Permanently removes a dead-letter entry. Query: `jobId`. |
 
 ---
 
@@ -202,6 +204,20 @@ GET /api/vulnerabilities?groupIds=11111111-...,22222222-...,unassigned
 | `GET` | `/api/threat-intelligence/feed` | 🔒 | Paginated global feed (NVD / OSV / CISA KEV). Query: `risk`, `kev`, `since`, `limit` (capped at 100). |
 | `GET` | `/api/threat-intelligence/subscription` | 🔒 | Returns the current user's digest configuration. |
 | `POST` | `/api/threat-intelligence/subscription` | 🔒 | Updates digest configuration. Body: `{ "enabled": boolean, "minRisk": "Critical"\|"High"\|..., "kevOnly": boolean, "scheduledHour": 0-23, "scheduledMinute": 0-59 }`. |
+| `GET` | `/api/threat-intelligence/actors` | 🔒 | MITRE ATT&CK adversary catalogue. Query: `q` (name / alias / MITRE id), `tactic`, `sector`, `region`, `type`, `limit` (≤200, default 100). Returns `{ actors: ThreatActor[], total: number, lastSyncedAt: string \| null }`. |
+| `POST` | `/api/threat-intelligence/actors` | 🛡️ | Forces an immediate re-sync of the ATT&CK Enterprise bundle. Returns `{ synced: number }`. Rate-limited; `502` if the upstream fetch or parse fails. The worker also syncs automatically (see below). |
+
+### Threat actors (v2.16.0)
+
+Source: the [MITRE ATT&CK Enterprise STIX bundle](https://github.com/mitre-attack/attack-stix-data). Each `intrusion-set` object becomes one `ThreatActor` row keyed on its MITRE group id (`G0007`); `revoked` and `x_mitre_deprecated` objects are skipped.
+
+| Field | Provenance |
+| :--- | :--- |
+| `externalId`, `name`, `aliases`, `description`, `url`, `lastModified` | Structured ATT&CK data. |
+| `tactics`, `techniqueCount`, `software` | Structured — resolved from the group's `uses` relationships to `attack-pattern` (kill-chain phases) and `malware` / `tool` objects. |
+| `actorType`, `origin`, `targetSectors`, `targetRegions`, `targetTechnologies` | **Derived** — ATT&CK has no structured attribution fields, so these are keyword-matched against the group description. Indicative only; the UI labels them as such. |
+
+**Refresh cadence.** `syncThreatActorsIfStale()` runs on worker boot and on the scheduler tick, re-syncing when the table is empty or `ThreatFeedMetadata("MITRE_ATTACK").lastSyncedAt` is older than 7 days. Since v2.16.0 this runs independently of whether scheduled email reporting is configured.
 
 ---
 
@@ -306,6 +322,59 @@ Required: `registryName`, `repository`, `imageDigest`, `severity`, `cveId`, `pac
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/feedback` | 🔒 | Submit feedback. Body: `{ "type": "bug"\|"feature"\|"general", "message": string (5–5000), "page"?: string }`. Per-user rate limited. |
 | `GET` | `/api/feedback` | 👑 | Returns the 100 most recent feedback entries. |
+
+---
+
+## 13. Dashboards (v2.16.0)
+
+Personal dashboards with a spec-driven widget engine. Every endpoint requires an authenticated session; ownership is checked per request.
+
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/dashboards` | 🔒 | Returns `{ mine: Dashboard[], published: Dashboard[] }`. `published` excludes the caller's own boards and includes the owner's name. Both carry `_count.widgets`. |
+| `POST` | `/api/dashboards` | 🔒 | Creates a private dashboard. Body: `{ "name": string (1–120), "description"?: string \| null (≤500) }`. Audited as `dashboard.created`. |
+| `GET` | `/api/dashboards/{id}` | 🔒 | Returns `{ dashboard, access: { canView, canEdit } }`. `404` (not `403`) when the caller may not view it, so ids cannot be probed. |
+| `PATCH` | `/api/dashboards/{id}` | 🔒 | Owner only. Body: any of `{ name, description, visibility: "Private" \| "Published" }`. A visibility change is audited as `dashboard.visibility_changed`. |
+| `DELETE` | `/api/dashboards/{id}` | 🔒 | Owner only. Cascades to widgets. Audited as `dashboard.deleted`. |
+| `POST` | `/api/dashboards/{id}/widgets` | 🔒 | Owner only. Adds a widget: `{ title, viz, spec, x, y, w, h }`. Max **24 widgets** per dashboard. `400` if the spec fails validation or coherence. |
+| `PATCH` | `/api/dashboards/{id}/widgets` | 🔒 | Owner only. Bulk layout save after a drag/resize: `{ layout: [{ id, x, y, w, h }] }` (≤50 items) applied in one transaction. |
+| `PATCH` | `/api/dashboards/{id}/widgets/{widgetId}` | 🔒 | Owner only. Partial update of title / viz / spec / geometry. |
+| `DELETE` | `/api/dashboards/{id}/widgets/{widgetId}` | 🔒 | Owner only. |
+| `POST` | `/api/dashboards/{id}/widgets/{widgetId}/data` | 🔒 | **Executes a saved widget as the caller.** Any viewer who can see the dashboard may run it; the stored spec is re-scoped to *their* permissions. Returns `{ total, rows: [{ label, value }], truncated }`. `422` if the stored spec no longer validates. |
+| `POST` | `/api/dashboards/preview` | 🔒 | Runs an **unsaved** spec for the builder's live preview. Same body as `spec` below. |
+| `GET` | `/api/dashboards/plan` | 🔒 | `{ available: boolean }` — whether an AI provider is configured. |
+| `POST` | `/api/dashboards/plan` | 🔒 | Natural language → widget. Body: `{ "request": string (3–500) }`. Returns `{ title, viz, spec, data }`. Rate-limited; audited as `dashboard.widget_planned`. `400` when AI is unconfigured or the model cannot produce a valid spec. |
+| `POST` | `/api/dashboards/{id}/clone` | 🔒 | Copies a viewable dashboard's **specs** into a new private dashboard owned by the caller. |
+
+### Widget spec
+
+The complete grammar a widget may express, defined in [`lib/dashboards/spec.ts`](../lib/dashboards/spec.ts) and enforced with a **strict** Zod schema (unknown keys are a validation error, not silently dropped):
+
+```jsonc
+{
+  "source":  "vulnerabilities" | "threatActors" | "uploads",  // default "vulnerabilities"
+  "metric":  "count" | "avgCvss",                             // avgCvss: vulnerabilities only
+  "groupBy": null | "risk" | "status" | "site" | "assignee" | "group" | "scanner" | "month"
+                  | "actorType" | "origin" | "tactic" | "sector" | "region" | "technology",
+  "filters": { "risk": [...], "status": [...], "scannerType": "NESSUS" | "ACR",
+               "hasFix": bool, "internetFacing": bool, "minCvss": 0-10,
+               "cveContains": "…", "nameContains": "…", "hostContains": "…", "packageContains": "…" },
+  "limit":   1-50,   // default 10, hard-capped by MAX_WIDGET_ROWS
+  "months":  1-24    // default 6, only meaningful with groupBy "month"
+}
+```
+
+`assertSpecIsCoherent()` additionally rejects specs that parse but are meaningless: a grouping that does not belong to the chosen source, `avgCvss` on anything but vulnerabilities, and `filters` on anything but vulnerabilities.
+
+### Execution contract
+
+1. **Validate** — the spec is parsed with the strict schema, then coherence-checked.
+2. **Scope** — vulnerability queries are `AND`-ed with the *caller's* group visibility wall, exactly as `GET /api/vulnerabilities` does. Admin status is the only bypass.
+3. **Execute** — Prisma aggregates only (`count`, `aggregate`, `groupBy`). No raw SQL is generated anywhere in this path, and no model output ever reaches the database.
+4. **Resolve** — `siteId` / `assigneeId` / `groupId` are turned into display names in a single query per field.
+5. **Cache** — the result is cached in Redis for 60s under `sha256(spec + viewer scope)`, so a published dashboard cannot serve one user's numbers to another.
+
+Widgets persist the spec only. Results are never written to the database, which is what keeps a published dashboard both fresh and correctly scoped per viewer.
 
 ---
 

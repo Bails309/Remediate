@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/rbac";
+import { requireSiteAdmin } from "@/lib/rbac";
 import { getReportConfig, upsertReportConfig } from "@/lib/reports";
 
 const reportSchema = z.object({
@@ -19,13 +19,13 @@ const reportSchema = z.object({
 });
 
 export async function GET() {
-  await requireAdmin();
+  await requireSiteAdmin();
   const config = await getReportConfig();
   return NextResponse.json({ config });
 }
 
 export async function POST(request: Request) {
-  await requireAdmin();
+  await requireSiteAdmin();
   const body = await request.json();
 
   // Allow frontend to send a convenient `transport` value that maps to port/TLS

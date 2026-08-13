@@ -14,9 +14,12 @@ const mockRedis = {
 
 vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("../../lib/redis", () => ({ redis: mockRedis }));
-vi.mock("../../lib/rbac", () => ({
-  requireAdmin: vi.fn(),
-}));
+vi.mock("../../lib/rbac", () => {
+  // Route now requires site admin; both names share one mock so existing
+  // `vi.mocked(requireAdmin)` setup keeps working.
+  const guard = vi.fn();
+  return { requireAdmin: guard, requireSiteAdmin: guard };
+});
 vi.mock("../../lib/rate-limit", () => ({
   enforceRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }));

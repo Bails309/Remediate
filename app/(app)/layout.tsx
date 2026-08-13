@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   console.error("[AppLayout] DB User:", !!dbUser, "Email used:", session?.user?.email?.toLowerCase());
 
   return (
-    <Providers>
+    <Providers nonce={nonce}>
       <div id="app-layout-debug" style={{ display: 'none' }} data-session={!!session} data-user={!!dbUser} />
       <IdleTimeout />
       <CursorSpotlight />
@@ -42,9 +42,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <WhatsNew completedTours={dbUser.completedTours} />
         </>
       )}
-      <div className="grid min-h-screen gap-8 p-6 lg:grid-cols-[260px_1fr]">
+      <div className="grid min-h-screen lg:grid-cols-[88px_1fr]">
         <Sidebar session={session} />
-        <div className="flex min-w-0 flex-col gap-8">
+        <div className="flex min-w-0 flex-col gap-8 p-6">
           <Topbar session={session} />
           <main className="fade-up p-2 lg:p-6">
             {children}

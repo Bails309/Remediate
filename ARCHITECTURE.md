@@ -28,12 +28,14 @@ A high-level view of Remediate components and interactions.
         - `NESSUS` — CSV / pentest-PDF ingest via `lib/ingest.ts#processNessusUpload`, with diffing and historical archival against Nessus rows only.
         - `ACR` — Azure Container Registry CSV ingest via `lib/ingest.ts#processAcrUpload`, with diffing and archival scoped to `scannerType = ACR` so it never touches Nessus rows.
     - **Pentest PDF ingest** — downloads PDFs from the configured storage provider, parses them in-process via `lib/pentest-pdf-builtin.ts` (the built-in Trustmarque CHECK parser), and writes the returned findings into the same `Vulnerability` table on the `{pentest-pdf-queue}` (concurrency 2). No external API or admin configuration is required.
-    - **Threat Intelligence Sync**: Hourly delta and daily full syncs from NVD, OSV, and CISA KEV.
+    - **Threat Intelligence Sync**: Hourly delta and daily full syncs from NVD, OSV, and CISA KEV. Since v2.16.0 these run **before** the scheduled-report guard in `lib/report-scheduler.ts`, so an installation with no `ReportConfig` still receives intelligence updates.
+    - **MITRE ATT&CK actor sync** (v2.16.0): `syncThreatActorsIfStale()` refreshes the `ThreatActor` catalogue on worker boot and weekly thereafter.
     - **Notification Dispatcher**: Daily 08:00 AM email digests based on user-defined risk filters.
     - **Automation schedulers** — `startAzureFileShareScheduler()` and `startAzureBlobIngestScheduler()` run inside the worker process and poll their respective storage sources on the configured interval.
 - **Built-in Pentest PDF Parser** (`lib/pentest-pdf-builtin.ts`): In-process Trustmarque CHECK PDF parser. Uses [`pdf-parse`](https://www.npmjs.com/package/pdf-parse) for raw text extraction and [`pdfjs-dist`](https://www.npmjs.com/package/pdfjs-dist) (legacy build, loaded dynamically) for yellow-highlight detection via operator-list inspection. Yellow rectangles are intersected with text items per-page, joined into phrase buckets, and emitted as `\u0001HL\u0002...\u0001/HL\u0002` private-use markers in the persisted Examples payload. The client (`renderPluginOutput`) HTML-escapes the payload, then unwraps the markers into XSS-safe `<mark>` spans.
 - **Azure Blob Ingest service** (`lib/azure-blob-ingest.ts`): Standalone poller that reads its config from `AzureBlobIngestConfig`, lists blobs in the configured container / prefix, and for each matching CSV: validates headers before writing anything, persists the payload as `acr-{uploadId}.csv` in the active storage provider, creates the `UploadHistory` row (`scannerType = ACR`), enqueues on `{upload-queue}`, and — on successful enqueue — deletes the source blob (opt-out via the `deleteAfterImport` flag).
-- **Threat Intelligence Centre (Frontend)**: Real-time vulnerability feed with source-aware external linking.
+- **Threat Intelligence Centre (Frontend)**: Real-time vulnerability feed with source-aware external linking, plus the MITRE ATT&CK **Threat Actors** catalogue (`app/(app)/threat-intelligence/actors/`).
+- **Dashboard widget engine** (`lib/dashboards/*`, v2.16.0): Spec-driven custom dashboards. `spec.ts` defines the allowlisted grammar, `execute.ts` is the only component that turns a spec into Prisma calls (always under the viewer's RBAC scope), `plan.ts` converts natural language into a spec via the AI provider, and `access.ts` resolves view/edit rights. See [Custom Dashboards](#custom-dashboards--widget-engine-v2160).
 - **AI Assistant engine** (`lib/ai/*`): Optional tool-using chat for the Vulnerabilities page. `lib/ai/provider.ts` abstracts three OpenAI-compatible request shapes (Azure OpenAI, Azure AI Foundry, generic `/v1`) and adds a tool-calling round-trip; `lib/ai/chat.ts` orchestrates a bounded tool loop where the model calls `search_vulnerabilities` (RBAC-scoped, via `lib/ai/tools.ts` + `lib/ai/insights.ts`) to read findings and `get_latest_version` (`lib/ai/registry.ts`) to check public package registries. Finding data the caller can already see is shared with the model; configuration lives in the encrypted `AiConfig` table (falling back to `AI_*` env vars).
 - **Unified Risk Schema (Prisma)**: Relational datastore for Nessus, pentest, and ACR findings, plus global threats and user-specific intelligence subscriptions.
 - **Redis**: Job coordination via BullMQ, worker heartbeats, and temporary upload cache. Every BullMQ `Queue` / `Worker` opens its own connection via `lib/redis.ts#getBullmqConnection` (fixed in v2.7.1) with `keepAlive: 30_000` so idle-socket drops on managed Redis do not stall the queue.
@@ -50,6 +52,8 @@ A high-level view of Remediate components and interactions.
 8. **Notification**: The dispatcher matches new threats against user preferences (Risk level/CISA status) and sends scheduled email digests.
 9. **Analytics**: The UI queries aggregates to render dashboard metrics and the live intelligence feed.
 10. **AI Assistant (optional)**: A user chats with the assistant on the Vulnerabilities page. `POST /api/vulnerabilities/chat` runs a tool-using conversation: the model calls `search_vulnerabilities` (results scoped to the caller's group-visibility wall) to read findings and `get_latest_version` to check public package registries, then summarises and prioritises. The reply and the list of tools invoked are returned; the exchange is rate-limited and audited (`ai_insight_chat`).
+11. **Custom dashboards (v2.16.0)**: A widget stores a validated JSON *spec*. On render, `POST /api/dashboards/{id}/widgets/{widgetId}/data` re-executes that spec **as the requesting user** — filters from the spec are `AND`-ed with the caller's visibility wall, Prisma aggregates run, foreign keys resolve to display names, and the result is cached in Redis for 60s under `sha256(spec + viewer scope)`. Results are never persisted, which is what allows a dashboard to be published without leaking the author's data.
+12. **Adversary intelligence (v2.16.0)**: The worker fetches the MITRE ATT&CK Enterprise STIX bundle, projects `intrusion-set` objects into `ThreatActor` rows (tactics, technique counts and tooling resolved through `uses` relationships), and records the run in `ThreatFeedMetadata("MITRE_ATTACK")`.
 
 ## Scalability & Resiliency
 - Stateless `app` and `worker` images support horizontal scaling.
@@ -59,6 +63,7 @@ A high-level view of Remediate components and interactions.
 
 ## Security
 - **RBAC**: Enforced at the API level for sensitive admin and pentest tool routes. Role hierarchy prevents non-site-admins from escalating privileges. Last-admin protections use database transactions to prevent race conditions.
+- **Privilege tiers (v2.16.0)**: `requireSiteAdmin()` gates installation configuration, identity and audit surfaces (`site_admin` only); `requireAdmin()` gates workspace data (`site_admin` + `web_app_admin`). Enforced at the edge (`proxy.ts`), on the page, and in the route handler.
 - **Input Validation**: All API boundaries validate inputs with Zod schemas — status enums, UUID formats, content length limits, regex patterns, and page/limit caps.
 - **Inter-service Auth**: Communication with the pentest backend is secured with short-lived, signed JWTs using `AUTH_SECRET`.
 - **Encryption**: OIDC, SMTP, and Azure storage credentials are stored encrypted in Postgres using AES-256-GCM via `AUTH_SECRET`.
@@ -66,6 +71,7 @@ A high-level view of Remediate components and interactions.
 - **Rate Limiting**: Authenticated routes key on user identity; unauthenticated routes key on IP with header-spoofing mitigation.
 - **Privileged reversals**: Un-archiving a finding (`POST /api/vulnerabilities/{id}/restore`) is restricted to admins even though assignees and group leaders may archive, so the archive remains trustworthy as an audit surface. Both directions are audited (`vulnerability.archived` / `vulnerability.restored`).
 - **AI RBAC scoping**: The AI assistant reads finding data through a `search_vulnerabilities` tool whose results are always `AND`-combined with the same group-visibility wall used by `GET /api/vulnerabilities` (`visibilityWhere(isAdmin, memberOf)`), so the model can never surface rows the caller could not already see. The `get_latest_version` tool only reaches a fixed allow-list of public package registries (hard-coded hosts, validated package names) and cannot be steered to arbitrary URLs. Provider endpoint + API key are AES-256-GCM encrypted.
+- **No model-authored queries**: Both AI surfaces (vulnerability chat, dashboard widget planning) constrain the model to emitting a Zod-validated JSON spec that the server executes deterministically with Prisma. There is no text-to-SQL path in the codebase.
 
 ## Vulnerability Lifecycle
 - **Statuses**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `Sunset`, `Remediated`, `FalsePositive`, `NoFixAvailable`.
@@ -233,12 +239,66 @@ The weekly assignment dispatcher (`lib/assignment-notifications.ts`) executes tw
 1. **Individual digest** (existing) — each assignee receives a per-user summary of their own active items.
 2. **Leader digest** (new) — each group leader receives a per-group summary of every active item the group owns (open / in-progress / in-progress-with-CR), grouped by assignee with an "Unassigned" bucket. Each digest links to `/vulnerabilities?groupIds={groupId}` for one-click triage.
 
+## Navigation Shell (v2.16.0)
+The application chrome is an 88px icon rail flush to the viewport edge (`components/Sidebar.tsx`), with `MobileNav.tsx` mirroring the same grouping in a drawer below `lg`.
+
+- **Sections** are data-driven exports — `insightsNavItems`, `toolsNavItems` (Intelligence), `inventoryNavItems`, `automationNavItems`, `adminNavItems` — so the rail, the flyouts and the mobile drawer all render from one source. Adding a page means adding one entry.
+- **Flyout behaviour**: hover opens (with a 180ms grace period so the cursor can cross the gap), click **pins**. A pinned panel ignores outside clicks and survives navigation until explicitly closed; an unpinned one closes on mouse-leave, Escape or outside click.
+- **Visibility** is per-section and per-item: Insights is universal, Intelligence follows toolkit/auditor/workspace-admin roles, Inventory filters its own items (`access: "workspace" | "toolkit"`) so a toolkit-only user still sees the Tools entry, Automation is workspace-admin, Settings is site-admin.
+- **CSS caution**: `.glass-edge` in `app/globals.css` sets `position: relative`. Unlayered CSS beats Tailwind's `@layer utilities`, so a flyout must not combine `glass-edge` with `absolute` on the same element — positioning belongs on a wrapper.
+
+## Custom Dashboards & Widget Engine (v2.16.0)
+Users build personal dashboards, drag/resize widgets, and optionally publish them. The core invariant: **a widget stores its query, never its results.**
+
+### Pipeline
+```
+user input ─┐
+            ├─> WidgetSpec (JSON) ─> Zod strict allowlist ─> coherence check
+AI planner ─┘                                   │
+                                                ▼
+                        AND viewer's group-visibility wall
+                                                │
+                                                ▼
+                        Prisma aggregate (count | avgCvss | groupBy)
+                                                │
+                                                ▼
+                    label resolution ─> row cap ─> Redis cache (60s)
+                                                │
+                                                ▼
+                       { total, rows[], truncated } ─> WidgetRenderer
+```
+
+### Modules (`lib/dashboards/`)
+| File | Responsibility |
+| :--- | :--- |
+| `spec.ts` | `widgetSpecSchema` (strict), `widgetSchema`, `assertSpecIsCoherent()`, `MAX_WIDGET_ROWS`. The complete grammar of what a widget may ask for. |
+| `execute.ts` | The only spec → database path. Applies the visibility wall, runs Prisma aggregates, resolves FK labels, caches per `(spec, viewer scope)`. |
+| `plan.ts` | `planWidget()` — natural language → `{ title, viz, spec }` via `chatCompletion`, validated against the same allowlist. |
+| `access.ts` | `widgetContextFor()` (viewer RBAC context), `accessFor()` (view/edit), `loadDashboardForViewer()`. |
+
+### Data model
+- `Dashboard` — `ownerId`, `name`, `description`, `visibility` (`Private` \| `Published`).
+- `DashboardWidget` — `title`, `viz` (`stat` \| `bar` \| `donut` \| `line` \| `table`), `spec` (JSON), `x`/`y`/`w`/`h` on a 12-column grid.
+
+### Why results are not persisted
+Caching a widget's output on the row would freeze the data at creation time **and** break publishing: the author's numbers are computed under the author's group membership. Re-executing per viewer means two people can open the same published board and each correctly sees their own scope. The Redis key therefore includes the viewer's scope, not just the spec hash.
+
+### Limits
+24 widgets per dashboard · 50 rows per widget · 50 layout items per save · rate limiting on preview, plan, create and data endpoints.
+
+## MITRE ATT&CK Threat Actors (v2.16.0)
+`lib/threat-intelligence/actors.ts` fetches the ATT&CK Enterprise STIX bundle (~40MB, 120s timeout, fixed URL) and projects it into the `ThreatActor` table.
+
+- **Structured fields** come straight from ATT&CK: name, aliases, description, MITRE id/URL, `lastModified`, plus `tactics`, `techniqueCount` and `software` resolved by walking `relationship_type: "uses"` edges from each `intrusion-set` to `attack-pattern` (kill-chain phases) and `malware` / `tool` objects. `revoked` and `x_mitre_deprecated` objects are skipped.
+- **Derived fields** — `actorType`, `origin`, `targetSectors`, `targetRegions`, `targetTechnologies` — are keyword-matched against the group description because ATT&CK models no attribution. The parsing helpers (`classifyActorType`, `deriveAttribution`, `deriveTechnologies`) are exported and unit-tested, and every UI surface labels them as derived.
+- **Refresh**: `syncThreatActorsIfStale(maxAgeHours = 168)` on worker boot and on the scheduler tick; `POST /api/threat-intelligence/actors` for a manual run. State is tracked in `ThreatFeedMetadata("MITRE_ATTACK")`.
+
 ## Testing
-- **Unit Tests (Vitest)**: 95 test files, 385+ tests covering API routes, library modules, components, and integration scenarios. CI gates on 75% coverage threshold.
-- **E2E Tests (Playwright)**: 45 tests across 14 files using a multi-project setup:
+- **Unit Tests (Vitest)**: 130+ test files covering API routes, library modules (including the dashboard spec/executor and the ATT&CK parser), components, and integration scenarios. CI gates on 75% coverage threshold.
+- **E2E Tests (Playwright)**: 72 tests across 17 files using a multi-project setup:
   - `setup` — Authenticates via local credentials and saves session state.
   - `unauthenticated` — Tests login flow, RBAC redirects, health API, and 404 handling.
-  - `chromium` — Tests all authenticated pages (dashboard, vulnerabilities, uploads, buckets, analytics, threat intelligence, 9 admin pages, sidebar navigation) using stored session state.
+  - `chromium` — Tests all authenticated pages (command centre, vulnerabilities, uploads and their automation pages, buckets, analytics, threat intelligence + threat actors, dashboards, admin pages) plus rail navigation, flyout hover/pin behaviour, and the widget allowlist.
 - **CI/CD (GitHub Actions)**: Lint, unit tests (Postgres + Redis services), integration tests, E2E (Playwright with DB schema push + seed data), Docker build, and CodeQL security scanning.
 
 ## Key File Locations
@@ -247,6 +307,11 @@ The weekly assignment dispatcher (`lib/assignment-notifications.ts`) executes tw
 - **ACR blob automation**: `lib/azure-blob-ingest.ts`, `lib/azure-blob-ingest-scheduler.ts`, `app/api/admin/azure-blob-ingest/`, `app/(app)/admin/azure-blob-ingest/`
 - **Group RBAC**: `lib/group-rbac.ts`, `app/api/groups/`, `app/(app)/admin/groups/`, `prisma/migrations/20260610120000_add_groups/`
 - **Threat Intelligence**: `lib/threat-intelligence/`, `app/api/threat-intelligence/`, `app/(app)/threat-intelligence/`
+- **Threat actors (ATT&CK)**: `lib/threat-intelligence/actors.ts`, `app/api/threat-intelligence/actors/`, `app/(app)/threat-intelligence/actors/`, `prisma/migrations/20260813150000_threat_actors/`
+- **Custom dashboards**: `lib/dashboards/`, `app/api/dashboards/`, `app/(app)/dashboards/`, `components/dashboards/`, `prisma/migrations/20260813190000_dashboards/`
+- **Navigation shell**: `components/Sidebar.tsx`, `components/MobileNav.tsx`
+- **Security score**: `lib/security-score.ts`, `components/SecurityScoreCard.tsx`
+- **Privilege tiers**: `lib/rbac.ts` (`requireAdmin`, `requireSiteAdmin`, `checkSiteAdmin`), `proxy.ts`
 - **Background Workers**: `lib/ingest.ts`, `lib/queue.ts`, `lib/threat-intelligence/worker.ts`, `lib/pentest-pdf.ts`, `scripts/worker.ts`
 - **PDF Processing**: `lib/pentest-pdf.ts` (ingestion pipeline), `lib/pentest-pdf-builtin.ts` (in-process Trustmarque CHECK parser), `app/api/uploads/pentest/` (operator upload)
 - **Azure File Share automation**: `lib/azure-file-share.ts`, `lib/azure-file-share-scheduler.ts`, `app/api/admin/azure-file-share/`

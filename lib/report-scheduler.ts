@@ -3,6 +3,7 @@ import { getReportConfig, type ReportSettings } from "@/lib/reports";
 import { getWeeklyCriticalHighSummary } from "@/lib/report-analytics";
 import { sendReportEmail, renderEmailLayout } from "@/lib/email";
 import { syncAllThreats } from "./threat-intelligence/worker";
+import { syncThreatActorsIfStale } from "./threat-intelligence/actors";
 import { dispatchDailyThreatDigest } from "./threat-intelligence/dispatcher";
 import { dispatchWeeklyAssignmentEmails } from "./assignment-notifications";
 
@@ -65,10 +66,28 @@ function isTimeToSend(config: { dayOfWeek: number; hour: number; minute: number;
   return true;
 }
 
+async function runThreatActorSync() {
+  try {
+    await syncThreatActorsIfStale();
+  } catch (err) {
+    console.error("Threat actor sync failed:", err);
+  }
+}
+
 export function startReportScheduler() {
   void runStartupThreatSync();
+  void runThreatActorSync();
 
   setInterval(async () => {
+    // Threat feeds run regardless of the reporting toggle: the intelligence is
+    // needed whether or not scheduled email reports are configured.
+    try {
+      await handleDailyThreatIntelligence();
+      await runThreatActorSync();
+    } catch (err) {
+      console.error("Threat intelligence scheduler error:", err);
+    }
+
     try {
       const config = await getReportConfig(true);
       if (!config || !config.enabled) {
@@ -95,8 +114,6 @@ export function startReportScheduler() {
               await dispatchWeeklyAssignmentEmails();
           }
       }
-
-      await handleDailyThreatIntelligence();
     } catch (err) {
       console.error("Scheduler error:", err);
     }
@@ -196,6 +213,11 @@ async function handleDailyThreatIntelligence() {
     const hour = now.getUTCHours();
     const minute = now.getUTCMinutes();
 
+    // Hourly delta sync at :45 — runs even when no report config exists.
+    if (minute === 45) {
+        await syncAllThreats(3);
+    }
+
     const config = await prisma.reportConfig.findFirst();
     if (!config) return;
 
@@ -238,10 +260,5 @@ async function handleDailyThreatIntelligence() {
                 await dispatchDailyThreatDigest(user);
             }
         }
-    }
-
-    // 3. Hourly Delta Sync at :45 of every hour
-    if (minute === 45) {
-        await syncAllThreats(3);
     }
 }

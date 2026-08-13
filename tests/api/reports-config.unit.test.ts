@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../../lib/rbac", () => ({
-  requireAdmin: vi.fn(),
-}));
+vi.mock("../../lib/rbac", () => {
+  const guard = vi.fn();
+  return { requireAdmin: guard, requireSiteAdmin: guard };
+});
 vi.mock("../../lib/reports", () => ({
   getReportConfig: vi.fn(),
   upsertReportConfig: vi.fn(),
