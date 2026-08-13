@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
-    "@azure/storage-blob": "^12.26.0",
+    "@azure/storage-blob": "^12.33.0",
     "@azure/storage-file-share": "^12.26.0",
     "@prisma/client": "^6.19.2",
     "bullmq": "^5.76.8",
