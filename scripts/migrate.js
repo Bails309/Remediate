@@ -1,13 +1,25 @@
 ; (async () => {
-  const { execSync } = require("child_process");
+  const { execFileSync } = require("child_process");
   const path = require("path");
-  const fs = require("fs");
 
-  // Resolve the prisma CLI from node_modules rather than shelling out to npx:
-  // npm is not installed in the runtime image. Falls back to `npx prisma` for
-  // local development, where this script may run outside the container.
-  const localPrisma = path.join(__dirname, "..", "node_modules", ".bin", "prisma");
-  const PRISMA = fs.existsSync(localPrisma) ? JSON.stringify(localPrisma) : "npx prisma";
+  // Run the Prisma CLI as a node script rather than through a shell.
+  //
+  // execFileSync with an argument array never invokes /bin/sh, so nothing here
+  // can be reinterpreted as a command regardless of what the install path
+  // contains. Resolving the CLI's JS entry point (rather than node_modules/.bin)
+  // also keeps this working on Windows, where the .bin shim is a .cmd that
+  // modern Node refuses to spawn without shell: true.
+  //
+  // npx is deliberately not used: npm is not installed in the runtime image.
+  const prismaPkg = require.resolve("prisma/package.json");
+  const prismaBin = require("prisma/package.json").bin;
+  const prismaEntry = path.join(
+    path.dirname(prismaPkg),
+    typeof prismaBin === "string" ? prismaBin : prismaBin.prisma,
+  );
+
+  const runPrisma = (...args) =>
+    execFileSync(process.execPath, [prismaEntry, ...args], { stdio: "inherit" });
 
   let PrismaClient;
   try {
@@ -110,10 +122,10 @@
         await checkAndFixMigrations(prisma);
 
         console.log("[Migrate] Triggering Prisma Migrate Deploy...");
-        execSync(`${PRISMA} migrate deploy`, { stdio: "inherit" });
+        runPrisma("migrate", "deploy");
 
         console.log("[Migrate] Regenerating Prisma Client...");
-        execSync(`${PRISMA} generate`, { stdio: "inherit" });
+        runPrisma("generate");
 
         console.log("[Migrate] Database and Prisma Client are now up to date.");
       } finally {
