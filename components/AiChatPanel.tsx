@@ -28,6 +28,7 @@ const FOCUS_SUGGESTIONS = [
   "What are the exact steps to remediate this?",
   "Is there a newer, fixed version of the affected package?",
   "How urgent is this compared to a typical finding?",
+  "Generate a ticket to an external supplier.",
 ];
 
 type Focus = { id: string; title: string; subtitle?: string };

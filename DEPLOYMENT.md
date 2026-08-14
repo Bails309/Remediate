@@ -2,9 +2,11 @@
 
 This document summarizes recommended deployment patterns for Remediate.
 
-> **Targeted release**: `v2.16.1` (2026-08-13). The runtime is **Node.js 24 LTS** (the `Dockerfile` builds `FROM node:lts-slim`, which currently resolves to 24.x), Next.js `^16.2.11`, BullMQ `^6.0.10`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
+> **Targeted release**: `v2.16.2` (2026-08-14). The runtime is **Node.js 24 LTS** (the `Dockerfile` builds `FROM node:lts-slim`, which currently resolves to 24.x), Next.js `^16.2.11`, BullMQ `^6.0.10`, Prisma `^6.19.2`, and PostgreSQL 14+. Always rebuild the container image after a `package.json` change so the lockfile-resolved versions ship together.
 >
 > ⚠️ **`node:lts-slim` is a floating tag.** A new Node LTS moves your runtime a whole major version on the next image build with no change to this repository — that is how the images went from Node 20 to Node 24. CI now pins `node-version: '24'` to match, but the two can silently diverge again. Consider pinning the Dockerfile to `node:24-slim`; Dependabot is configured for Docker and will raise the upgrade as a reviewable PR.
+>
+> **v2.16.2 upgrade notes**: no migration and no configuration change. The release adds a suggested prompt to the per-finding AI assistant; if the AI feature is disabled, nothing changes.
 >
 > **v2.16.1 upgrade notes**:
 > - **Migrations** (two, both additive or behaviour-preserving):

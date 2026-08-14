@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.16.1` (2026-08-13). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.16.2` (2026-08-14). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 

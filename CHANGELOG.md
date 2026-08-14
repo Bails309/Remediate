@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The project fol
 
 > **Sections used**: `Added`, `Changed`, `Fixed`, `Security`, `Removed`, `Deprecated`, plus two project-specific sections — `Documentation` (doc-only changes shipped with a release) and `Note` (operator guidance, deployment caveats, and post-release confirmation of a diagnosis). Dates are ISO-8601 (`YYYY-MM-DD`). Version numbers correspond to the value in `package.json` and the `APP_VERSION` build argument surfaced on `/admin/health`.
 
+## [2.16.2] - 2026-08-14
+### Added
+- **"Generate a ticket to an external supplier" is now a one-click prompt in the per-finding assistant.** Findings in bought-in software, appliances and vendor-managed images are remediated by someone who has no account on this system, so the detail had to be reassembled by hand — copying the CVE from one field, the affected version from another, the description from a third — and what reached the vendor was whatever the person remembered to include. The suggestion sits alongside the four existing focused prompts in [`components/AiChatPanel.tsx`](components/AiChatPanel.tsx).
+  - [`lib/ai/chat.ts`](lib/ai/chat.ts) — the focused-finding system prompt now specifies the shape of that reply: subject line, plain-English impact summary, affected component (package/version, host or image, originating scanner), severity with CVSS and internet-facing status, restated technical detail, and a requested action that asks the supplier for confirmation of affected status, a remediation plan and a target date.
+  - The output is deliberately **self-contained**: no internal finding id, no product name, no dashboard link, so it can be pasted into an email or a vendor portal without leaking how the finding was discovered or inviting a reply that references a system the recipient cannot reach.
+  - The existing grounding rule still applies — any line the model has no data for is omitted rather than filled in, so an absent CVSS or synopsis produces a shorter ticket, never an invented one.
+- **"What's New" rolled forward to `whats-new-aug-2026-v2162`**, leading with the supplier ticket. The new id was added to `VALID_TOURS` in [`app/api/tours/complete/route.ts`](app/api/tours/complete/route.ts) at the same time — omitting it is what made the v2.9.0 card reappear on every refresh (the dismissal POST is rejected with `400 Invalid tourId`). The card's sub-heading was also stale: it still described the archived-finding restore from an earlier release rather than the features listed beneath it.
+
 ## [2.16.1] - 2026-08-13
 ### Added
 - **The AI assistant can be given a name.** Site admins set it under **Settings → AI Insights**; it appears on the launcher, in the chat header, on the per-finding launcher in the Vulnerability Details sheet, and in the assistant's own system prompt so it introduces itself correctly. Blank uses the product default of *Ask AI*.

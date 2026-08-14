@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.16.1 (2026-08-13)</p>
+  <p><strong>Version:</strong> 2.16.2 (2026-08-14)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -435,6 +435,9 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 ## Release notes
 
 > [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.16.2] - 2026-08-14
+- **Ask the assistant to "Generate a ticket to an external supplier"** from any finding. Produces a self-contained write-up — subject, plain-English impact, affected package/version/host, severity and CVSS, technical detail, and a requested action — with no internal ids or links, so it can be emailed or pasted into a vendor portal for a third party with no access to this system.
 
 ### [2.16.1] - 2026-08-13
 - **The AI assistant can be given a name.** Set it under **Settings → AI Insights** (or `AI_ASSISTANT_NAME`); it appears on the launcher, in the chat header and in the assistant's own system prompt so it introduces itself correctly. Blank uses the default of *Ask AI*. The value reaches the model's system message, so whitespace is collapsed and the length capped at 40 characters.

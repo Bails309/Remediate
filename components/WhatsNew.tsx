@@ -3,11 +3,19 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, LayoutDashboard, Users, Compass, ShieldCheck } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, Compass, ShieldCheck, Mail } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2161";
+const TOUR_ID = "whats-new-aug-2026-v2162";
 
 const features = [
+  {
+    icon: Mail,
+    accent: "text-rose-500 dark:text-rose-400",
+    bg: "bg-rose-100 dark:bg-rose-500/15",
+    title: "Raise A Ticket With Your Supplier",
+    description:
+      "Open any finding, ask the assistant to generate a ticket for an external supplier, and you get a ready-to-send write-up — the impact in plain English, the affected package, version and host, the severity, and what you need the vendor to come back with. Nothing internal is included, so it can go straight into an email or a vendor portal.",
+  },
   {
     icon: LayoutDashboard,
     accent: "text-cyan-500 dark:text-cyan-400",
@@ -90,9 +98,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.1</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.2</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Bring an archived finding back into the active queue as Open — with its owner, group and scan details intact. Admin-only and fully audited.
+            Hand a vulnerability to a third party without rekeying it — plus your own dashboards, the MITRE ATT&amp;CK actor catalogue, and a named AI assistant.
           </p>
         </div>
 

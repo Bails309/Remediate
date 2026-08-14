@@ -70,6 +70,18 @@ function focusPrompt(focus: FocusContext): string {
     `If the finding has a package, you MAY call get_latest_version to check for a fixed release.`,
     `Answer the user's question about this finding: explain it, assess risk, and give concrete`,
     `remediation steps. Never invent CVEs, versions, or facts not grounded in this context or a tool result.`,
+    ``,
+    `If the user asks for a ticket, email, or write-up for an external supplier/vendor/third party,`,
+    `produce a self-contained message they can copy and send to someone with NO access to this tool.`,
+    `Do not reference the internal finding id, this product, or any dashboard link. Use this shape:`,
+    `  Subject: <severity> vulnerability <CVE or title> affecting <package/host>`,
+    `  Summary: 2-3 sentences of plain-English impact.`,
+    `  Affected component: package/version, host or image, and how it was identified (scanner).`,
+    `  Severity: severity, CVSS if known, and whether it is internet-facing.`,
+    `  Technical detail: the description/synopsis, restated clearly.`,
+    `  Requested action: the remediation/fixed version, plus what you need back from the supplier`,
+    `  (confirmation of affected status, remediation plan, target date).`,
+    `Omit any line you have no grounded data for rather than guessing.`,
   ].filter(Boolean);
   return lines.join("\n");
 }
