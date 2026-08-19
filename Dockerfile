@@ -5,14 +5,16 @@ ARG APP_VERSION=1.8.1
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
+# `npm ci` (not `npm install`) so the image resolves exactly the tree that the
+# dependency-audit gate approved; `npm install` is free to pick newer versions.
+RUN npm ci --legacy-peer-deps
 
 FROM node:lts-slim AS dev
 ARG APP_VERSION=1.8.1
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl
 COPY package.json package-lock.json* ./
-RUN npm install --include=dev --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
@@ -42,7 +44,7 @@ WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-RUN npm install --omit=dev --legacy-peer-deps \
+RUN npm ci --omit=dev --legacy-peer-deps \
   && npx prisma generate \
   && npm cache clean --force
 
