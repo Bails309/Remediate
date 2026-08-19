@@ -11,6 +11,7 @@ import { toast } from "@/lib/toast";
 import type { Session } from "next-auth";
 import { SideSheet } from "@/components/SideSheet";
 import { AiChatPanel } from "@/components/AiChatPanel";
+import { RemediationPlanPanel } from "@/components/RemediationPlanPanel";
 import { ClientDate } from "@/components/ClientDate";
 import { cn } from "@/components/cn";
 import { AlertTriangle, ChevronDown, ChevronRight, Globe, MessageSquare, Sparkles } from "lucide-react";
@@ -1622,12 +1623,22 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             >
               <Sparkles size={16} className="shrink-0" />
               <span className="min-w-0">
-                {`${aiName} about this finding`}
+                {`${/^ask\b/i.test(aiName) ? aiName : `Ask ${aiName}`} about this finding`}
                 <span className="block text-[11px] font-normal opacity-70">
                   Explain the risk, get remediation steps, or check for a newer package version.
                 </span>
               </span>
             </button>
+          )}
+          {aiAvailable && detail && !detailIsArchived && (
+            <RemediationPlanPanel
+              key={detail.id}
+              vulnerabilityId={detail.id}
+              findingTitle={detail.cve ? `${detail.cve} — ${detail.name}` : detail.name}
+              canGenerate={canEditDetail}
+              gateReason="Only the assignee, a leader of the owning group, or an administrator can generate a remediation plan. Take ownership of this finding first."
+              assistantName={aiName}
+            />
           )}
           {detail && isInternetFacing(detail.pluginId) && (
             <div className="flex items-center gap-2 rounded-2xl border border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs font-semibold text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">

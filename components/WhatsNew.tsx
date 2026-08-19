@@ -3,11 +3,19 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, LayoutDashboard, Users, Compass, ShieldCheck, Mail } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, Compass, Mail, Wrench } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2162";
+const TOUR_ID = "whats-new-aug-2026-v2170";
 
 const features = [
+  {
+    icon: Wrench,
+    accent: "text-cyan-500 dark:text-cyan-400",
+    bg: "bg-cyan-100 dark:bg-cyan-500/15",
+    title: "Get A Whole Remediation Package, Not Just Advice",
+    description:
+      "Open a finding you own and press Generate. You get the plan to fix it, a change request written out in full \u2014 justification, affected systems, implementation steps, risk, service impact and scheduling \u2014 a rollback with the point at which you should abort, the checks that prove the fix worked, and the evidence to keep. Copy it or download it as Markdown. Only the assignee, the group leader or an admin can generate it, and it only ever reads the finding you have open.",
+  },
   {
     icon: Mail,
     accent: "text-rose-500 dark:text-rose-400",
@@ -39,14 +47,6 @@ const features = [
     title: "Know Your Adversaries",
     description:
       "Intelligence → Threat Actors adds the full MITRE ATT&CK catalogue: 170+ groups with their tactics, tooling, attributed origin and who they target, refreshed automatically. The command centre also gains a Security Score showing your severity-weighted remediation posture at a glance.",
-  },
-  {
-    icon: ShieldCheck,
-    accent: "text-amber-500 dark:text-amber-400",
-    bg: "bg-amber-100 dark:bg-amber-500/15",
-    title: "A Faster Menu, And Tighter Roles",
-    description:
-      "The sidebar is now a slim rail with hover-out menus you can pin open, grouped into Insights, Intelligence, Inventory, Automation and Settings. Workspace Admins now own their workspace — dashboards, findings, inventory and automation — while site configuration, users and audit logs stay with Site Admins.",
   },
   {
     icon: Sparkles,
@@ -98,9 +98,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.16.2</h2>
+          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.17.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Hand a vulnerability to a third party without rekeying it — plus your own dashboards, the MITRE ATT&amp;CK actor catalogue, and a named AI assistant.
+            Turn a finding into a plan, a change request, a rollback and the evidence to close it out — plus supplier tickets, your own dashboards and the MITRE ATT&amp;CK actor catalogue.
           </p>
         </div>
 

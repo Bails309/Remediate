@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.16.2 (2026-08-14)</p>
+  <p><strong>Version:</strong> 2.17.0 (2026-08-19)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -435,6 +435,9 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 ## Release notes
 
 > [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.17.0] - 2026-08-19
+- **Generate a remediation package for a finding you own.** The Vulnerability Details sheet drafts an ordered remediation plan, a structured change-request record (type, justification, affected systems, implementation steps, risk if not applied, risk of change, service impact, scheduling), a rollback with its abort trigger, post-change validation checks with expected results, and the evidence to capture as proof — copyable or downloadable as Markdown. Restricted to the assignee, a leader of the owning group, or an admin, and generated from that one finding only: the model is given no tools, so no other issue's data can enter the answer. Nothing is stored.
 
 ### [2.16.2] - 2026-08-14
 - **Ask the assistant to "Generate a ticket to an external supplier"** from any finding. Produces a self-contained write-up — subject, plain-English impact, affected package/version/host, severity and CVSS, technical detail, and a requested action — with no internal ids or links, so it can be emailed or pasted into a vendor portal for a third party with no access to this system.
