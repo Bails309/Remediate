@@ -68,10 +68,8 @@ export function LiveProgressDisplay({
         if (prevStepRef.current === progress.step) return;
         prevStepRef.current = progress.step;
         const ts = Date.now();
-        /* eslint-disable react-hooks/set-state-in-effect */
         setStepStartedAt(ts);
         setNow(ts);
-        /* eslint-enable react-hooks/set-state-in-effect */
     }, [progress.step]);
 
     // 1s heartbeat for the elapsed counter — only while still in progress.

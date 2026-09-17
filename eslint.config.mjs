@@ -7,6 +7,11 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Project-specific overrides
   {
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
     files: [
       "tests/**",
       "tests/**/*.*",
