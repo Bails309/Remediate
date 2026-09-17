@@ -74,4 +74,30 @@ describe("export-pdf generator", () => {
     expect(pdfBuffer).toBeInstanceOf(Buffer);
     expect(pdfBuffer.subarray(0, 5).toString("ascii")).toBe("%PDF-");
   });
+
+  it("does not generate trailing blank pages on multi-page exports", async () => {
+    // Generate 30 findings to span across multiple pages
+    const manyItems = Array.from({ length: 30 }, (_, idx) => ({
+      ...sampleItems[0],
+      id: `vuln-${idx}`,
+      name: `Vulnerability Finding ${idx + 1}`,
+    }));
+
+    const pdfBuffer = await generateVulnerabilitiesPdf(manyItems, {
+      bucketName: "Production Cluster",
+    });
+
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(pdfBuffer) });
+    const result = await parser.getText();
+    await parser.destroy();
+
+    // With 30 items (each ~90pt, ~6-7 per page), it should be ~4-5 pages, definitely not doubled or tripled
+    expect(result.total).toBeGreaterThanOrEqual(3);
+    expect(result.total).toBeLessThanOrEqual(6);
+
+    // Verify footer text was embedded
+    expect(result.text).toContain("Remediate Vulnerability Management — Confidential");
+    expect(result.text).toContain(`Page ${result.total} of ${result.total}`);
+  });
 });

@@ -85,7 +85,7 @@ export function generateVulnerabilitiesPdf(
         const item = items[i];
 
         // Ensure enough space on the page for this finding (approx 90-120pt)
-        if (doc.y > 680) {
+        if (doc.y > 660) {
           doc.addPage();
         }
 
@@ -107,7 +107,7 @@ export function generateVulnerabilitiesPdf(
           `Service / Port: ${item.port}${item.protocol ? ` (${item.protocol})` : ""}`,
           item.cve ? `CVE: ${item.cve}` : null,
           item.cvssScore ? `CVSS: ${item.cvssScore}` : null,
-          `Status: ${item.status}`,
+          item.status ? `Status: ${item.status}` : null,
           item.assignee?.name ? `Assignee: ${item.assignee.name}` : null,
         ]
           .filter(Boolean)
@@ -134,17 +134,25 @@ export function generateVulnerabilitiesPdf(
 
       // Add page numbers and footer across all buffered pages
       const pages = doc.bufferedPageRange();
-      for (let i = 0; i < pages.count; i++) {
+      const totalPages = pages.count;
+      for (let i = 0; i < totalPages; i++) {
         doc.switchToPage(i);
-        doc.strokeColor("#cbd5e1").lineWidth(0.5).moveTo(40, doc.page.height - 35).lineTo(pageWidth - 40, doc.page.height - 35).stroke();
+        // Temporarily reset bottom margin so footer text placed below normal margins
+        // does not trigger PDFKit automatic page breaks (which previously created trailing empty pages)
+        doc.page.margins.bottom = 0;
+
+        const footerLineY = doc.page.height - 35;
+        const footerTextY = doc.page.height - 25;
+
+        doc.strokeColor("#cbd5e1").lineWidth(0.5).moveTo(40, footerLineY).lineTo(pageWidth - 40, footerLineY).stroke();
 
         doc.font("Helvetica").fontSize(8).fillColor("#94a3b8");
-        doc.text("Remediate Vulnerability Management — Confidential", 40, doc.page.height - 28);
+        doc.text("Remediate Vulnerability Management — Confidential", 40, footerTextY, { lineBreak: false });
         doc.text(
-          `Page ${i + 1} of ${pages.count}`,
-          pageWidth - 100,
-          doc.page.height - 28,
-          { width: 60, align: "right" }
+          `Page ${i + 1} of ${totalPages}`,
+          pageWidth - 140,
+          footerTextY,
+          { width: 100, align: "right", lineBreak: false }
         );
       }
 
