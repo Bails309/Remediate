@@ -50,7 +50,7 @@
     "react-hook-form": "^7.86.0",
     "recharts": "^3.10.1",
     "sharp": "^0.35.4",
-    "shepherd.js": "^15.2.3",
+    "shepherd.js": "^15.3.0",
     "simple-icons": "^16.28.0",
     "tailwind-merge": "^3.6.0",
     "tsx": "^4.23.12",
