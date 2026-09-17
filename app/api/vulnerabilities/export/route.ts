@@ -4,7 +4,11 @@ import { requireUser, WEB_APP_ADMIN_ROLES } from "@/lib/rbac";
 import { getGroupContext } from "@/lib/group-rbac";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { Risk, VulnerabilityStatus } from "@prisma/client";
-import { serializeVulnerabilitiesToCsv, serializeVulnerabilitiesToJson } from "@/lib/export-csv";
+import {
+  serializeVulnerabilitiesToCsv,
+  serializeVulnerabilitiesToJson,
+  sortVulnerabilitiesForExport,
+} from "@/lib/export-csv";
 import { generateVulnerabilitiesPdf } from "@/lib/export-pdf";
 
 export const dynamic = "force-dynamic";
@@ -166,6 +170,8 @@ export async function GET(request: NextRequest) {
       orderBy: [{ risk: "asc" }, { lastSeenAt: "desc" }],
     });
 
+    const sortedItems = sortVulnerabilitiesForExport(items);
+
     const dateStr = new Date().toISOString().split("T")[0];
     const sanitizedSiteName = siteName ? siteName.toLowerCase().replace(/[^a-z0-9_-]/g, "-") : null;
     const baseFilename = sanitizedSiteName
@@ -173,7 +179,7 @@ export async function GET(request: NextRequest) {
       : `remediate-outstanding-vulnerabilities-${dateStr}`;
 
     if (format === "pdf") {
-      const pdfBuffer = await generateVulnerabilitiesPdf(items, {
+      const pdfBuffer = await generateVulnerabilitiesPdf(sortedItems, {
         bucketName: siteName,
         filters: {
           siteId,
@@ -194,7 +200,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (format === "json") {
-      const jsonContent = serializeVulnerabilitiesToJson(items, {
+      const jsonContent = serializeVulnerabilitiesToJson(sortedItems, {
         bucketName: siteName,
         filters: {
           siteId,
@@ -215,7 +221,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: CSV format
-    const csvContent = serializeVulnerabilitiesToCsv(items);
+    const csvContent = serializeVulnerabilitiesToCsv(sortedItems);
     return new NextResponse(csvContent, {
       status: 200,
       headers: {

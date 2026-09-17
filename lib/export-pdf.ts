@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import { VulnerabilityExportItem } from "@/lib/export-csv";
+import { VulnerabilityExportItem, sortVulnerabilitiesForExport } from "@/lib/export-csv";
 
 const SEVERITY_COLORS: Record<string, string> = {
   Critical: "#b91c1c", // red-700
@@ -18,6 +18,8 @@ export function generateVulnerabilitiesPdf(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
+      const sortedItems = sortVulnerabilitiesForExport(items);
+
       const doc = new PDFDocument({
         size: "A4",
         margin: 40,
@@ -48,7 +50,7 @@ export function generateVulnerabilitiesPdf(
 
       // Executive Summary Metrics Box
       const counts = { Critical: 0, High: 0, Medium: 0, Low: 0, None: 0 };
-      for (const item of items) {
+      for (const item of sortedItems) {
         const r = item.risk in counts ? (item.risk as keyof typeof counts) : "None";
         counts[r]++;
       }
@@ -57,7 +59,7 @@ export function generateVulnerabilitiesPdf(
       const summaryY = doc.y + 10;
 
       doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(10);
-      doc.text(`Total Findings: ${items.length}`, 54, summaryY);
+      doc.text(`Total Findings: ${sortedItems.length}`, 54, summaryY);
 
       doc.font("Helvetica").fontSize(9);
       const metricsText = [
@@ -76,13 +78,13 @@ export function generateVulnerabilitiesPdf(
       doc.text("Outstanding Findings", 40, doc.y);
       doc.y += 15;
 
-      if (items.length === 0) {
+      if (sortedItems.length === 0) {
         doc.font("Helvetica-Oblique").fontSize(10).fillColor("#64748b");
         doc.text("No outstanding vulnerabilities found for the selected criteria.", 40, doc.y);
       }
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+      for (let i = 0; i < sortedItems.length; i++) {
+        const item = sortedItems[i];
 
         // Ensure enough space on the page for this finding (approx 90-120pt)
         if (doc.y > 660) {

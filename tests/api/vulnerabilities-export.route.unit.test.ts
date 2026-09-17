@@ -134,13 +134,19 @@ describe("vulnerabilities export route", () => {
     expect(json.bucket).toBe("Production");
     expect(json.report).toBe("Production");
     expect(json.vulnerabilities).toHaveLength(2);
-    expect(json.vulnerabilities[0].name).toBe("OpenSSH Vulnerability");
-    expect(json.vulnerabilities[0].title).toBe("OpenSSH Vulnerability");
-    expect(json.vulnerabilities[0].severity).toBe("High");
-    expect(json.vulnerabilities[0].service).toBe("22");
-    expect(json.vulnerabilities[0].briefDescription).toBe("OpenSSH flaw");
-    expect(json.vulnerabilities[0].assignee.name).toBe("Alice Security");
-    expect(json.vulnerabilities[0].group.name).toBe("SecOps");
+    // Findings are sorted by severity level first: Critical before High
+    expect(json.vulnerabilities[0].name).toBe("=cmd|' /C calc'!A0 Formula Injection Test");
+    expect(json.vulnerabilities[0].severity).toBe("Critical");
+    expect(json.vulnerabilities[0].service).toBe("443");
+    expect(json.vulnerabilities[0].briefDescription).toBe("Critical Web Flaw");
+
+    expect(json.vulnerabilities[1].name).toBe("OpenSSH Vulnerability");
+    expect(json.vulnerabilities[1].title).toBe("OpenSSH Vulnerability");
+    expect(json.vulnerabilities[1].severity).toBe("High");
+    expect(json.vulnerabilities[1].service).toBe("22");
+    expect(json.vulnerabilities[1].briefDescription).toBe("OpenSSH flaw");
+    expect(json.vulnerabilities[1].assignee.name).toBe("Alice Security");
+    expect(json.vulnerabilities[1].group.name).toBe("SecOps");
   });
 
   it("exports PDF when format=pdf parameter is provided", async () => {

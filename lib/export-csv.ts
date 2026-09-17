@@ -75,10 +75,113 @@ export const CSV_COLUMNS = [
   "Last Seen",
 ] as const;
 
+const RISK_ORDER: Record<string, number> = {
+  critical: 1,
+  high: 2,
+  medium: 3,
+  low: 4,
+  none: 5,
+};
+
+export function getRiskRank(risk: string): number {
+  return RISK_ORDER[(risk || "").toLowerCase()] ?? 99;
+}
+
+export function getRiskCanonical(risk: string): string {
+  const lower = (risk || "").toLowerCase();
+  if (lower === "critical") return "Critical";
+  if (lower === "high") return "High";
+  if (lower === "medium") return "Medium";
+  if (lower === "low") return "Low";
+  return "None";
+}
+
+/**
+ * Sorts vulnerabilities for export according to operational hierarchy:
+ * 1. Severity Level (Critical -> High -> Medium -> Low -> None/Info)
+ * 2. Grouped by VM / Host within each severity tier
+ * 3. Ranked by finding count per VM in that tier descending (worst offending VM first)
+ * 4. Alphabetical by VM name (for stable grouping)
+ * 5. Within each VM: CVSS score descending, then Title / Name alphabetical
+ */
+export function sortVulnerabilitiesForExport<
+  T extends {
+    risk: string;
+    host: string;
+    name?: string;
+    cvssScore?: number | null;
+    id?: string;
+  }
+>(items: T[]): T[] {
+  if (!items || items.length <= 1) {
+    return items ? [...items] : [];
+  }
+
+  // Precompute finding counts per host within each severity tier
+  const countsPerTierAndHost = new Map<string, number>();
+  for (const item of items) {
+    const risk = getRiskCanonical(item.risk);
+    const hostKey = (item.host || "Unknown").trim().toLowerCase();
+    const key = `${risk}:${hostKey}`;
+    countsPerTierAndHost.set(key, (countsPerTierAndHost.get(key) || 0) + 1);
+  }
+
+  return [...items].sort((a, b) => {
+    // 1. Severity level (Critical first)
+    const rankA = getRiskRank(a.risk);
+    const rankB = getRiskRank(b.risk);
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+
+    // 2. VM finding count within this severity tier (worst offending higher up -> descending)
+    const riskA = getRiskCanonical(a.risk);
+    const hostKeyA = (a.host || "Unknown").trim().toLowerCase();
+    const hostKeyB = (b.host || "Unknown").trim().toLowerCase();
+    const countA = countsPerTierAndHost.get(`${riskA}:${hostKeyA}`) || 0;
+    const countB = countsPerTierAndHost.get(`${riskA}:${hostKeyB}`) || 0;
+
+    if (countB !== countA) {
+      return countB - countA;
+    }
+
+    // 3. VM name alphabetical (for consistent grouping of identical count VMs)
+    const hostCmp = (a.host || "").localeCompare(b.host || "", undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (hostCmp !== 0) {
+      return hostCmp;
+    }
+
+    // 4. Within the same VM: CVSS score descending (highest CVSS first)
+    const cvssA = typeof a.cvssScore === "number" ? a.cvssScore : -1;
+    const cvssB = typeof b.cvssScore === "number" ? b.cvssScore : -1;
+    if (cvssB !== cvssA) {
+      return cvssB - cvssA;
+    }
+
+    // 5. Title / Name alphabetical
+    const nameA = a.name || "";
+    const nameB = b.name || "";
+    const nameCmp = nameA.localeCompare(nameB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+
+    // 6. Tie-breaker ID if available
+    return (a.id || "").localeCompare(b.id || "");
+  });
+}
+
 export function serializeVulnerabilitiesToCsv(items: VulnerabilityExportItem[]): string {
+  const sorted = sortVulnerabilitiesForExport(items);
   const headerRow = CSV_COLUMNS.map(sanitizeAndEscapeCsvCell).join(",");
 
-  const rows = items.map((item) => {
+  const rows = sorted.map((item) => {
     const briefDesc = item.synopsis || (item.description ? item.description.slice(0, 300) : "");
 
     const values = [
@@ -120,12 +223,13 @@ export function serializeVulnerabilitiesToJson(
     filters?: Record<string, unknown>;
   }
 ): string {
+  const sorted = sortVulnerabilitiesForExport(items);
   const payload = {
     exportedAt: new Date().toISOString(),
-    total: items.length,
+    total: sorted.length,
     ...(metadata?.bucketName ? { bucket: metadata.bucketName, report: metadata.bucketName } : {}),
     ...(metadata?.filters ? { filters: metadata.filters } : {}),
-    vulnerabilities: items.map((item) => ({
+    vulnerabilities: sorted.map((item) => ({
       id: item.id,
       report: item.site?.name ?? null,
       bucket: item.site?.name ?? null,
