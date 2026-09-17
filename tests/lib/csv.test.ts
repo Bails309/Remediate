@@ -74,8 +74,8 @@ describe("parseNessusCsvStream", () => {
     const body = Array.from({ length: 5000 }, (_, i) => `${i},h${i}.example,80,High,V${i}`).join("\n");
 
     let seen = 0;
-    for await (const _row of parseNessusCsvStream(Readable.from([header + body]))) {
-      seen += 1;
+    for await (const row of parseNessusCsvStream(Readable.from([header + body]))) {
+      if (row) seen += 1;
     }
 
     expect(seen).toBe(5000);
