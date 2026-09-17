@@ -47,7 +47,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-grid-layout": "^2.2.4",
-    "react-hook-form": "^7.85.0",
+    "react-hook-form": "^7.86.0",
     "recharts": "^3.10.1",
     "sharp": "^0.35.4",
     "shepherd.js": "^15.2.3",
