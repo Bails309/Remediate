@@ -53,6 +53,28 @@ The natural-language insights feature is designed so that adding an LLM does **n
 - **History row is deleted, not retained.** `lib/ingest.ts` treats a surviving `FalsePositive` / `NoFixAvailable` history row as a standing user determination and re-archives the matching finding on the next scan. Keeping the row would make a restore silently self-revert at the next import — an availability/correctness failure that leaves no trace in the logs. Deletion is intentional and is why the audit entry (not the history row) is the durable record of the archive.
 - **Rate-limited and transactional.** The route runs through `enforceRateLimit` like every other mutation, and the recreate + history-delete happen in a single Prisma transaction, so a failure cannot leave the finding in both tables or neither.
 
+## Vulnerability Export & CSV Injection Defense (v2.18.0)
+The vulnerability export functionality (`GET /api/vulnerabilities/export`) introduces bulk data extraction in CSV, PDF, and JSON formats. Several security controls protect against common file generation, privilege bypass, and client-side execution vulnerabilities:
+
+### 1. CSV Formula Injection (CWE-1236 / DDE Injection)
+When export files are opened in desktop spreadsheet software (such as Microsoft Excel, LibreOffice Calc, or Google Sheets), untrusted text that begins with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`) can execute formula commands or external Dynamic Data Exchange (DDE) macros, potentially causing local code execution or sensitive data exfiltration.
+
+- **Automated Cell Neutralization**: The serializer (`lib/export-csv.ts#sanitizeAndEscapeCsvCell`) inspects every exported cell value. If the string starts with any formula indicator (`=`, `+`, `-`, `@`, `\t`, `\r`), it prepends an ASCII single quote (`'`). Spreadsheet programs interpret the leading single quote as a forced text literal marker, rendering the cell content as plain text without executing formulas or displaying the leading quote.
+- **RFC 4180 Compliance & Boundary Quoting**: Fields containing commas, newlines (`\n`, `\r`), or double quotes (`"`) are enclosed in double quotes, with internal quotes escaped as `""`.
+- **Coverage**: The sanitization applies across all dynamic database fields, including finding titles, solutions, plugin outputs, package names, hosts, and CR numbers.
+
+### 2. Group Visibility Wall Enforcement on Bulk Extractions
+Vulnerabilities can be scoped to organizational departments/groups (`Group` model). The export API is an authenticated bulk endpoint and must never serve as a mechanism to bypass group tenancy:
+- **Server-Side Enforcement**: The route handler enforces `visibilityWhere(isAdmin, memberOf)` from `lib/group-rbac.ts`. For any non-administrator, findings outside their explicit group memberships are filtered out directly in the database query.
+- **ID Parameter Tampering Resistance**: If an attacker attempts to supply arbitrary `ids` or `groupIds` in query parameters, the database query `AND`-combines the caller's authorized visibility wall, ensuring that unauthorized IDs simply return empty sets rather than leaking finding existence or metadata.
+
+### 3. In-Memory Streaming & Memory Isolation
+- **No Temporary Disk Files**: PDF generation (`pdfkit`) and CSV stringification operate purely in Node.js memory buffers and streams. Export artifacts are never written to the host container filesystem, preventing race conditions, temporary file leakage, or directory traversal vulnerabilities.
+- **Resource Exhaustion Mitigation**: Export queries are subject to the global API rate limiter (`enforceRateLimit`). Automated pagination in `pdfkit` ensures that large datasets do not trigger unbounded memory allocation or crash the Node.js event loop.
+
+### 4. Cache-Control & Transport Security
+- Exported vulnerability reports contain sensitive infrastructure and vulnerability exposure data. The API sets `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache` to ensure that neither intermediate enterprise proxies nor browser disk caches store exported attachments.
+
 ## Role Model & Privilege Tiers (v2.16.0)
 Until v2.16.0 `requireAdmin()` accepted both `site_admin` and `web_app_admin`, and every `/admin` page and API sat behind it. A **Workspace Admin** could therefore read and rewrite OIDC and storage credentials, create and delete users and groups, and read the audit log — privileges the role's name does not imply. The tiers are now separated:
 

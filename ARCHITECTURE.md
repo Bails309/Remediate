@@ -2,7 +2,7 @@
 
 A high-level view of Remediate components and interactions.
 
-> **Current release**: `v2.9.0` (2026-08-03). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
+> **Current release**: `v2.18.0` (2026-09-17). See [`CHANGELOG.md`](CHANGELOG.md) for the full version history and [`docs/API.md`](docs/API.md) for the API surface.
 
 ![Architecture diagram](docs/images/architecture-diagram.svg)
 
@@ -17,6 +17,7 @@ A high-level view of Remediate components and interactions.
 | Auth | NextAuth (Auth.js v5 beta) + OIDC | `^5.0.0-beta.30` |
 | Validation | Zod | `^4.3.6` |
 | PDF parsing (in-process) | pdf-parse + pdfjs-dist (legacy build) | `^2.4.5` / `^4.7.76` |
+| PDF generation (in-process) | pdfkit | `^0.20.2` |
 | UI primitives | Tailwind CSS, lucide-react, recharts, shepherd.js | — |
 | Pentest backend | Express + tsx | `^4.19.2` |
 | AI insights (optional) | Azure OpenAI / Azure AI Foundry / OpenAI-compatible `/v1` | provider-supplied |
@@ -40,6 +41,7 @@ A high-level view of Remediate components and interactions.
 - **Unified Risk Schema (Prisma)**: Relational datastore for Nessus, pentest, and ACR findings, plus global threats and user-specific intelligence subscriptions.
 - **Redis**: Job coordination via BullMQ, worker heartbeats, and temporary upload cache. Every BullMQ `Queue` / `Worker` opens its own connection via `lib/redis.ts#getBullmqConnection` (fixed in v2.7.1) with `keepAlive: 30_000` so idle-socket drops on managed Redis do not stall the queue.
 - **Azure Blob Storage (Optional)**: Persistent storage for upload payloads as an alternative to Redis (recommended for production clusters).
+- **Vulnerability Export Engine** (`lib/export-csv.ts`, `lib/export-pdf.ts`, `app/api/vulnerabilities/export/route.ts`, v2.18.0): High-performance export pipeline supporting CSV, JSON, and PDF generation. Features streaming buffer accumulation, spreadsheet formula sanitization (neutralizing DDE injection triggers), and mandatory server-enforced scoping to the user's group visibility wall (`visibilityWhere(isAdmin, memberOf)`).
 
 ## Data Flow
 1. **Ingestion (Nessus CSV)**: User uploads a Nessus CSV via `POST /api/uploads/nessus`. The API saves the payload to the active storage provider and enqueues a BullMQ job on the shared `{upload-queue}` with `scannerType: NESSUS`.
@@ -54,6 +56,7 @@ A high-level view of Remediate components and interactions.
 10. **AI Assistant (optional)**: A user chats with the assistant on the Vulnerabilities page. `POST /api/vulnerabilities/chat` runs a tool-using conversation: the model calls `search_vulnerabilities` (results scoped to the caller's group-visibility wall) to read findings and `get_latest_version` to check public package registries, then summarises and prioritises. The reply and the list of tools invoked are returned; the exchange is rate-limited and audited (`ai_insight_chat`).
 11. **Custom dashboards (v2.16.0)**: A widget stores a validated JSON *spec*. On render, `POST /api/dashboards/{id}/widgets/{widgetId}/data` re-executes that spec **as the requesting user** — filters from the spec are `AND`-ed with the caller's visibility wall, Prisma aggregates run, foreign keys resolve to display names, and the result is cached in Redis for 60s under `sha256(spec + viewer scope)`. Results are never persisted, which is what allows a dashboard to be published without leaking the author's data.
 12. **Adversary intelligence (v2.16.0)**: The worker fetches the MITRE ATT&CK Enterprise STIX bundle, projects `intrusion-set` objects into `ThreatActor` rows (tactics, technique counts and tooling resolved through `uses` relationships), and records the run in `ThreatFeedMetadata("MITRE_ATTACK")`.
+13. **Vulnerability Export (v2.18.0)**: An authenticated user triggers an export (`CSV`, `PDF`, or `JSON`) on `/buckets` or `/vulnerabilities`. `GET /api/vulnerabilities/export` runs under `requireAuth()` and resolves the user's group context via `getGroupContext(userId)`. Active findings are retrieved from Prisma with `visibilityWhere(isAdmin, memberOf)` and filtered by outstanding statuses (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `NoFixAvailable`). The payload is serialized on-the-fly (CSV via RFC 4180 with spreadsheet formula injection escaping; PDF via in-process `pdfkit` rendering summary metrics and finding cards; JSON via structured metadata schema), buffered in memory, and returned with `Content-Disposition: attachment` and `Cache-Control: no-store`.
 
 ## Scalability & Resiliency
 - Stateless `app` and `worker` images support horizontal scaling.
@@ -303,8 +306,55 @@ Caching a widget's output on the row would freeze the data at creation time **an
 - **Derived fields** — `actorType`, `origin`, `targetSectors`, `targetRegions`, `targetTechnologies` — are keyword-matched against the group description because ATT&CK models no attribution. The parsing helpers (`classifyActorType`, `deriveAttribution`, `deriveTechnologies`) are exported and unit-tested, and every UI surface labels them as derived.
 - **Refresh**: `syncThreatActorsIfStale(maxAgeHours = 168)` on worker boot and on the scheduler tick; `POST /api/threat-intelligence/actors` for a manual run. State is tracked in `ThreatFeedMetadata("MITRE_ATTACK")`.
 
+## Vulnerability Export Engine (v2.18.0)
+The export engine produces self-contained vulnerability archives in CSV, PDF, or JSON formats, allowing security engineers to extract actionable remediation queues for external vendors, contractors, and compliance auditors.
+
+### Pipeline
+```
+[User Action: /buckets card/header or /vulnerabilities toolbar/bulk bar]
+         │
+         ▼
+GET /api/vulnerabilities/export?format=csv|pdf|json&siteId=...&status=...
+         │
+         ├── 1. Session Auth & Rate Limiting (requireAuth)
+         ├── 2. Resolve Caller Group Context: getGroupContext(userId)
+         ├── 3. Build Prisma Query:
+         │        AND [siteId, status/activeFilter, risk, assigneeId, ids, q]
+         │        AND visibilityWhere(isAdmin, memberOf)  <-- Group Visibility Wall
+         │
+         ├── 4. Retrieve Matching Findings from Prisma
+         │
+         ├── 5. Serialization Branch:
+         │        ├── format="csv"  ─▶ generateVulnerabilitiesCsv()
+         │        │                    └── sanitizeAndEscapeCsvCell() [Formula Injection Defense]
+         │        ├── format="pdf"  ─▶ generateVulnerabilitiesPdf()
+         │        │                    └── pdfkit Document Stream -> Buffer [In-Memory Vector Cards]
+         │        └── format="json" ─▶ generateVulnerabilitiesJson()
+         │                             └── JSON.stringify({ exportedAt, totalCount, vulnerabilities })
+         │
+         ▼
+HTTP 200 Streaming Response:
+  - Content-Type: text/csv | application/pdf | application/json
+  - Content-Disposition: attachment; filename="remediate-..."
+  - Cache-Control: no-store, Pragma: no-cache
+```
+
+### Components (`lib/` & `components/`)
+| File | Responsibility |
+| :--- | :--- |
+| `lib/export-csv.ts` | CSV and JSON serialization. Implements RFC 4180 CSV generation and `sanitizeAndEscapeCsvCell()`, which neutralizes spreadsheet formula injection (prepending `'` to `=`, `+`, `-`, `@`, `\t`, `\r` and quoting cells). |
+| `lib/export-pdf.ts` | PDF generation using `pdfkit`. Renders executive summaries, severity distribution metric pills, and multi-page finding cards with color-coded risk badges, CVSS indicators, and remediation steps. Operates purely in-memory using Node.js buffers. |
+| `lib/export-client.ts` | Client-side download coordinator (`triggerVulnerabilityExport`). Converts HTTP responses to Blob URLs, initiates browser downloads with programmatic anchor elements, and displays toast feedback. |
+| `components/ExportDropdown.tsx` | Reusable client dropdown supporting CSV, PDF, and JSON triggers. Integrated into `/buckets` cards and `/vulnerabilities` toolbars. |
+| `app/api/vulnerabilities/export/route.ts` | The API handler. Authenticates, applies rate limits, resolves group visibility walls, queries Prisma, dispatches serialization, and streams responses. |
+
+### Memory & Performance Architecture
+- **In-Memory Streaming**: Neither CSV nor PDF generation touches the local filesystem. Data streams directly through Node.js memory buffers, avoiding disk I/O bottlenecks and ensuring no sensitive vulnerability data lingers in temporary directories.
+- **Strict Group Visibility**: Every query combines user filters with `visibilityWhere(isAdmin, memberOf)` from `lib/group-rbac.ts`. Non-administrators cannot exfiltrate unassigned department data by manipulating query string parameters.
+- **Cache Invalidation**: All responses emit `Cache-Control: no-store` and `Pragma: no-cache` to ensure exported data is not cached on intermediary proxies or browser disk caches.
+
 ## Testing
-- **Unit Tests (Vitest)**: 130+ test files covering API routes, library modules (including the dashboard spec/executor and the ATT&CK parser), components, and integration scenarios. CI gates on 75% coverage threshold.
+- **Unit Tests (Vitest)**: 133+ test files covering API routes, library modules (including the export serializers, PDF rendering, and CSV sanitization), components, and integration scenarios. CI gates on 75% coverage threshold.
 - **E2E Tests (Playwright)**: 72 tests across 17 files using a multi-project setup:
   - `setup` — Authenticates via local credentials and saves session state.
   - `unauthenticated` — Tests login flow, RBAC redirects, health API, and 404 handling.
@@ -312,6 +362,7 @@ Caching a widget's output on the row would freeze the data at creation time **an
 - **CI/CD (GitHub Actions)**: Lint, unit tests (Postgres + Redis services), integration tests, E2E (Playwright with DB schema push + seed data), Docker build, and CodeQL security scanning.
 
 ## Key File Locations
+- **Vulnerability export**: `lib/export-csv.ts` (CSV/JSON generation & formula sanitization), `lib/export-pdf.ts` (in-process PDF generator via `pdfkit`), `lib/export-client.ts` (client download handler), `components/ExportDropdown.tsx`, `app/api/vulnerabilities/export/route.ts`
 - **Vulnerability lifecycle**: `app/api/vulnerabilities/[id]/route.ts` (status change + archive), `app/api/vulnerabilities/bulk/route.ts` (bulk archive), `app/api/vulnerabilities/[id]/restore/route.ts` (un-archive), `app/api/vulnerabilities/route.ts` (`scope=active|archived` listing)
 - **Multi-scanner ingest**: `lib/ingest.ts` (`processNessusUpload`, `processAcrUpload`), `lib/csv.ts` (`validateNessusCsv`, `parseNessusCsv`, `validateAcrCsv`, `parseAcrCsv`), `lib/queue.ts`, `scripts/worker.ts`
 - **ACR blob automation**: `lib/azure-blob-ingest.ts`, `lib/azure-blob-ingest-scheduler.ts`, `app/api/admin/azure-blob-ingest/`, `app/(app)/admin/azure-blob-ingest/`

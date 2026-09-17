@@ -3,11 +3,19 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, LayoutDashboard, Users, Compass, Mail, Wrench } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, Compass, Mail, Wrench, Download } from "lucide-react";
 
-const TOUR_ID = "whats-new-aug-2026-v2170";
+const TOUR_ID = "whats-new-sep-2026-v2180";
 
 const features = [
+  {
+    icon: Download,
+    accent: "text-emerald-500 dark:text-emerald-400",
+    bg: "bg-emerald-100 dark:bg-emerald-500/15",
+    title: "Export Outstanding Vulnerabilities (CSV, PDF & JSON)",
+    description:
+      "Send outstanding findings directly to external teams, vendors, and auditors. Export by individual bucket on the Buckets page, or export filtered queues and selected rows from the Vulnerabilities table. Choose sanitized CSV (protected against spreadsheet formula injection), an executive-ready PDF report with metrics and remediation advice, or structured JSON for automated pipelines. All exports strictly enforce your group visibility wall.",
+  },
   {
     icon: Wrench,
     accent: "text-cyan-500 dark:text-cyan-400",
@@ -98,9 +106,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">August 2026 Update — v2.17.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">September 2026 Update — v2.18.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Turn a finding into a plan, a change request, a rollback and the evidence to close it out — plus supplier tickets, your own dashboards and the MITRE ATT&amp;CK actor catalogue.
+            Export active vulnerabilities by bucket or selection in CSV, executive PDF, or JSON — plus full remediation packages, custom dashboards, supplier tickets, and MITRE ATT&amp;CK adversary intelligence.
           </p>
         </div>
 

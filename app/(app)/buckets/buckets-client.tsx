@@ -5,7 +5,8 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Trash2, AlertTriangle, X } from "lucide-react";
 import { toast } from "@/lib/toast";
-
+import { ExportDropdown } from "@/components/ExportDropdown";
+import { downloadVulnerabilitiesExport } from "@/lib/export-client";
 
 type Bucket = { id: string; name: string };
 
@@ -18,6 +19,7 @@ export function BucketsClient({ initialBuckets }: Props) {
   const [name, setName] = useState("");
   const [bucketToDelete, setBucketToDelete] = useState<Bucket | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [exportingBucketId, setExportingBucketId] = useState<string | null>(null);
 
   const createBucket = async () => {
     if (!name.trim()) return;
@@ -85,11 +87,46 @@ export function BucketsClient({ initialBuckets }: Props) {
     }
   };
 
+  const handleExportBucket = async (bucket: Bucket, format: "csv" | "json" | "pdf") => {
+    setExportingBucketId(bucket.id);
+    try {
+      await downloadVulnerabilitiesExport({
+        format,
+        siteId: bucket.id,
+        fallbackFilename: `remediate-${bucket.name.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-outstanding-vulnerabilities.${format}`,
+      });
+    } finally {
+      setExportingBucketId(null);
+    }
+  };
+
+  const handleExportAll = async (format: "csv" | "json" | "pdf") => {
+    setExportingBucketId("all");
+    try {
+      await downloadVulnerabilitiesExport({
+        format,
+        fallbackFilename: `remediate-all-outstanding-vulnerabilities.${format}`,
+      });
+    } finally {
+      setExportingBucketId(null);
+    }
+  };
+
   return (
     <div className="space-y-8 relative">
-      <div>
-        <h2 className="text-2xl font-semibold">Buckets</h2>
-        <p className="text-sm opacity-70">Organize uploads by bucket or environment.</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Buckets</h2>
+          <p className="text-sm opacity-70">Organize uploads by bucket or environment.</p>
+        </div>
+        {buckets.length > 0 && (
+          <ExportDropdown
+            label="Export All Buckets"
+            onExport={handleExportAll}
+            loading={exportingBucketId === "all"}
+            title="Export outstanding vulnerabilities across all buckets"
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap gap-4">
@@ -112,14 +149,23 @@ export function BucketsClient({ initialBuckets }: Props) {
               <p className="truncate text-sm font-semibold">{bucket.name}</p>
               <p className="truncate text-[11px] opacity-60">Bucket ID: {bucket.id}</p>
             </div>
-            <button
-              onClick={() => removeBucket(bucket)}
-              className="rounded-md p-2 text-gray-400 transition-colors hover:text-rose-500"
-              aria-label={`Remove ${bucket.name}`}
-              title={`Remove ${bucket.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <ExportDropdown
+                size="sm"
+                label="Export"
+                onExport={(format) => handleExportBucket(bucket, format)}
+                loading={exportingBucketId === bucket.id}
+                title={`Export outstanding vulnerabilities in ${bucket.name}`}
+              />
+              <button
+                onClick={() => removeBucket(bucket)}
+                className="rounded-md p-2 text-gray-400 transition-colors hover:text-rose-500"
+                aria-label={`Remove ${bucket.name}`}
+                title={`Remove ${bucket.name}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>

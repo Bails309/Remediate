@@ -44,6 +44,8 @@ function renderPluginOutput(raw: string | null | undefined): string {
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { Dialog } from "@/components/Dialog";
 import { MyQueueSeverityChart } from "@/components/analytics/MyQueueSeverityChart";
+import { ExportDropdown } from "@/components/ExportDropdown";
+import { downloadVulnerabilitiesExport } from "@/lib/export-client";
 
 const riskToneMap: Record<string, "critical" | "high" | "medium" | "low" | "neutral"> = {
   Critical: "critical",
@@ -245,6 +247,27 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
   const [editingBatchContent, setEditingBatchContent] = useState("");
   const [busyBatchId, setBusyBatchId] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportFindings = async (format: "csv" | "json" | "pdf") => {
+    setIsExporting(true);
+    try {
+      await downloadVulnerabilitiesExport({
+        format,
+        siteIds: siteIds.length > 0 ? siteIds : undefined,
+        status: status || undefined,
+        risk: risk || undefined,
+        assigneeId: assigneeId || undefined,
+        groupIds: groupFilterIds.length > 0 ? groupFilterIds : undefined,
+        ids: selected.length > 0 ? selected : undefined,
+        query: query || undefined,
+        includeAllStatuses: false,
+        fallbackFilename: `remediate-${siteIds.length === 1 ? "bucket" : "all"}-vulnerabilities.${format}`,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const roles = session?.user?.roles ?? [];
   const isArchivedView = viewScope === "archived";
@@ -1231,6 +1254,16 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
         >
           {foldDuplicates ? "Folding Active" : "Fold Duplicates"}
         </Button>
+        <ExportDropdown
+          label={selected.length > 0 ? `Export (${selected.length})` : "Export"}
+          onExport={handleExportFindings}
+          loading={isExporting}
+          title={
+            selected.length > 0
+              ? `Export ${selected.length} selected vulnerabilities`
+              : "Export outstanding vulnerabilities matching current filters"
+          }
+        />
       </div>
 
       {!isArchivedView && !isAuditor && selectedCount > 0 && (
@@ -1317,6 +1350,13 @@ export function VulnerabilitiesClient({ sites, users, groups = [], session }: Pr
             >
               Manage
             </Button>
+            <ExportDropdown
+              size="sm"
+              label="Export"
+              onExport={handleExportFindings}
+              loading={isExporting}
+              title={`Export ${selectedCount} selected vulnerabilities`}
+            />
             <div className="w-52">
               <Select
                 value=""

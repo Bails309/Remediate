@@ -6,7 +6,7 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.17.0 (2026-08-19)</p>
+  <p><strong>Version:</strong> 2.18.0 (2026-09-17)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
@@ -14,6 +14,8 @@
 Remediate is a unified vulnerability remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests findings from multiple scanner families — **Nessus** CSVs, **pentest** PDFs, and **Azure Container Registry** CSV exports — diffs successive uploads, tracks remediation status, and supports full assignment / RBAC / notification workflows on top of a single `Vulnerability` table.
 
 The platform features **Organizational Buckets** (formerly Sites), providing a flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation** and **Azure Blob Container Automation for ACR exports** (new in v2.8.0), a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
+
+**Vulnerability Export** (v2.18.0) enables security engineers and operators to export active, outstanding vulnerabilities directly to external contractors, suppliers, and auditors without granting them platform access. Exports can be generated per-bucket on the Buckets page, or on-demand from the Vulnerabilities triage table (supporting filtered views or arbitrary checkbox selections). Supported formats include RFC 4180-compliant **CSV** (with automated spreadsheet formula injection defense), executive-ready **PDF** reports with severity distribution metrics and full remediation details, and structured **JSON** for automated API pipelines — all strictly scoped to the user's group visibility wall.
 
 **Group / Department RBAC** (v2.7.0) extends the single-team assignment model to enterprise group-based ownership: vulnerabilities can be scoped to organisational groups (departments) with member/leader roles, enforcing a server-side **visibility wall** so non-members cannot see grouped items even via direct URL or API. Group leaders receive a weekly Leader Digest summarising every active item their group owns.
 
@@ -48,6 +50,43 @@ Setting a terminal status **moves** the row between tables rather than updating 
 - Both directions are written to the audit log — `vulnerability.archived` on the way in, `vulnerability.restored` on the way out — so `/admin/audit-log` shows who reopened what and which determination they overrode.
 
 See [`docs/API.md` → Archiving & restoring](docs/API.md#archiving--restoring-v2150) for the full endpoint contract and [`SECURITY.md`](SECURITY.md#archive-restoration-v2150) for the control rationale.
+
+## Vulnerability Export (CSV, PDF & JSON) (v2.18.0)
+
+Remediate allows security engineers and administrators to export outstanding, actionable vulnerability records so remediation queues can be shared with third-party vendors, external development teams, and compliance auditors who do not have accounts on the platform.
+
+### Export Entry Points
+
+- **Organizational Buckets (`/buckets`)**:
+  - **Per-Bucket Export**: Every bucket card features an **Export** dropdown (`CSV`, `PDF`, `JSON`) exporting only the outstanding findings scoped to that specific bucket.
+  - **Global Header Export**: The **Export All Buckets** button in the top-right header exports outstanding findings across all buckets visible to the current user in a single unified document.
+- **Vulnerabilities Triage Table (`/vulnerabilities`)**:
+  - **Toolbar Export**: An **Export** dropdown in the table filter toolbar exports the currently filtered vulnerability view (respecting search queries, risk filters, bucket selections, status filters, and group assignments).
+  - **Floating Bulk Selection Action Bar**: Selecting one or more findings via the row checkboxes displays a floating action bar with a dedicated **Export** dropdown, enabling ad-hoc batch exports of only the specifically selected items (`ids` query parameter).
+
+### Export Formats
+
+| Format | Content-Type | Details | Typical Use Case |
+| :--- | :--- | :--- | :--- |
+| **CSV** | `text/csv; charset=utf-8` | RFC 4180-compliant comma-separated values with explicit column headers: `ID`, `Report / Bucket`, `Title`, `Severity Level`, `Status`, `Host / Asset`, `Service / Port`, `Protocol`, `CVE`, `CVSS Score`, `Plugin ID / Report Ref`, `Scanner Type`, `Assignee Name`, `Assignee Email`, `Assigned Group`, `CR Number`, `Brief Description`, `Full Description`, `Solution`, `See Also`, `Plugin Output`, `First Detected`, and `Last Seen`. Cells are automatically sanitized against spreadsheet formula injection (CWE-1236). | Spreadsheet triage, ticketing imports, data engineering pipelines. |
+| **PDF** | `application/pdf` | Professional executive and technical vulnerability report generated in-process using `pdfkit`. Includes document header, export metadata, executive summary, visual severity distribution metrics (Critical, High, Medium, Low, Info), and comprehensive multi-page finding cards with color-coded risk badges, CVSS scores, host/port info, and complete solution/remediation instructions. | Vendor handoffs, leadership briefings, third-party contractor remediation packages, audit evidence. |
+| **JSON** | `application/json; charset=utf-8` | Structured JSON payload containing top-level metadata (`exportedAt`, `totalCount`, `siteId`) and an array of complete finding objects. | CI/CD automation, SIEM/SOAR ingestion, programmatic reporting. |
+
+### Outstanding Status Filtering
+
+By default, the export endpoint targets **active, outstanding findings** requiring remediation action:
+- **Included by default**: `Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, and `NoFixAvailable`.
+- **Excluded by default**: Terminal / inactive findings (`Remediated`, `FalsePositive`) are excluded from operational exports so third parties receive only actionable work.
+- **Full History Option**: Passing `includeAllStatuses=true` or an explicit `status` query filter allows exporting all lifecycle states when full audit history is required.
+
+### Security Controls
+
+1. **Group Visibility Wall Enforcement**: Non-administrators can only export vulnerabilities belonging to groups they are active members or leaders of, plus ungrouped items (`groupId IS NULL`). Passing arbitrary `groupIds` or `siteId` parameters will never expose findings outside the requester's authorized visibility boundary.
+2. **Formula Injection Sanitization (CSV)**: All CSV cell text is scanned before writing. Cells beginning with formula triggers (`=`, `+`, `-`, `@`, `\t`, `\r`) are automatically escaped with a leading single quote (`'`) to prevent Dynamic Data Exchange (DDE) macro execution in Microsoft Excel and Google Sheets.
+3. **In-Memory Streaming**: PDFs and CSVs are compiled in Node.js memory buffers via streams without writing sensitive vulnerability data to temporary disk files.
+4. **Rate Limiting & Caching**: Export endpoints are rate-limited per user/IP and emit `Cache-Control: no-store` to prevent caching on intermediate web proxies.
+
+See [`docs/API.md` → Vulnerability Export](docs/API.md#vulnerability-export-v2180) for parameter contracts and [`SECURITY.md`](SECURITY.md#vulnerability-export--csv-injection-defense-v2180) for formula injection defense details.
 
 ## Navigation & Roles (v2.16.0)
 
@@ -435,6 +474,13 @@ Supports filtering by `action` and `entityType`. Returns paginated results with 
 ## Release notes
 
 > [`CHANGELOG.md`](CHANGELOG.md) is the canonical, complete history — every release including patch-level fixes, with full root-cause write-ups. The entries below are condensed highlights of the feature-bearing releases.
+
+### [2.18.0] - 2026-09-17
+- **Export outstanding vulnerabilities in CSV, PDF, and JSON.** Security teams and administrators can export active findings per-bucket or across all buckets (`/buckets`), as well as from filtered views or arbitrary checkbox selections (`/vulnerabilities`), to securely share actionable queues with external teams, contractors, and compliance auditors.
+- **Executive PDF generation via `pdfkit`**: In-process, stream-buffered generation of formatted PDF reports featuring executive summaries, severity distribution breakdowns, and detailed multi-page finding cards with color-coded badges, CVSS scores, and remediation instructions.
+- **CSV Formula Injection Defense**: RFC 4180 CSV serializer automatically neutralizes Dynamic Data Exchange (DDE) injection vectors by prepending `'` to trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`).
+- **Server-enforced Group Visibility Wall**: Export routes strictly restrict rows to the caller's group memberships (`canViewVulnerability`), preventing unauthorized cross-department exposure.
+- **Rate-limiting & No-Store Caching**: All export formats are throttled to prevent resource exhaustion and emit strict `Cache-Control: no-store` headers.
 
 ### [2.17.0] - 2026-08-19
 - **Generate a remediation package for a finding you own.** The Vulnerability Details sheet drafts an ordered remediation plan, a structured change-request record (type, justification, affected systems, implementation steps, risk if not applied, risk of change, service impact, scheduling), a rollback with its abort trigger, post-change validation checks with expected results, and the evidence to capture as proof — copyable or downloadable as Markdown. Restricted to the assignee, a leader of the owning group, or an admin, and generated from that one finding only: the model is given no tools, so no other issue's data can enter the answer. Nothing is stored.

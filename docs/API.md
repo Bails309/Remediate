@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.16.2` (2026-08-14). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.18.0` (2026-09-17). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -45,14 +45,15 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/vulnerabilities` | 🔒 | Paginated search. Query: `q`, `status`, `risk`, `bucketId`, `assigneeId`, `groupIds`, `id`/`ids`, `page` (≤10000), `limit`. ILIKE wildcards are escaped server-side. **Group visibility wall**: non-admins always see ungrouped items plus items in groups they belong to; any `groupIds` token outside the requester's `memberOf` set is silently dropped before the SQL is built. Pass the keyword `unassigned` inside `groupIds` to include items with no group when also filtering by specific groups. |
+| `GET` | `/api/vulnerabilities/export` | 🔒 | Export active and outstanding vulnerabilities as `CSV`, `JSON`, or `PDF`. Query: `format` (`csv` \| `json` \| `pdf`, default `csv`), `siteId`, `siteIds`, `status`, `includeAllStatuses`, `risk`, `assigneeId`, `groupIds`, `ids`, `q`. Enforces the **group visibility wall** and rate limiting. Defaults to actionable/outstanding findings (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `NoFixAvailable`), excluding remediated/false-positives unless `includeAllStatuses=true`. See [Vulnerability Export (v2.18.0)](#vulnerability-export-v2180) below. |
 | `GET` | `/api/vulnerabilities/{id}` | 🔒 | Returns a single vulnerability with assignee, collaborators, comment count, and history snippet. Returns `403` if the requester cannot see the item under the group visibility wall. |
 | `PATCH` | `/api/vulnerabilities/{id}` | 🔒 | Update status, assignee, collaborators, CR number, sunset flag, or `groupId`. RBAC enforced via `lib/group-rbac.ts`: standard users may only self-assign or unassign; group leaders may edit any item their group owns and may reassign within their group; only admins may change `groupId`; CR number is required for `InProgressWithCR`. |
-| `POST` | `/api/vulnerabilities/{id}/restore` | �️ | **Admin only** (`site_admin` / `web_app_admin`). Un-archives a finding: moves it out of `VulnerabilityHistory` and back into the active queue with status `Open`. No request body. See [Archiving & restoring](#archiving--restoring-v2150) below. |
+| `POST` | `/api/vulnerabilities/{id}/restore` | 🛡️ | **Admin only** (`site_admin` / `web_app_admin`). Un-archives a finding: moves it out of `VulnerabilityHistory` and back into the active queue with status `Open`. No request body. See [Archiving & restoring](#archiving--restoring-v2150) below. |
 | `POST` | `/api/vulnerabilities/bulk` | 🔒 | Bulk update across selected ids. Body: `{ "ids": string[], "patch": { ... }, "crNumber"?: string }`. The same per-item permission matrix as single update is applied; the request aborts with `403` on the first item the caller cannot mutate (no partial application). |
 | `GET` | `/api/vulnerabilities/{id}/comments` | 🔒 | Lists comments visible to the requester (admins, assignees, collaborators when "Ask for Help" is enabled). Re-checks the group visibility wall. |
 | `POST` | `/api/vulnerabilities/{id}/comments` | 🔒 | Adds a comment. Body: `{ "content": string }` (1–10,000 chars, Zod validated). |
 | `PATCH` | `/api/vulnerabilities/{id}/comments` | 🔒 | Edits a comment owned by the caller. Body: `{ "commentId": string, "content": string }`. |
-| `DELETE` | `/api/vulnerabilities/{id}/comments` | 🔒 | Deletes a comment. Author or admin only. Query: `commentId`. |
+| `DELETE` | `/api/vulnerabilities/{id}/comments` | 🔒 | Deletes a comment. Author or admin only. Query: `commentId`. |lities/{id}/comments` | 🔒 | Deletes a comment. Author or admin only. Query: `commentId`. |
 
 ### Vulnerability statuses
 
@@ -97,6 +98,48 @@ Response `200` is the recreated vulnerability with `recordScope: "active"` and `
 | `404` | No archived record with that id. |
 | `409` | An equivalent finding is already active (`activeId` names it). |
 | `429` | Rate limited. |
+
+### Vulnerability Export (v2.18.0)
+
+`GET /api/vulnerabilities/export` streams active and outstanding vulnerability records formatted as CSV, JSON, or an executive PDF document for sharing with external suppliers, engineering teams, and auditing bodies.
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `format` | string | `csv` | Export output format: `csv`, `json`, or `pdf`. |
+| `siteId` | UUID | — | Limits export to findings within a specific bucket. When provided, the bucket name is reflected in the attachment filename. |
+| `siteIds` | string | — | Comma-delimited list of bucket UUIDs. |
+| `status` | string | — | Comma-delimited list of vulnerability statuses (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, etc.). |
+| `includeAllStatuses` | boolean | `false` | When `true`, includes all findings in the active table regardless of status. When omitted or `false` and `status` is not specified, defaults to outstanding findings (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `NoFixAvailable`), excluding `Remediated` and `FalsePositive`. |
+| `risk` | string | — | Filters by severity: `Critical`, `High`, `Medium`, `Low`, `None`. |
+| `assigneeId` | string | — | Filters by assignee UUID, or pass `unassigned` for unassigned findings. |
+| `groupIds` | string | — | Comma-separated group UUIDs or `unassigned`. Scoped by the requester's group memberships for non-admins. |
+| `ids` | string | — | Comma-separated vulnerability UUIDs to export specific selected items. |
+| `q` | string | — | Search term matching vulnerability name, host, pluginId, or CVE. Prefix with `!` or `-` to negate. |
+
+#### Security & Access Control
+
+- **Group Visibility Wall**: Non-administrators can only export findings that belong to their joined groups or findings with no assigned group (`groupId IS NULL`). Findings outside their visibility boundary are never returned.
+- **CSV Formula Injection Sanitization**: Cell values beginning with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`) are automatically prepended with a single quote (`'`) to prevent CSV injection (DDE) when opened in Microsoft Excel or Google Sheets.
+- **Rate Limiting**: Requests are bounded by the global API rate limiter.
+
+#### Response Headers
+
+- **CSV**: `Content-Type: text/csv; charset=utf-8`
+- **JSON**: `Content-Type: application/json; charset=utf-8`
+- **PDF**: `Content-Type: application/pdf`
+- All formats set `Content-Disposition: attachment; filename="remediate-[bucket]-outstanding-vulnerabilities-[date].[ext]"` and `Cache-Control: no-store`.
+
+#### Core Fields Included in All Formats
+
+Each exported vulnerability record includes:
+- **Report**: The assessment scope/bucket (`Report / Bucket` in CSV/PDF, `report` and `bucket` in JSON) and Report Finding Reference (`Plugin ID / Report Ref` for pentest reports).
+- **Service**: Affected port and protocol (`Service / Port` in CSV/PDF, `service` and `port` in JSON).
+- **Title**: The descriptive title of the vulnerability, e.g. "Apache Tomcat Update" (`Title` in CSV, bold title in PDF, `title` and `name` in JSON).
+- **Brief Description**: Synopsis summary of the issue (`Brief Description` in CSV/PDF, `briefDescription` and `synopsis` in JSON, with fallback to description excerpt if synopsis is blank).
+- **Severity Level**: Risk severity classification (`Severity Level` in CSV, `[CRITICAL]`/`[HIGH]` badge in PDF, `severity` and `risk` in JSON).
+- **Additional Metadata**: Full Description, CVE, CVSS Score, Solution / Remediation guidance, Assignee, Assigned Group, CR Number, and Discovery timestamps (`First Detected`, `Last Seen`).
 
 ---
 
