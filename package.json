@@ -28,7 +28,7 @@
     "@azure/storage-file-share": "^12.32.0",
     "@prisma/client": "^6.19.3",
     "@types/pdfkit": "^0.17.6",
-    "bullmq": "^6.1.1",
+    "bullmq": "^6.3.6",
     "country-flag-icons": "^1.6.20",
     "csv-parse": "^6.1.0",
     "date-fns": "^4.4.0",
