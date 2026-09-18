@@ -2,14 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { renderThreatEmail, ThreatGroup, ThreatItem } from "./email-template";
 import { sendEmail } from "../email";
 import { getReportConfig } from "@/lib/reports";
-
-
+import { getEnvironmentFootprint, filterThreatsForEnvironment } from "./environment-matcher";
 
 interface ThreatSubscription {
     id: string;
     isSubscribed: boolean;
+    globalDigestEnabled?: boolean;
+    environmentDigestEnabled?: boolean;
     minRisk: string;
     cisaKevOnly: boolean;
+    lastSentGlobalAt?: Date | null;
+    lastSentEnvironmentAt?: Date | null;
 }
 
 interface DispatcherUser {
@@ -21,20 +24,36 @@ interface DBThreat {
     osvId: string;
     cveId: string | null;
     summary: string;
+    details?: string | null;
     cvssScore: number | null;
     cisaKevStatus: boolean;
+    affectedPackages?: unknown;
 }
 
 /**
  * Dispatches daily threat intelligence digest emails to a specific user.
+ * Supports dual-feed dispatch:
+ *   1. Environment-tailored digest (matched against active & historical CSV, PDF, ACR assets)
+ *   2. Global threat horizon digest
+ * When both options are selected, dispatches two separate emails.
  */
 export async function dispatchDailyThreatDigest(user: DispatcherUser) {
     console.log(`Dispatcher: Starting threat digest cycle for ${user.email}...`);
 
     try {
         const sub = user.threatSubscription;
-        if (!sub || !sub.isSubscribed) {
+        if (!sub) {
             console.log(`Dispatcher: User ${user.email} not subscribed. Skipping.`);
+            return;
+        }
+
+        const isGlobalEnabled = sub.globalDigestEnabled !== undefined 
+            ? sub.globalDigestEnabled 
+            : sub.isSubscribed;
+        const isEnvEnabled = !!sub.environmentDigestEnabled;
+
+        if (!isGlobalEnabled && !isEnvEnabled && !sub.isSubscribed) {
+            console.log(`Dispatcher: User ${user.email} has all threat feeds disabled. Skipping.`);
             return;
         }
 
@@ -62,50 +81,131 @@ export async function dispatchDailyThreatDigest(user: DispatcherUser) {
             return;
         }
 
-        // 2. Group threats for the digest
-        const threatGroup: ThreatGroup = {
-            cisaKev: [],
-            criticalHigh: [],
-            standard: []
-        };
-
-        newThreats.forEach((t: DBThreat) => {
-            const item: ThreatItem = {
-                osvId: t.osvId,
-                cveId: t.cveId,
-                summary: t.summary,
-                cvssScore: t.cvssScore,
-                cisaKevStatus: t.cisaKevStatus
-            };
-
-            if (item.cisaKevStatus) {
-                threatGroup.cisaKev.push(item);
-            } else if (t.cvssScore && t.cvssScore >= 7.0) {
-                threatGroup.criticalHigh.push(item);
-            } else {
-                threatGroup.standard.push(item);
-            }
-        });
-
-        // 3. Send email to user
         const settings = await getReportConfig(true);
         if (!settings) {
             console.log("Dispatcher: No report SMTP settings configured; skipping email dispatch.");
             return;
         }
 
-        const emailHtml = renderThreatEmail(threatGroup);
-        const totalCount = threatGroup.cisaKev.length + threatGroup.criticalHigh.length + threatGroup.standard.length;
+        const updateData: {
+            lastSentAt?: Date;
+            lastSentGlobalAt?: Date;
+            lastSentEnvironmentAt?: Date;
+        } = {};
 
-        await sendEmail(settings, user.email, `Daily Threat Intelligence: ${totalCount} Found`, emailHtml, "");
+        let sentAny = false;
 
-        // 4. Update lastSentAt for the subscription
-        await prisma.threatSubscription.update({
-            where: { id: sub.id },
-            data: { lastSentAt: new Date() }
-        });
+        // 2. Environment Threat Digest dispatch
+        if (isEnvEnabled) {
+            try {
+                const footprint = await getEnvironmentFootprint();
+                const envMatchedThreats = filterThreatsForEnvironment(newThreats, footprint);
 
-        console.log(`Dispatcher: Sent digest to ${user.email}.`);
+                if (envMatchedThreats.length > 0) {
+                    const envGroup: ThreatGroup = {
+                        cisaKev: [],
+                        criticalHigh: [],
+                        standard: []
+                    };
+
+                    envMatchedThreats.forEach(t => {
+                        const item: ThreatItem = {
+                            osvId: t.osvId,
+                            cveId: t.cveId,
+                            summary: t.summary,
+                            cvssScore: t.cvssScore,
+                            cisaKevStatus: t.cisaKevStatus,
+                            environmentMatchReason: t.environmentMatchReason
+                        };
+
+                        if (item.cisaKevStatus) {
+                            envGroup.cisaKev.push(item);
+                        } else if (t.cvssScore && t.cvssScore >= 7.0) {
+                            envGroup.criticalHigh.push(item);
+                        } else {
+                            envGroup.standard.push(item);
+                        }
+                    });
+
+                    const envEmailHtml = renderThreatEmail(envGroup, {
+                        title: "Environment Threat Intelligence",
+                        subtitle: "Tailored findings matching your active and historical assets (Nessus CSV, Pentest PDF & ACR).",
+                        preheader: `Detected ${envMatchedThreats.length} threats matching your environment assets.`,
+                        isEnvironmentTailored: true
+                    });
+
+                    await sendEmail(
+                        settings,
+                        user.email,
+                        `[Environment Alert] Daily Threat Intelligence: ${envMatchedThreats.length} Relevant to Your Environment`,
+                        envEmailHtml,
+                        ""
+                    );
+
+                    updateData.lastSentEnvironmentAt = new Date();
+                    sentAny = true;
+                    console.log(`Dispatcher: Sent environment-tailored digest (${envMatchedThreats.length} issues) to ${user.email}.`);
+                } else {
+                    console.log(`Dispatcher: No environment-matching threats for ${user.email}. Skipping environment email.`);
+                }
+            } catch (envErr) {
+                console.error(`Dispatcher: Failed environment correlation for ${user.email}:`, envErr);
+            }
+        }
+
+        // 3. Global Threat Digest dispatch
+        if (isGlobalEnabled) {
+            const globalGroup: ThreatGroup = {
+                cisaKev: [],
+                criticalHigh: [],
+                standard: []
+            };
+
+            newThreats.forEach((t: DBThreat) => {
+                const item: ThreatItem = {
+                    osvId: t.osvId,
+                    cveId: t.cveId,
+                    summary: t.summary,
+                    cvssScore: t.cvssScore,
+                    cisaKevStatus: t.cisaKevStatus
+                };
+
+                if (item.cisaKevStatus) {
+                    globalGroup.cisaKev.push(item);
+                } else if (t.cvssScore && t.cvssScore >= 7.0) {
+                    globalGroup.criticalHigh.push(item);
+                } else {
+                    globalGroup.standard.push(item);
+                }
+            });
+
+            const totalCount = globalGroup.cisaKev.length + globalGroup.criticalHigh.length + globalGroup.standard.length;
+            const globalEmailHtml = renderThreatEmail(globalGroup, {
+                title: isEnvEnabled ? "Daily Threat Intelligence (Global Feed)" : "Daily Threat Intelligence",
+                subtitle: "Aggregated security findings from the last 24 hours.",
+                preheader: `Detected ${totalCount} new threats targeting your profile.`,
+                isEnvironmentTailored: false
+            });
+
+            const subject = isEnvEnabled
+                ? `Daily Threat Intelligence (Global Feed): ${totalCount} Found`
+                : `Daily Threat Intelligence: ${totalCount} Found`;
+
+            await sendEmail(settings, user.email, subject, globalEmailHtml, "");
+
+            updateData.lastSentGlobalAt = new Date();
+            sentAny = true;
+            console.log(`Dispatcher: Sent global digest (${totalCount} issues) to ${user.email}.`);
+        }
+
+        // 4. Update lastSent timestamps
+        if (sentAny) {
+            updateData.lastSentAt = new Date();
+            await prisma.threatSubscription.update({
+                where: { id: sub.id },
+                data: updateData
+            });
+        }
 
     } catch (error) {
         console.error(`Dispatcher: Failed to send digest to ${user.email}:`, error);

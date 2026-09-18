@@ -444,21 +444,27 @@ model ThreatVulnerability {
 }
 
 model ThreatSubscription {
-  id               String   @id @default(uuid()) @db.Uuid
-  userId           String   @unique @db.Uuid
-  isSubscribed     Boolean  @default(false)
+  id                        String   @id @default(uuid()) @db.Uuid
+  userId                    String   @unique @db.Uuid
+  isSubscribed              Boolean  @default(false)
   
+  // Alert Feed Toggles
+  globalDigestEnabled       Boolean  @default(true)
+  environmentDigestEnabled  Boolean  @default(false)
+
   // Alert Preferences
-  minRisk          Risk     @default(High) // Subscriber only wants High/Critical
-  cisaKevOnly      Boolean  @default(false)
+  minRisk                   Risk     @default(High) // Subscriber only wants High/Critical
+  cisaKevOnly               Boolean  @default(false)
   
   // Custom Schedule (UTC)
-  scheduledHour    Int      @default(8)
-  scheduledMinute  Int      @default(0)
-  lastSentAt       DateTime?
+  scheduledHour             Int      @default(8)
+  scheduledMinute           Int      @default(0)
+  lastSentAt                DateTime?
+  lastSentGlobalAt          DateTime?
+  lastSentEnvironmentAt     DateTime?
 
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  updatedAt        DateTime @updatedAt
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt                 DateTime @updatedAt
 }
 
 model ThreatFeedMetadata {

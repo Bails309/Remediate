@@ -238,7 +238,13 @@ async function handleDailyThreatIntelligence() {
     // 2. Individual User Dispatches based on their custom schedules
     const subscribers = await prisma.user.findMany({
         where: {
-            threatSubscription: { isSubscribed: true }
+            threatSubscription: {
+                OR: [
+                    { isSubscribed: true },
+                    { globalDigestEnabled: true },
+                    { environmentDigestEnabled: true },
+                ]
+            }
         },
         include: {
             threatSubscription: true
@@ -249,11 +255,18 @@ async function handleDailyThreatIntelligence() {
         const sub = user.threatSubscription;
         if (!sub) continue;
 
-        // Check if it's time to send for this user
-        // We ensure we don't send twice on the same day by checking lastSentAt
+        // Check if either feed is due today
         const lastSentDay = sub.lastSentAt ? sub.lastSentAt.toISOString().split('T')[0] : null;
-        
-        if (lastSentDay !== currentDayStr) {
+        const lastSentGlobalDay = sub.lastSentGlobalAt ? sub.lastSentGlobalAt.toISOString().split('T')[0] : lastSentDay;
+        const lastSentEnvDay = sub.lastSentEnvironmentAt ? sub.lastSentEnvironmentAt.toISOString().split('T')[0] : null;
+
+        const isGlobalEnabled = sub.globalDigestEnabled !== undefined ? sub.globalDigestEnabled : sub.isSubscribed;
+        const isEnvEnabled = !!sub.environmentDigestEnabled;
+
+        const needsGlobal = isGlobalEnabled && lastSentGlobalDay !== currentDayStr;
+        const needsEnv = isEnvEnabled && lastSentEnvDay !== currentDayStr;
+
+        if (needsGlobal || needsEnv) {
             // Check if we've reached the user's scheduled time
             if (hour > sub.scheduledHour || (hour === sub.scheduledHour && minute >= sub.scheduledMinute)) {
                 console.log(`[Scheduler] Time reached for ${user.email} (${sub.scheduledHour}:${sub.scheduledMinute}). Dispatching digest...`);

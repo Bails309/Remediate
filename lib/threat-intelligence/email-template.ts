@@ -6,6 +6,7 @@ export interface ThreatItem {
     summary: string;
     cvssScore?: number | null;
     cisaKevStatus?: boolean;
+    environmentMatchReason?: string | null;
 }
 
 export interface ThreatGroup {
@@ -14,14 +15,29 @@ export interface ThreatGroup {
     standard: ThreatItem[];
 }
 
-export function renderThreatEmail(threats: ThreatGroup) {
+export interface RenderThreatEmailOptions {
+    title?: string;
+    subtitle?: string;
+    preheader?: string;
+    isEnvironmentTailored?: boolean;
+}
+
+export function renderThreatEmail(threats: ThreatGroup, options: RenderThreatEmailOptions = {}) {
     const totalCount = threats.cisaKev.length + threats.criticalHigh.length + threats.standard.length;
     const dashboardUrl = process.env.AUTH_URL || "https://dashboard.remediate.io";
+    const title = options.title || "Daily Threat Intelligence";
+    const subtitle = options.subtitle || "Aggregated security findings from the last 24 hours.";
+    const preheader = options.preheader || `Detected ${totalCount} new threats targeting your profile.`;
     
     const contentHtml = `
     <div style="margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #f1f5f9;">
-        <h1 style="color: #0f172a; font-size: 28px; font-weight: 800; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.2;">Daily Threat Intelligence</h1>
-        <p style="color: #64748b; font-size: 16px; margin: 0; line-height: 1.5;">Aggregated security findings from the last 24 hours.</p>
+        <h1 style="color: #0f172a; font-size: 28px; font-weight: 800; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.2;">${title}</h1>
+        <p style="color: #64748b; font-size: 16px; margin: 0; line-height: 1.5;">${subtitle}</p>
+        ${options.isEnvironmentTailored ? `
+        <div style="margin-top: 14px; display: inline-block; background-color: #0284c715; border: 1px solid #0284c740; color: #0284c7; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em;">
+            🛡️ Filtered to active & historical assets (Nessus CSV, Pentest PDF & ACR)
+        </div>
+        ` : ""}
     </div>
 
     <!-- Bucket 1: CISA KEV (Urgent) -->
@@ -62,14 +78,14 @@ export function renderThreatEmail(threats: ThreatGroup) {
     </div>
 
     <div style="margin-top: 48px; padding-top: 32px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.8;">
-        <p style="margin: 0 0 8px 0;">You are receiving this because you opted in to Daily Threat Intelligence alerts.</p>
+        <p style="margin: 0 0 8px 0;">You are receiving this because you opted in to Threat Intelligence alerts in Remediate.</p>
         <p style="margin: 0; font-style: italic;">Disclaimer: Aggregated from NVD, OSV, and CISA. Accuracy depends on downstream data sources.</p>
     </div>
     `;
 
     return renderEmailLayout({
-        title: "Daily Threat Digest",
-        preheader: `Detected ${totalCount} new threats targeting your profile.`,
+        title,
+        preheader,
         contentHtml
     });
 }
@@ -91,9 +107,18 @@ function renderThreatCards(items: ThreatItem[], accentColor: string) {
                 </span>
             </div>
             <div style="font-size: 14px; color: #334155; line-height: 1.6; font-weight: 500;">${item.summary}</div>
+            
+            ${item.environmentMatchReason ? `
+            <div style="margin-top: 12px;">
+                <span style="display: inline-block; background-color: #0284c715; border: 1px solid #0284c735; color: #0369a1; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;">
+                    🎯 ${item.environmentMatchReason}
+                </span>
+            </div>
+            ` : ""}
+
             <div style="margin-top: 16px; font-size: 11px; color: ${accentColor}; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">
-                    Source: ${item.osvId.startsWith("CVE") ? "NVD/CISA" : "OSV.dev"}
-                </div>
+                Source: ${item.osvId.startsWith("CVE") ? "NVD/CISA" : "OSV.dev"}
+            </div>
         </div>
         `;
     }).join("");

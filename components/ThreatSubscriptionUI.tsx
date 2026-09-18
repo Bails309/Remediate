@@ -1,18 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Info, ShieldAlert, Zap } from "lucide-react";
+import { Info, ShieldAlert, Zap, ShieldCheck, Globe, Mail } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Select } from "@/components/Select";
 import { toast } from "@/lib/toast";
 
 export function ThreatSubscriptionUI({ userId }: { userId: string }) {
-    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [globalDigestEnabled, setGlobalDigestEnabled] = useState(false);
+    const [environmentDigestEnabled, setEnvironmentDigestEnabled] = useState(true);
     const [minRisk, setMinRisk] = useState("High");
     const [cisaKevOnly, setCisaKevOnly] = useState(false);
     const [scheduledHour, setScheduledHour] = useState("08");
     const [scheduledMinute, setScheduledMinute] = useState("00");
     const [isSaving, setIsSaving] = useState(false);
+
+    const hasAnyFeedEnabled = globalDigestEnabled || environmentDigestEnabled;
 
     const riskOptions = [
         { label: "Critical Only", value: "Critical" },
@@ -34,17 +37,31 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
     ];
 
     useEffect(() => {
-        // Fetch current subscription status
         fetch(`/api/threat-intelligence/subscription?userId=${userId}`)
             .then(res => res.json())
             .then(data => {
                 if (data) {
-                    setIsSubscribed(data.isSubscribed);
-                    setMinRisk(data.minRisk);
-                    setCisaKevOnly(data.cisaKevOnly);
-                    setScheduledHour(data.scheduledHour.toString().padStart(2, "0"));
-                    setScheduledMinute(data.scheduledMinute.toString().padStart(2, "0"));
+                    const isGlobal = data.globalDigestEnabled !== undefined 
+                        ? data.globalDigestEnabled 
+                        : (data.isSubscribed ?? false);
+                    const isEnv = data.environmentDigestEnabled !== undefined 
+                        ? data.environmentDigestEnabled 
+                        : false;
+                    
+                    setGlobalDigestEnabled(isGlobal);
+                    setEnvironmentDigestEnabled(isEnv);
+                    if (data.minRisk) setMinRisk(data.minRisk);
+                    if (data.cisaKevOnly !== undefined) setCisaKevOnly(data.cisaKevOnly);
+                    if (data.scheduledHour !== undefined) {
+                        setScheduledHour(data.scheduledHour.toString().padStart(2, "0"));
+                    }
+                    if (data.scheduledMinute !== undefined) {
+                        setScheduledMinute(data.scheduledMinute.toString().padStart(2, "0"));
+                    }
                 }
+            })
+            .catch(() => {
+                // Silently maintain defaults on fetch error
             });
     }, [userId]);
 
@@ -56,7 +73,9 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     userId,
-                    isSubscribed,
+                    globalDigestEnabled,
+                    environmentDigestEnabled,
+                    isSubscribed: hasAnyFeedEnabled,
                     minRisk,
                     cisaKevOnly,
                     scheduledHour: parseInt(scheduledHour, 10),
@@ -65,7 +84,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
             });
             
             if (response.ok) {
-                toast.success("Intelligence preferences updated successfully");
+                toast.success("Intelligence alert preferences updated successfully");
             } else {
                 toast.error("Failed to update preferences. Please try again.");
             }
@@ -89,27 +108,85 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
             </div>
 
             <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-100/50 dark:bg-white/[0.03] rounded-xl border border-slate-200 dark:border-white/5">
-                    <div className="flex items-center gap-3">
-                        <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Daily Digest Email</span>
+                {/* Option 1: Environment Threat Digest (Recommended, Targeted) */}
+                <div className="p-4 bg-slate-100/60 dark:bg-white/[0.03] rounded-2xl border border-slate-200/80 dark:border-white/5 space-y-2.5 transition-colors">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                Environment Digest
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                Zero Noise
+                            </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={environmentDigestEnabled}
+                                onChange={(e) => setEnvironmentDigestEnabled(e.target.checked)}
+                            />
+                            <div className="w-9 h-5 bg-slate-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/20 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 dark:peer-checked:bg-emerald-500"></div>
+                        </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            className="sr-only peer" 
-                            checked={isSubscribed}
-                            onChange={(e) => setIsSubscribed(e.target.checked)}
-                        />
-                        <div className="w-9 h-5 bg-slate-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/20 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 dark:peer-checked:bg-blue-500"></div>
-                    </label>
+                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        Alerts refined to software, packages, and CVEs with active or historical presence in your environment (imported via CSV, PDF, or ACR).
+                    </p>
                 </div>
 
-                {isSubscribed && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                {/* Option 2: Global Threat Intelligence Horizon */}
+                <div className="p-4 bg-slate-100/60 dark:bg-white/[0.03] rounded-2xl border border-slate-200/80 dark:border-white/5 space-y-2.5 transition-colors">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                            <Globe className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                Global Threat Feed
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                Horizon
+                            </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={globalDigestEnabled}
+                                onChange={(e) => setGlobalDigestEnabled(e.target.checked)}
+                            />
+                            <div className="w-9 h-5 bg-slate-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/20 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 dark:peer-checked:bg-blue-500"></div>
+                        </label>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        Full worldwide vulnerability feed from NVD, OSV.dev, and CISA KEV (higher volume disclosures).
+                    </p>
+                </div>
+
+                {/* Dual-Email Delivery Notification Banner */}
+                {globalDigestEnabled && environmentDigestEnabled && (
+                    <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 via-blue-500/10 to-indigo-500/10 rounded-2xl border border-blue-500/20 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-start gap-2.5">
+                            <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                                <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100">
+                                    Dual Email Dispatch Active
+                                </p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    You will receive <b>2 separate emails</b> at your dispatch time: one focused on your environment assets, and one for the global threat feed.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Configuration Options (Active when at least one feed is enabled) */}
+                {hasAnyFeedEnabled && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 pt-2 border-t border-slate-200/60 dark:border-white/5">
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">Min Risk Level</label>
+                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                    Min Risk Level
+                                </label>
                                 <Select 
                                     value={minRisk}
                                     onChange={(val: string) => setMinRisk(val)}
@@ -125,13 +202,17 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                                         checked={cisaKevOnly}
                                         onChange={(e) => setCisaKevOnly(e.target.checked)}
                                     />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">CISA KEV Only</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                        CISA KEV Only
+                                    </span>
                                 </label>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">Dispatch Time (UTC)</label>
+                            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] ml-1">
+                                Dispatch Time (UTC)
+                            </label>
                             <div className="grid grid-cols-2 gap-3">
                                 <Select 
                                     value={scheduledHour}
@@ -160,7 +241,7 @@ export function ThreatSubscriptionUI({ userId }: { userId: string }) {
                 <Button 
                     onClick={handleSave}
                     loading={isSaving}
-                    className="w-full py-6 rounded-2xl text-[11px] uppercase tracking-[0.2em] font-black"
+                    className="w-full py-6 rounded-2xl text-[11px] uppercase tracking-[0.2em] font-black mt-2"
                 >
                     Save Preferences
                 </Button>

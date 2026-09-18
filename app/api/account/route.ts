@@ -50,7 +50,15 @@ export async function GET() {
       }),
       prisma.threatSubscription.findUnique({
         where: { userId },
-        select: { isSubscribed: true, minRisk: true, cisaKevOnly: true, scheduledHour: true, scheduledMinute: true },
+        select: {
+          isSubscribed: true,
+          globalDigestEnabled: true,
+          environmentDigestEnabled: true,
+          minRisk: true,
+          cisaKevOnly: true,
+          scheduledHour: true,
+          scheduledMinute: true
+        },
       }),
     ]);
 

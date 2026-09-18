@@ -17,12 +17,25 @@ vi.mock("../../lib/email", () => ({
 vi.mock("../../lib/threat-intelligence/email-template", () => ({
     renderThreatEmail: vi.fn().mockReturnValue("<html>digest</html>"),
 }));
+vi.mock("@/lib/threat-intelligence/environment-matcher", () => ({
+    getEnvironmentFootprint: vi.fn().mockResolvedValue({
+        cves: new Set(["CVE-1"]),
+        packages: new Set(["curl"]),
+        products: new Set(["tomcat"]),
+    }),
+    filterThreatsForEnvironment: vi.fn().mockImplementation((threats) => {
+        return threats
+            .filter((t: { cveId?: string }) => t.cveId === "CVE-1")
+            .map((t: Record<string, unknown>) => ({ ...t, environmentMatchReason: "Matches environment CVE: CVE-1" }));
+    }),
+}));
 
 import { dispatchDailyThreatDigest } from "@/lib/threat-intelligence/dispatcher";
 import { prisma } from "@/lib/prisma";
 import { getReportConfig } from "@/lib/reports";
 import { sendEmail } from "../../lib/email";
 import { renderThreatEmail } from "../../lib/threat-intelligence/email-template";
+import { filterThreatsForEnvironment } from "@/lib/threat-intelligence/environment-matcher";
 
 const mockPrisma = prisma as unknown as {
     threatVulnerability: { findMany: ReturnType<typeof vi.fn> };
@@ -38,6 +51,8 @@ const baseUser = (overrides: Record<string, unknown> = {}) => ({
     threatSubscription: {
         id: "sub-1",
         isSubscribed: true,
+        globalDigestEnabled: true,
+        environmentDigestEnabled: false,
         minRisk: "Low",
         cisaKevOnly: false,
         ...overrides,
@@ -54,7 +69,14 @@ describe("dispatchDailyThreatDigest — subscription gating", () => {
     it("skips users whose subscription is disabled", async () => {
         await dispatchDailyThreatDigest({
             email: "x@example.com",
-            threatSubscription: { id: "sub-1", isSubscribed: false, minRisk: "Low", cisaKevOnly: false },
+            threatSubscription: {
+                id: "sub-1",
+                isSubscribed: false,
+                globalDigestEnabled: false,
+                environmentDigestEnabled: false,
+                minRisk: "Low",
+                cisaKevOnly: false,
+            },
         });
         expect(mockPrisma.threatVulnerability.findMany).not.toHaveBeenCalled();
     });
@@ -156,7 +178,7 @@ describe("dispatchDailyThreatDigest — bucket assignment", () => {
 });
 
 describe("dispatchDailyThreatDigest — successful send", () => {
-    it("sends email, includes total count in subject, and updates lastSentAt", async () => {
+    it("sends email, includes total count in subject, and updates lastSentAt and lastSentGlobalAt", async () => {
         mockPrisma.threatVulnerability.findMany.mockResolvedValue([
             { osvId: "CVE-1", cveId: "CVE-1", summary: "s1", cvssScore: 9.8, cisaKevStatus: true },
             { osvId: "CVE-2", cveId: null, summary: "s2", cvssScore: 5.0, cisaKevStatus: false },
@@ -174,7 +196,99 @@ describe("dispatchDailyThreatDigest — successful send", () => {
 
         expect(mockPrisma.threatSubscription.update).toHaveBeenCalledWith({
             where: { id: "sub-1" },
-            data: { lastSentAt: expect.any(Date) },
+            data: expect.objectContaining({
+                lastSentAt: expect.any(Date),
+                lastSentGlobalAt: expect.any(Date),
+            }),
         });
+    });
+});
+
+describe("dispatchDailyThreatDigest — environment and dual feed dispatch", () => {
+    beforeEach(() => {
+        vi.mocked(getReportConfig).mockResolvedValue({ enabled: true } as never);
+        vi.mocked(sendEmail).mockResolvedValue(undefined as never);
+    });
+
+    it("dispatches only environment email when environmentDigestEnabled is true and global is false", async () => {
+        mockPrisma.threatVulnerability.findMany.mockResolvedValue([
+            { osvId: "CVE-1", cveId: "CVE-1", summary: "Apache flaw", cvssScore: 9.0, cisaKevStatus: false },
+            { osvId: "CVE-2", cveId: "CVE-2", summary: "Unrelated flaw", cvssScore: 8.0, cisaKevStatus: false },
+        ]);
+
+        await dispatchDailyThreatDigest(
+            baseUser({
+                globalDigestEnabled: false,
+                environmentDigestEnabled: true,
+            })
+        );
+
+        // Exactly 1 email sent (Environment Alert)
+        expect(sendEmail).toHaveBeenCalledOnce();
+        const [, recipient, subject] = vi.mocked(sendEmail).mock.calls[0];
+        expect(recipient).toBe("user@example.com");
+        expect(subject).toBe("[Environment Alert] Daily Threat Intelligence: 1 Relevant to Your Environment");
+
+        expect(mockPrisma.threatSubscription.update).toHaveBeenCalledWith({
+            where: { id: "sub-1" },
+            data: expect.objectContaining({
+                lastSentAt: expect.any(Date),
+                lastSentEnvironmentAt: expect.any(Date),
+            }),
+        });
+    });
+
+    it("dispatches TWO separate emails when both environment and global feeds are enabled", async () => {
+        mockPrisma.threatVulnerability.findMany.mockResolvedValue([
+            { osvId: "CVE-1", cveId: "CVE-1", summary: "Apache flaw", cvssScore: 9.0, cisaKevStatus: false },
+            { osvId: "CVE-2", cveId: "CVE-2", summary: "Unrelated flaw", cvssScore: 8.0, cisaKevStatus: false },
+        ]);
+
+        await dispatchDailyThreatDigest(
+            baseUser({
+                globalDigestEnabled: true,
+                environmentDigestEnabled: true,
+            })
+        );
+
+        // Exactly 2 separate emails sent!
+        expect(sendEmail).toHaveBeenCalledTimes(2);
+
+        // Email 1: Environment Alert
+        const call1 = vi.mocked(sendEmail).mock.calls[0];
+        expect(call1[1]).toBe("user@example.com");
+        expect(call1[2]).toBe("[Environment Alert] Daily Threat Intelligence: 1 Relevant to Your Environment");
+
+        // Email 2: Global Horizon Alert
+        const call2 = vi.mocked(sendEmail).mock.calls[1];
+        expect(call2[1]).toBe("user@example.com");
+        expect(call2[2]).toBe("Daily Threat Intelligence (Global Feed): 2 Found");
+
+        // Updates both timestamps
+        expect(mockPrisma.threatSubscription.update).toHaveBeenCalledWith({
+            where: { id: "sub-1" },
+            data: expect.objectContaining({
+                lastSentAt: expect.any(Date),
+                lastSentEnvironmentAt: expect.any(Date),
+                lastSentGlobalAt: expect.any(Date),
+            }),
+        });
+    });
+
+    it("skips environment email if no threats match the environment footprint", async () => {
+        vi.mocked(filterThreatsForEnvironment).mockReturnValueOnce([]);
+        mockPrisma.threatVulnerability.findMany.mockResolvedValue([
+            { osvId: "CVE-99", cveId: "CVE-99", summary: "Unrelated flaw", cvssScore: 8.0, cisaKevStatus: false },
+        ]);
+
+        await dispatchDailyThreatDigest(
+            baseUser({
+                globalDigestEnabled: false,
+                environmentDigestEnabled: true,
+            })
+        );
+
+        expect(sendEmail).not.toHaveBeenCalled();
+        expect(mockPrisma.threatSubscription.update).not.toHaveBeenCalled();
     });
 });

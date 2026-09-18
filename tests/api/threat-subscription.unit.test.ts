@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockPrisma = {
-  threatSubscription: { findUnique: vi.fn(), upsert: vi.fn() },
-};
-
-vi.mock("../../lib/prisma", () => ({ prisma: mockPrisma }));
+vi.mock("../../lib/prisma", () => ({
+  prisma: {
+    threatSubscription: { findUnique: vi.fn(), upsert: vi.fn() },
+  },
+}));
 vi.mock("../../lib/rbac", () => ({
   requireUser: vi.fn(),
 }));
@@ -12,7 +12,13 @@ vi.mock("@prisma/client", () => ({
   Risk: { Critical: "Critical", High: "High", Medium: "Medium", Low: "Low", None: "None" },
 }));
 
+import { prisma } from "../../lib/prisma";
 import { requireUser } from "../../lib/rbac";
+import { GET, POST } from "../../app/api/threat-intelligence/subscription/route";
+
+const mockPrisma = prisma as unknown as {
+  threatSubscription: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -20,10 +26,12 @@ beforeEach(() => {
 });
 
 describe("/api/threat-intelligence/subscription GET", () => {
-  it("returns the user subscription", async () => {
+  it("returns the user subscription with feed toggles", async () => {
     const sub = {
       userId: "user-1",
       isSubscribed: true,
+      globalDigestEnabled: true,
+      environmentDigestEnabled: true,
       minRisk: "High",
       cisaKevOnly: false,
       scheduledHour: 8,
@@ -31,18 +39,18 @@ describe("/api/threat-intelligence/subscription GET", () => {
     };
     mockPrisma.threatSubscription.findUnique.mockResolvedValue(sub);
 
-    const { GET } = await import("../../app/api/threat-intelligence/subscription/route");
     const res = await GET();
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.isSubscribed).toBe(true);
+    expect(data.globalDigestEnabled).toBe(true);
+    expect(data.environmentDigestEnabled).toBe(true);
     expect(data.minRisk).toBe("High");
   });
 
   it("returns null when no subscription", async () => {
     mockPrisma.threatSubscription.findUnique.mockResolvedValue(null);
 
-    const { GET } = await import("../../app/api/threat-intelligence/subscription/route");
     const res = await GET();
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -52,25 +60,65 @@ describe("/api/threat-intelligence/subscription GET", () => {
   it("returns 401 when requireUser returns session without user.id", async () => {
     vi.mocked(requireUser).mockResolvedValue({ user: { id: undefined } } as any);
 
-    const { GET } = await import("../../app/api/threat-intelligence/subscription/route");
     const res = await GET();
     expect(res.status).toBe(401);
   });
 });
 
 describe("/api/threat-intelligence/subscription POST", () => {
-  it("creates/updates subscription with valid payload", async () => {
-    const sub = {
+  it("creates/updates subscription with dual feed toggles", async () => {
+    const payload = {
+      globalDigestEnabled: false,
+      environmentDigestEnabled: true,
+      minRisk: "Critical",
+      cisaKevOnly: true,
+      scheduledHour: 9,
+      scheduledMinute: 0,
+    };
+    mockPrisma.threatSubscription.upsert.mockResolvedValue({
       userId: "user-1",
+      ...payload,
+      isSubscribed: true,
+    });
+
+    const req = new Request("http://localhost/api/threat-intelligence/subscription", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.environmentDigestEnabled).toBe(true);
+    expect(data.globalDigestEnabled).toBe(false);
+
+    expect(mockPrisma.threatSubscription.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        update: expect.objectContaining({
+          environmentDigestEnabled: true,
+          globalDigestEnabled: false,
+          isSubscribed: true,
+        }),
+      })
+    );
+  });
+
+  it("creates/updates subscription with legacy isSubscribed payload", async () => {
+    const sub = {
       isSubscribed: true,
       minRisk: "Critical",
       cisaKevOnly: true,
       scheduledHour: 9,
       scheduledMinute: 0,
     };
-    mockPrisma.threatSubscription.upsert.mockResolvedValue(sub);
+    mockPrisma.threatSubscription.upsert.mockResolvedValue({
+      userId: "user-1",
+      ...sub,
+      globalDigestEnabled: true,
+      environmentDigestEnabled: false,
+    });
 
-    const { POST } = await import("../../app/api/threat-intelligence/subscription/route");
     const req = new Request("http://localhost/api/threat-intelligence/subscription", {
       method: "POST",
       body: JSON.stringify(sub),
@@ -83,7 +131,6 @@ describe("/api/threat-intelligence/subscription POST", () => {
   });
 
   it("returns 400 for invalid payload", async () => {
-    const { POST } = await import("../../app/api/threat-intelligence/subscription/route");
     const req = new Request("http://localhost/api/threat-intelligence/subscription", {
       method: "POST",
       body: JSON.stringify({
@@ -102,7 +149,6 @@ describe("/api/threat-intelligence/subscription POST", () => {
   it("returns 401 on POST when user.id is missing", async () => {
     vi.mocked(requireUser).mockResolvedValue({ user: { id: undefined } } as any);
 
-    const { POST } = await import("../../app/api/threat-intelligence/subscription/route");
     const req = new Request("http://localhost/api/threat-intelligence/subscription", {
       method: "POST",
       body: JSON.stringify({ isSubscribed: true, minRisk: "High", cisaKevOnly: false, scheduledHour: 8, scheduledMinute: 0 }),
@@ -113,7 +159,6 @@ describe("/api/threat-intelligence/subscription POST", () => {
   });
 
   it("returns 400 when scheduledMinute out of range", async () => {
-    const { POST } = await import("../../app/api/threat-intelligence/subscription/route");
     const req = new Request("http://localhost/api/threat-intelligence/subscription", {
       method: "POST",
       body: JSON.stringify({
