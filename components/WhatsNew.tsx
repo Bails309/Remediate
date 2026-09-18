@@ -3,18 +3,26 @@
 import { useState } from "react";
 import { cn } from "@/components/cn";
 import { Button } from "@/components/Button";
-import { Sparkles, LayoutDashboard, Users, Compass, Mail, Wrench, Download } from "lucide-react";
+import { Sparkles, LayoutDashboard, Users, Compass, Mail, Wrench, Download, ShieldCheck } from "lucide-react";
 
-const TOUR_ID = "whats-new-sep-2026-v2180";
+const TOUR_ID = "whats-new-sep-2026-v2190";
 
 const features = [
+  {
+    icon: ShieldCheck,
+    accent: "text-blue-500 dark:text-blue-400",
+    bg: "bg-blue-100 dark:bg-blue-500/15",
+    title: "Environment Threat Digest & Dual-Feed Alerts",
+    description:
+      "Cut through the 1,000+ alerts/day noise. The Threat Intelligence Centre now correlates incoming global threats against active and historical assets across Nessus CSV, Pentest PDF, and ACR container images. Choose an Environment Threat Digest tailored to your estate, the full Global Threat Feed, or both with dual separate daily emails delivered directly to your inbox.",
+  },
   {
     icon: Download,
     accent: "text-emerald-500 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-500/15",
-    title: "Export Outstanding Vulnerabilities (CSV, PDF & JSON)",
+    title: "Hierarchical Vulnerability Export (CSV, PDF & JSON)",
     description:
-      "Send outstanding findings directly to external teams, vendors, and auditors. Export by individual bucket on the Buckets page, or export filtered queues and selected rows from the Vulnerabilities table. Choose sanitized CSV (protected against spreadsheet formula injection), an executive-ready PDF report with metrics and remediation advice, or structured JSON for automated pipelines. All exports strictly enforce your group visibility wall.",
+      "Export outstanding findings by bucket or table selection with operational sortation: organized by Severity, grouped descending by host finding density (worst offending VMs appear first), and sorted by CVSS. Features RFC 4180 CSV with formula injection defense, structured JSON, and pagination-optimized PDF reports with zero trailing blank pages.",
   },
   {
     icon: Wrench,
@@ -22,7 +30,7 @@ const features = [
     bg: "bg-cyan-100 dark:bg-cyan-500/15",
     title: "Get A Whole Remediation Package, Not Just Advice",
     description:
-      "Open a finding you own and press Generate. You get the plan to fix it, a change request written out in full \u2014 justification, affected systems, implementation steps, risk, service impact and scheduling \u2014 a rollback with the point at which you should abort, the checks that prove the fix worked, and the evidence to keep. Copy it or download it as Markdown. Only the assignee, the group leader or an admin can generate it, and it only ever reads the finding you have open.",
+      "Open a finding you own and press Generate. You get the plan to fix it, a change request written out in full — justification, affected systems, implementation steps, risk, service impact and scheduling — a rollback with the point at which you should abort, the checks that prove the fix worked, and the evidence to keep. Copy it or download it as Markdown. Only the assignee, the group leader or an admin can generate it, and it only ever reads the finding you have open.",
   },
   {
     icon: Mail,
@@ -106,9 +114,9 @@ export function WhatsNew({ completedTours }: Props) {
               What&apos;s New
             </span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">September 2026 Update — v2.18.0</h2>
+          <h2 className="text-2xl font-bold tracking-tight">September 2026 Update — v2.19.0</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Export active vulnerabilities by bucket or selection in CSV, executive PDF, or JSON — plus full remediation packages, custom dashboards, supplier tickets, and MITRE ATT&amp;CK adversary intelligence.
+            Environment-correlated threat intelligence with dual separate email alerts, hierarchical vulnerability exports (CSV, PDF &amp; JSON), AI remediation packages, and custom dashboards.
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 # Remediate HTTP API Reference
 
-> **Applies to release**: `v2.18.0` (2026-09-17). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
+> **Applies to release**: `v2.19.0` (2026-09-18). When new endpoints are added under `app/api/`, append a row to the relevant table below and document any new request/response shape.
 
 All endpoints are served by the Next.js application under `/api/*`. Unless explicitly marked **Public**, every route requires an authenticated session cookie issued by NextAuth (Auth.js v5).
 
@@ -34,7 +34,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | :--- | :--- | :--- | :--- |
 | `GET`/`POST` | `/api/auth/[...nextauth]` | 🌐 | NextAuth catch-all for OIDC and credentials flows (sign-in, callback, sign-out, CSRF, session). |
 | `POST` | `/api/auth/revoke` | 🔒 | Revokes the current session. |
-| `GET` | `/api/account` | 🔒 | Returns the current user profile, roles, completed tours, and subscription state. |
+| `GET` | `/api/account` | 🔒 | Returns the current user profile, roles, completed tours, threat intelligence subscription state (both global and environment feeds), and GDPR SAR data package. |
 | `DELETE` | `/api/account` | 🔒 | Self-service account deletion. Last-admin guards apply. |
 | `POST` | `/api/tours/complete` | 🔒 | Marks a product tour or What's New card as completed. Body: `{ "tourId": "<whitelisted id>" }`. Tour IDs are validated against an `enum` in [route.ts](../app/api/tours/complete/route.ts). |
 
@@ -45,7 +45,7 @@ All request/response bodies are JSON unless otherwise noted. Errors follow the s
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/vulnerabilities` | 🔒 | Paginated search. Query: `q`, `status`, `risk`, `bucketId`, `assigneeId`, `groupIds`, `id`/`ids`, `page` (≤10000), `limit`. ILIKE wildcards are escaped server-side. **Group visibility wall**: non-admins always see ungrouped items plus items in groups they belong to; any `groupIds` token outside the requester's `memberOf` set is silently dropped before the SQL is built. Pass the keyword `unassigned` inside `groupIds` to include items with no group when also filtering by specific groups. |
-| `GET` | `/api/vulnerabilities/export` | 🔒 | Export active and outstanding vulnerabilities as `CSV`, `JSON`, or `PDF`. Query: `format` (`csv` \| `json` \| `pdf`, default `csv`), `siteId`, `siteIds`, `status`, `includeAllStatuses`, `risk`, `assigneeId`, `groupIds`, `ids`, `q`. Enforces the **group visibility wall** and rate limiting. Defaults to actionable/outstanding findings (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `NoFixAvailable`), excluding remediated/false-positives unless `includeAllStatuses=true`. See [Vulnerability Export (v2.18.0)](#vulnerability-export-v2180) below. |
+| `GET` | `/api/vulnerabilities/export` | 🔒 | Export active and outstanding vulnerabilities as `CSV`, `JSON`, or `PDF` using hierarchical operational sortation (Severity → Host finding density → Host → CVSS → Title). Query: `format` (`csv` \| `json` \| `pdf`, default `csv`), `siteId`, `siteIds`, `status`, `includeAllStatuses`, `risk`, `assigneeId`, `groupIds`, `ids`, `q`. Enforces the **group visibility wall** and rate limiting. Defaults to outstanding findings (`Open`, `InProgress`, `InProgressWithCR`, `AwaitingVendor`, `NoFixAvailable`), excluding remediated/false-positives unless `includeAllStatuses=true`. See [Vulnerability Export (v2.18.0 / v2.19.0)](#vulnerability-export-v2180--v2190) below. |
 | `GET` | `/api/vulnerabilities/{id}` | 🔒 | Returns a single vulnerability with assignee, collaborators, comment count, and history snippet. Returns `403` if the requester cannot see the item under the group visibility wall. |
 | `PATCH` | `/api/vulnerabilities/{id}` | 🔒 | Update status, assignee, collaborators, CR number, sunset flag, or `groupId`. RBAC enforced via `lib/group-rbac.ts`: standard users may only self-assign or unassign; group leaders may edit any item their group owns and may reassign within their group; only admins may change `groupId`; CR number is required for `InProgressWithCR`. |
 | `POST` | `/api/vulnerabilities/{id}/restore` | 🛡️ | **Admin only** (`site_admin` / `web_app_admin`). Un-archives a finding: moves it out of `VulnerabilityHistory` and back into the active queue with status `Open`. No request body. See [Archiving & restoring](#archiving--restoring-v2150) below. |
@@ -99,7 +99,7 @@ Response `200` is the recreated vulnerability with `recordScope: "active"` and `
 | `409` | An equivalent finding is already active (`activeId` names it). |
 | `429` | Rate limited. |
 
-### Vulnerability Export (v2.18.0)
+### Vulnerability Export (v2.18.0 / v2.19.0)
 
 `GET /api/vulnerabilities/export` streams active and outstanding vulnerability records formatted as CSV, JSON, or an executive PDF document for sharing with external suppliers, engineering teams, and auditing bodies.
 
@@ -117,6 +117,20 @@ Response `200` is the recreated vulnerability with `recordScope: "active"` and `
 | `groupIds` | string | — | Comma-separated group UUIDs or `unassigned`. Scoped by the requester's group memberships for non-admins. |
 | `ids` | string | — | Comma-separated vulnerability UUIDs to export specific selected items. |
 | `q` | string | — | Search term matching vulnerability name, host, pluginId, or CVE. Prefix with `!` or `-` to negate. |
+
+#### Hierarchical Operational Sortation (v2.19.0)
+
+All three export formats (`CSV`, `JSON`, `PDF`) automatically apply a deterministic multi-tier hierarchical sorting structure designed for infrastructure remediation teams:
+
+1. **Top-Level Severity Grouping**: Findings are grouped primarily by risk tier: `Critical` → `High` → `Medium` → `Low` → `None`.
+2. **Host / Virtual Machine Density Sortation**: Underneath each severity tier, findings are grouped by host / virtual machine identifier (`host` or container repository). Hosts are sorted in **descending order of finding count** within that severity tier, so the worst-offending VMs with the highest number of criticals or highs appear at the very top of that tier (e.g. `[Criticals] → VM1 (4 issues) → VM2 (3 issues) → VM3 (2 issues) → VM4 (1 issue)`). If two hosts have identical finding counts, they are sorted alphabetically by hostname.
+3. **Finding-Level Prioritization**: Within each host group, individual findings are sorted by CVSS base score descending, followed by vulnerability title alphabetically.
+
+#### Executive PDF Pagination Engine (v2.19.0)
+The PDF export engine (`lib/export-pdf.ts`) utilizes a two-pass `pdfkit` layout calculation:
+- Pass 1 renders report headers, executive summaries, risk breakdowns, and nested severity/host finding cards.
+- Pass 2 iterates across all generated pages to draw dynamic pagination footers (`Page X of Y`), generated timestamp, and confidentiality markers.
+- **Trailing Blank Page Prevention**: During the footer application pass, bottom margins are set to zero (`page.margins.bottom = 0`) to prevent `pdfkit` from triggering spurious page breaks when positioning footer text near the bottom edge.
 
 #### Security & Access Control
 
@@ -257,10 +271,56 @@ GET /api/vulnerabilities?groupIds=11111111-...,22222222-...,unassigned
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/threat-intelligence/feed` | 🔒 | Paginated global feed (NVD / OSV / CISA KEV). Query: `risk`, `kev`, `since`, `limit` (capped at 100). |
-| `GET` | `/api/threat-intelligence/subscription` | 🔒 | Returns the current user's digest configuration. |
-| `POST` | `/api/threat-intelligence/subscription` | 🔒 | Updates digest configuration. Body: `{ "enabled": boolean, "minRisk": "Critical"\|"High"\|..., "kevOnly": boolean, "scheduledHour": 0-23, "scheduledMinute": 0-59 }`. |
+| `GET` | `/api/threat-intelligence/subscription` | 🔒 | Returns the current user's digest configuration (global and environment feed toggles, scheduled time, risk thresholds, and last sent timestamps). |
+| `POST` | `/api/threat-intelligence/subscription` | 🔒 | Updates digest configuration. Body: `{ "globalDigestEnabled"?: boolean, "environmentDigestEnabled"?: boolean, "isSubscribed"?: boolean, "minRisk": "Critical"\|"High"\|..., "cisaKevOnly": boolean, "scheduledHour": 0-23, "scheduledMinute": 0-59 }`. Backward-compatible with legacy `isSubscribed` flag. |
 | `GET` | `/api/threat-intelligence/actors` | 🔒 | MITRE ATT&CK adversary catalogue. Query: `q` (name / alias / MITRE id), `tactic`, `sector`, `region`, `type`, `limit` (≤200, default 100). Returns `{ actors: ThreatActor[], total: number, lastSyncedAt: string \| null }`. |
 | `POST` | `/api/threat-intelligence/actors` | 🛡️ | Forces an immediate re-sync of the ATT&CK Enterprise bundle. Returns `{ synced: number }`. Rate-limited; `502` if the upstream fetch or parse fails. The worker also syncs automatically (see below). |
+
+### Threat Intelligence Environment Correlation & Dual-Feed Subscriptions (v2.19.0)
+
+Remediate provides two independent subscription feeds for daily threat intelligence alerts:
+
+1. **Global Threat Feed (`globalDigestEnabled`)**: Dispatches broad daily threat notifications matching newly disclosed CVEs, OSV advisories, and CISA KEV entries meeting the user's minimum severity threshold.
+2. **Environment-Correlated Threat Digest (`environmentDigestEnabled`)**: Dispatches zero-noise threat alerts correlated directly with the organization's active (`Vulnerability`) and historical (`VulnerabilityHistory`) asset footprint. Findings ingested from Nessus CSV scans, penetration-testing PDFs, and Azure Container Registry container images build an in-process fingerprint of active/historical CVEs, affected package names, and enterprise product names. Only threat advisories directly relevant to the environment are included.
+
+#### Dual Email Dispatch Semantics
+When both feeds are enabled:
+- The notification scheduler (`lib/report-scheduler.ts`) and dispatcher (`lib/threat-intelligence/dispatcher.ts`) send **two separate, dedicated emails** to ensure clear separation of operational priorities:
+  1. `[Environment Alert] Daily Threat Intelligence — Matched to Your Environment`: Contains only threats confirmed to affect local software, packages, or CVEs present in active or historical scans.
+  2. `Daily Threat Intelligence (Global Feed)`: Contains broader global vulnerability disclosures meeting the user's severity criteria.
+- **Zero-Noise Suppression**: If an environment check yields 0 matching threats, or if no global threats meet the configured criteria, dispatching for that feed is skipped entirely. No empty emails are ever sent.
+
+#### Subscription Payload Schema (`POST /api/threat-intelligence/subscription`)
+```json
+{
+  "globalDigestEnabled": true,
+  "environmentDigestEnabled": true,
+  "minRisk": "High",
+  "cisaKevOnly": false,
+  "scheduledHour": 9,
+  "scheduledMinute": 0
+}
+```
+
+#### Subscription Response Schema (`GET` / `POST`)
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "isSubscribed": true,
+  "globalDigestEnabled": true,
+  "environmentDigestEnabled": true,
+  "minRisk": "High",
+  "cisaKevOnly": false,
+  "scheduledHour": 9,
+  "scheduledMinute": 0,
+  "lastSentAt": "2026-09-18T09:00:00.000Z",
+  "lastSentGlobalAt": "2026-09-18T09:00:00.000Z",
+  "lastSentEnvironmentAt": "2026-09-18T09:00:00.000Z",
+  "createdAt": "2026-09-01T08:00:00.000Z",
+  "updatedAt": "2026-09-18T09:00:00.000Z"
+}
+```
 
 ### Threat actors (v2.16.0)
 

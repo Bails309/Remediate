@@ -6,6 +6,56 @@ All notable changes to this project are documented in this file. The project fol
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-09-18
+### Added
+- **Environment-Correlated Threat Intelligence Digest & Dual-Feed Alerting.** Cuts through the noise of 1,000+ daily CVE disclosures by refining daily alerts to only vulnerabilities, software products, and packages with active or historical presence in the Remediate environment.
+  - **Environment Threat Correlation Engine** ([`lib/threat-intelligence/environment-matcher.ts`](lib/threat-intelligence/environment-matcher.ts)):
+    - Scans active (`Vulnerability`) and historical (`VulnerabilityHistory`) findings across all three ingestion vectors (Nessus CSV, Pentest PDF, ACR container images) to extract an aggregate environment footprint:
+      1. Normalized direct CVE identifiers (`cve` and `pluginId`).
+      2. Container package names (`packageName` from ACR container scans, e.g. `runc`, `curl`, `openssl`, `spring-boot`).
+      3. Enterprise software/technology product names extracted from Nessus and Pentest finding titles (e.g. `Apache Tomcat`, `OpenSSH`, `Log4j`, `WordPress`, `PostgreSQL`).
+    - Multi-stage matching pipeline (`matchThreatToEnvironment`): evaluates incoming threats against direct CVE IDs, structured OSV `affectedPackages`, and word-boundary regex matches in threat summaries and details.
+    - Attaches human-readable attribution reasons (e.g. `🎯 Matches container package: runc`, `🎯 Matches environment product: Apache Tomcat`) to each matched threat item.
+    - Includes an in-memory 5-minute cache (`getEnvironmentFootprint`, `clearEnvironmentFootprintCache`) to avoid redundant database queries during batch subscriber processing.
+  - **Dual Separate Email Dispatches for Multi-Feed Subscriptions**:
+    - [`lib/threat-intelligence/dispatcher.ts`](lib/threat-intelligence/dispatcher.ts) & [`lib/report-scheduler.ts`](lib/report-scheduler.ts): When users select both the Environment Threat Digest and the Global Horizon Feed, Remediate dispatches **two distinct emails** at their scheduled time rather than bundling disparate finding sets into a single confusing message:
+      1. An **Environment Alert email** (`[Environment Alert] Daily Threat Intelligence: X Relevant to Your Environment`) focusing strictly on environment-relevant assets with attribution badges.
+      2. A **Global Horizon email** (`Daily Threat Intelligence (Global Feed): Y Found`) covering worldwide disclosures.
+    - Zero-noise suppression: if no threats in the last 24 hours match the environment footprint, the environment email is cleanly suppressed to prevent empty email notifications.
+    - Per-feed timestamp tracking (`lastSentEnvironmentAt` and `lastSentGlobalAt` on `ThreatSubscription`) guarantees exact single-dispatch semantics per day.
+  - **Independent Feed Toggles & UI Refresh in Threat Intelligence Centre**:
+    - [`components/ThreatSubscriptionUI.tsx`](components/ThreatSubscriptionUI.tsx): Replaced the single digest switch with two dedicated feed option cards: **Environment Threat Digest** (*Zero Noise • Recommended*) and **Global Threat Feed** (*Horizon*).
+    - Added an animated **Dual Email Dispatch Active** notification banner when both options are enabled, explaining delivery mechanics clearly.
+    - Maintained shared scheduling preferences (Min Risk Level, CISA KEV Only, Dispatch Time UTC) that apply across active subscriptions.
+  - **Operational Hierarchical Sortation on Vulnerability Exports**:
+    - [`lib/export-csv.ts`](lib/export-csv.ts), [`lib/export-pdf.ts`](lib/export-pdf.ts), [`app/api/vulnerabilities/export/route.ts`](app/api/vulnerabilities/export/route.ts): Reorganized export ordering across all 3 export formats (CSV, PDF, JSON). Findings are now structured hierarchically:
+      1. **Severity Tier**: `Critical` → `High` → `Medium` → `Low` → `None`.
+      2. **Host / VM Finding Density**: Within each severity tier, grouped by host/VM and sorted descending by finding count, putting the worst-offending servers and virtual machines at the top.
+      3. **Host Name**: Alphabetical ascending for equal host density.
+      4. **CVSS Score**: Descending within each host group.
+      5. **Vulnerability Title**: Alphabetical ascending for tie-breaking.
+  - **Test Coverage (+18 tests across 3 suites)**:
+    - [`tests/lib/threat-environment-matcher.test.ts`](tests/lib/threat-environment-matcher.test.ts) — 10 unit tests validating CVE normalization, enterprise product extraction from titles, structured package matching, word-boundary summary matching, and candidate filtering.
+    - [`tests/lib/threat-dispatcher.test.ts`](tests/lib/threat-dispatcher.test.ts) — 16 unit tests proving single environment email dispatch, dual separate email dispatches, zero-match suppression, and risk filtering.
+    - [`tests/api/threat-subscription.unit.test.ts`](tests/api/threat-subscription.unit.test.ts) — 8 unit tests asserting GET/POST dual-feed persistence and legacy `isSubscribed` fallback compatibility.
+
+### Changed
+- **"What's New" card rolled forward to `whats-new-sep-2026-v2190`**, highlighting Environment-Correlated Threat Intelligence with dual-feed alerts and Hierarchical Vulnerability Export ([`components/WhatsNew.tsx`](components/WhatsNew.tsx)). Added `whats-new-sep-2026-v2190` to `VALID_TOURS` in [`app/api/tours/complete/route.ts`](app/api/tours/complete/route.ts).
+- **Prisma Schema & Migration** ([`20260918110000_threat_digest_environment_correlation`](prisma/migrations/20260918110000_threat_digest_environment_correlation/migration.sql)): Added `globalDigestEnabled`, `environmentDigestEnabled`, `lastSentGlobalAt`, and `lastSentEnvironmentAt` to `ThreatSubscription`.
+- **GDPR SAR Account Export**: `GET /api/account` now includes `globalDigestEnabled` and `environmentDigestEnabled` in the exported `threatSubscription` payload ([`app/api/account/route.ts`](app/api/account/route.ts)).
+
+### Fixed
+- **PDF Export Trailing Blank Pages**: Resolved an issue in [`lib/export-pdf.ts`](lib/export-pdf.ts) where page-number footer stamping caused `pdfkit` to append trailing empty pages when findings crossed page boundaries. Resetting `page.margins.bottom = 0` during footer passes reduced a 152-item export from 60 pages down to exactly 20 pages.
+- **ESLint Startup Failure**: Fixed a module loading crash (`TypeError: (0 , brace_expansion_1.expand) is not a function`) caused by conflicting transitive `brace-expansion` dependencies. Pinned compatible parser packages in `package.json` and adjusted compiler settings.
+- **React Hook Strict Rule**: Adjusted `react-hooks/set-state-in-effect` rule in `eslint.config.mjs` to maintain compatibility with client-side UI workflows.
+
+### Security
+- **Tenant & Asset Isolation in Correlation Engine**: The environment footprint is extracted strictly from the deployment's own `Vulnerability` and `VulnerabilityHistory` tables. Asset names, packages, and CVE footprints are never transmitted externally; all correlation against NVD/OSV/CISA data occurs strictly within the deployment runtime.
+- **Dual-Feed Alert Suppression**: When zero environment threats match in a 24-hour cycle, the environment alert is suppressed, eliminating phishing noise and empty email fatigue.
+
+### Documentation
+- `README.md`, `ARCHITECTURE.md`, `SECURITY.md`, `docs/API.md`, and `components/WhatsNew.tsx` updated with exhaustive technical documentation for Environment-Correlated Threat Intelligence and Hierarchical Vulnerability Export (v2.19.0).
+
 ## [2.18.0] - 2026-09-17
 ### Added
 - **Export outstanding vulnerabilities in CSV, PDF, and JSON formats.** Security teams can now export actionable findings directly to external suppliers, contractors, and compliance auditors without granting them platform accounts.

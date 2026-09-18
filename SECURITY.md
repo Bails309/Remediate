@@ -75,6 +75,27 @@ Vulnerabilities can be scoped to organizational departments/groups (`Group` mode
 ### 4. Cache-Control & Transport Security
 - Exported vulnerability reports contain sensitive infrastructure and vulnerability exposure data. The API sets `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache` to ensure that neither intermediate enterprise proxies nor browser disk caches store exported attachments.
 
+## Threat Intelligence Environment Correlation & Alert Privacy (v2.19.0)
+The threat intelligence environment correlation engine (`lib/threat-intelligence/environment-matcher.ts`) correlates incoming global threat advisories (OSV, NVD, CISA KEV) against the estate's active and historical vulnerability footprint. Because an organization's software inventory and vulnerability history represent highly sensitive security intelligence, several architectural controls guarantee privacy, tenant isolation, and noise suppression:
+
+### 1. In-Process Local Matching (Zero External Egress)
+- **Local Footprint Extraction**: The environment footprint builder (`buildEnvironmentFootprint`) executes strictly within the application/worker process, querying local PostgreSQL tables (`Vulnerability` and `VulnerabilityHistory`) across all ingested sources (Nessus CSV scans, penetration-testing PDFs, and Azure Container Registry container scans).
+- **No Outbound Asset Leakage**: The application **never** transmits local asset names, package inventories, container repository names, internal hosts, or discovered CVE lists to external threat feeds or third-party APIs. Public threat feeds (OSV, CISA KEV, NVD) are pulled down unidirectionally into local `ThreatFeedItem` records; correlation and matching are computed 100% in-memory locally.
+
+### 2. Dual-Feed Segregation & Independent Delivery
+- **Separation of Concerns**: Users can configure independent subscriptions for the **Environment-Correlated Digest** and the **Global Threat Feed** via `components/ThreatSubscriptionUI.tsx` and `POST /api/threat-intelligence/subscription`.
+- **Discrete Communication Channels**: When both feeds are active, the dispatcher (`lib/threat-intelligence/dispatcher.ts`) dispatches two separate, clearly branded email messages:
+  - `[Environment Alert] Daily Threat Intelligence — Matched to Your Environment`
+  - `Daily Threat Intelligence (Global Feed)`
+- **Zero-Noise Suppression**: If an environment feed check produces zero correlated threat items (or if no global threats meet the configured severity threshold), dispatching for that feed is skipped entirely. No empty or misleading emails are generated, eliminating alert fatigue and reducing unnecessary email transmission.
+
+### 3. Authenticated Per-User Scoping & GDPR Compliance
+- **Identity Isolation**: The subscription API (`/api/threat-intelligence/subscription`) strictly requires an authenticated session (`requireUser()`). Users can only read and mutate their own digest preferences; cross-tenant or cross-user subscription modification is impossible.
+- **GDPR Subject Access & Erasure**: All subscription settings (`globalDigestEnabled`, `environmentDigestEnabled`, `minRisk`, `cisaKevOnly`, `scheduledHour`, `scheduledMinute`) are included in GDPR data export requests (`GET /api/account`) and automatically purged upon user account deletion (`DELETE /api/account`).
+
+### 4. Memory-Safe Multi-Pass PDF Pagination & Export Safety
+- **Bounded Buffer Allocation**: Exporting vulnerability records (including hierarchical VM grouping) operates via streaming memory constructs in `pdfkit`. The multi-pass footer generator safely overrides margin limits during header/footer passes (`page.margins.bottom = 0`), eliminating runaway blank page generation and unbounded memory consumption during large enterprise report exports.
+
 ## Role Model & Privilege Tiers (v2.16.0)
 Until v2.16.0 `requireAdmin()` accepted both `site_admin` and `web_app_admin`, and every `/admin` page and API sat behind it. A **Workspace Admin** could therefore read and rewrite OIDC and storage credentials, create and delete users and groups, and read the audit log — privileges the role's name does not imply. The tiers are now separated:
 

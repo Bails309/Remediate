@@ -6,16 +6,16 @@
   </picture>
   
   # Remediate
-  <p><strong>Version:</strong> 2.18.0 (2026-09-17)</p>
+  <p><strong>Version:</strong> 2.19.0 (2026-09-18)</p>
   ### Direct, Serious, Zero Fluff
 </div>
 
 ## Overview
 Remediate is a unified vulnerability remediation triage app built with Next.js, Prisma, PostgreSQL, and Redis. It ingests findings from multiple scanner families — **Nessus** CSVs, **pentest** PDFs, and **Azure Container Registry** CSV exports — diffs successive uploads, tracks remediation status, and supports full assignment / RBAC / notification workflows on top of a single `Vulnerability` table.
 
-The platform features **Organizational Buckets** (formerly Sites), providing a flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation** and **Azure Blob Container Automation for ACR exports** (new in v2.8.0), a comprehensive **Threat Intelligence Centre**, and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
+The platform features **Organizational Buckets** (formerly Sites), providing a flexible way to group and manage vulnerability scopes. It also includes **Enterprise Azure File Share Automation** and **Azure Blob Container Automation for ACR exports** (new in v2.8.0), a comprehensive **Threat Intelligence Centre** with **Environment-Correlated Dual-Feed Alerting** (v2.19.0), and a robust **Vulnerability Remediation Lifecycle** supporting managed "In Progress" states.
 
-**Vulnerability Export** (v2.18.0) enables security engineers and operators to export active, outstanding vulnerabilities directly to external contractors, suppliers, and auditors without granting them platform access. Exports can be generated per-bucket on the Buckets page, or on-demand from the Vulnerabilities triage table (supporting filtered views or arbitrary checkbox selections). Supported formats include RFC 4180-compliant **CSV** (with automated spreadsheet formula injection defense), executive-ready **PDF** reports with severity distribution metrics and full remediation details, and structured **JSON** for automated API pipelines — all strictly scoped to the user's group visibility wall.
+**Vulnerability Export** (v2.18.0, enhanced in v2.19.0 with hierarchical operational sortation) enables security engineers and operators to export active, outstanding vulnerabilities directly to external contractors, suppliers, and auditors without granting them platform access. Exports can be generated per-bucket on the Buckets page, or on-demand from the Vulnerabilities triage table (supporting filtered views or arbitrary checkbox selections). Supported formats include RFC 4180-compliant **CSV** (with automated spreadsheet formula injection defense), executive-ready **PDF** reports with zero trailing blank pages, severity distribution metrics, and full remediation details, and structured **JSON** for automated API pipelines — all strictly scoped to the user's group visibility wall.
 
 **Group / Department RBAC** (v2.7.0) extends the single-team assignment model to enterprise group-based ownership: vulnerabilities can be scoped to organisational groups (departments) with member/leader roles, enforcing a server-side **visibility wall** so non-members cannot see grouped items even via direct URL or API. Group leaders receive a weekly Leader Digest summarising every active item their group owns.
 
@@ -51,7 +51,7 @@ Setting a terminal status **moves** the row between tables rather than updating 
 
 See [`docs/API.md` → Archiving & restoring](docs/API.md#archiving--restoring-v2150) for the full endpoint contract and [`SECURITY.md`](SECURITY.md#archive-restoration-v2150) for the control rationale.
 
-## Vulnerability Export (CSV, PDF & JSON) (v2.18.0)
+## Vulnerability Export (CSV, PDF & JSON) (v2.18.0 / v2.19.0)
 
 Remediate allows security engineers and administrators to export outstanding, actionable vulnerability records so remediation queues can be shared with third-party vendors, external development teams, and compliance auditors who do not have accounts on the platform.
 
@@ -64,12 +64,21 @@ Remediate allows security engineers and administrators to export outstanding, ac
   - **Toolbar Export**: An **Export** dropdown in the table filter toolbar exports the currently filtered vulnerability view (respecting search queries, risk filters, bucket selections, status filters, and group assignments).
   - **Floating Bulk Selection Action Bar**: Selecting one or more findings via the row checkboxes displays a floating action bar with a dedicated **Export** dropdown, enabling ad-hoc batch exports of only the specifically selected items (`ids` query parameter).
 
+### Hierarchical Operational Sortation (v2.19.0)
+
+Exports across all three formats (CSV, PDF, JSON) follow a nested, operational triage hierarchy:
+1. **Severity Classification (Top Level)**: `Critical` → `High` → `Medium` → `Low` → `None`.
+2. **Host / VM Finding Density**: Within each severity tier, findings are grouped by host/VM and ordered descending by the total count of issues on that host. This ensures that the worst-offending infrastructure assets and virtual machines appear first.
+3. **Host Name**: Alphabetical ascending for equal host density counts.
+4. **CVSS Score**: Descending within each host grouping.
+5. **Vulnerability Title**: Alphabetical ascending for tie-breaking.
+
 ### Export Formats
 
 | Format | Content-Type | Details | Typical Use Case |
 | :--- | :--- | :--- | :--- |
 | **CSV** | `text/csv; charset=utf-8` | RFC 4180-compliant comma-separated values with explicit column headers: `ID`, `Report / Bucket`, `Title`, `Severity Level`, `Status`, `Host / Asset`, `Service / Port`, `Protocol`, `CVE`, `CVSS Score`, `Plugin ID / Report Ref`, `Scanner Type`, `Assignee Name`, `Assignee Email`, `Assigned Group`, `CR Number`, `Brief Description`, `Full Description`, `Solution`, `See Also`, `Plugin Output`, `First Detected`, and `Last Seen`. Cells are automatically sanitized against spreadsheet formula injection (CWE-1236). | Spreadsheet triage, ticketing imports, data engineering pipelines. |
-| **PDF** | `application/pdf` | Professional executive and technical vulnerability report generated in-process using `pdfkit`. Includes document header, export metadata, executive summary, visual severity distribution metrics (Critical, High, Medium, Low, Info), and comprehensive multi-page finding cards with color-coded risk badges, CVSS scores, host/port info, and complete solution/remediation instructions. | Vendor handoffs, leadership briefings, third-party contractor remediation packages, audit evidence. |
+| **PDF** | `application/pdf` | Professional executive and technical vulnerability report generated in-process using `pdfkit`. Includes document header, export metadata, executive summary, visual severity distribution metrics (Critical, High, Medium, Low, Info), and comprehensive multi-page finding cards with color-coded risk badges, CVSS scores, host/port info, and complete solution/remediation instructions. Features zero-blank-page pagination geometry. | Vendor handoffs, leadership briefings, third-party contractor remediation packages, audit evidence. |
 | **JSON** | `application/json; charset=utf-8` | Structured JSON payload containing top-level metadata (`exportedAt`, `totalCount`, `siteId`) and an array of complete finding objects. | CI/CD automation, SIEM/SOAR ingestion, programmatic reporting. |
 
 ### Outstanding Status Filtering
@@ -302,13 +311,20 @@ Chat with an AI assistant about your active findings instead of manually combini
 
 **Configuration.** Configure once under **Settings > AI Insights** (endpoint and API key are AES-256-GCM encrypted in the `AiConfig` table, matching the OIDC / SMTP / storage pattern) or via the optional `AI_*` environment variables above. Use the **Test Connection** button to verify credentials before saving. The bar is hidden for all users until the feature is enabled.
 
-## Threat Intelligence & Reports
-- **Live Feed**: View real-time vulnerability data from NVD, OSV, and CISA KEV in the Intelligence Centre.
-- **Daily Digest**: Configure SMTP and schedule daily vulnerability summaries (08:00 AM) in /dashboard.
-- **Risk Filtering**: Set minimum risk thresholds (Critical/High/etc.) to filter notification noise.
-- **Intelligent Linking**: Direct access to NVD (NIST) and OSV.dev source records for verified intelligence.
-- **Weekly Reports**: Schedule weekly Nessus triage summaries in **Settings > Reports**.
-- Report settings and OIDC configurations are encrypted in Postgres using AUTH_SECRET.
+## Threat Intelligence & Reports (v2.19.0)
+- **Live Threat Feed**: Real-time vulnerability synchronization from NVD, OSV.dev, and CISA KEV in the Intelligence Centre.
+- **Environment Threat Correlation Engine (v2.19.0)**: Eliminates alerting noise by matching incoming global disclosures against software products, packages, and CVEs with an active or historical presence in your Remediate estate:
+  - Scans across all three ingestion vectors: **Nessus CSV**, **Pentest PDF**, and **Azure Container Registry (ACR)** container scans.
+  - Matches by normalized CVE IDs, structured container package definitions (`runc`, `curl`, `openssl`, `spring-boot`), and software product tokens extracted from finding titles (`Apache Tomcat`, `OpenSSH`, `Log4j`, `WordPress`, `PostgreSQL`).
+  - Cards highlight match reasons directly in your digest (e.g. `🎯 Matches container package: runc`, `🎯 Matches environment product: Apache Tomcat`).
+- **Dual-Feed Alerting & Independent Toggles (v2.19.0)**:
+  - **Environment Threat Digest** (*Zero Noise • Recommended*): Focused exclusively on issues matching your environment footprint. If zero environment threats occur in a 24-hour cycle, the email is cleanly suppressed to prevent empty notification fatigue.
+  - **Global Threat Feed** (*Horizon*): Worldwide feed from NVD, OSV.dev, and CISA KEV for broad threat landscape visibility.
+  - **Dual Separate Email Dispatches**: Users who enable both feeds receive **two distinct emails** at their scheduled time (one environment-tailored digest and one global feed) rather than bundling conflicting scopes into one message.
+- **Custom Scheduling & Risk Filtering**: Configure minimum risk thresholds (Critical, High, Medium, Low) and custom daily dispatch times in UTC (e.g., 08:00 AM) in `/threat-intelligence`.
+- **Intelligent Linking**: Direct links to NVD (NIST) and OSV.dev source advisories.
+- **Weekly Assignment Reports**: Schedule weekly Nessus triage summaries in **Settings > Reports**.
+- Report settings and OIDC configurations are encrypted in Postgres using `AUTH_SECRET`.
 
 ### NVD API Access
 The Threat Intelligence Centre performs bulk requests to the NVD CVE API (especially during initial sync).

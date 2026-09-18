@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const VALID_TOURS = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "whats-new-may-2026", "whats-new-may-2026-pdf", "whats-new-may-2026-v262", "whats-new-jun-2026-v270", "whats-new-jul-2026-v280", "whats-new-aug-2026-v290", "whats-new-aug-2026-v2100", "whats-new-aug-2026-v2150", "whats-new-aug-2026-v2160", "whats-new-aug-2026-v2161", "whats-new-aug-2026-v2162", "whats-new-aug-2026-v2170", "whats-new-sep-2026-v2180", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"] as const;
+const VALID_TOURS = ["welcome-tour", "threat-intel-update-v1", "whats-new-apr-2026", "whats-new-may-2026", "whats-new-may-2026-pdf", "whats-new-may-2026-v262", "whats-new-jun-2026-v270", "whats-new-jul-2026-v280", "whats-new-aug-2026-v290", "whats-new-aug-2026-v2100", "whats-new-aug-2026-v2150", "whats-new-aug-2026-v2160", "whats-new-aug-2026-v2161", "whats-new-aug-2026-v2162", "whats-new-aug-2026-v2170", "whats-new-sep-2026-v2180", "whats-new-sep-2026-v2190", "dashboard-tour", "vulnerabilities-tour", "analytics-tour", "threat-intelligence-tour"] as const;
 const tourSchema = z.object({
     tourId: z.enum(VALID_TOURS),
 });
